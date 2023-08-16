@@ -230,11 +230,11 @@ def calculate_ukeire(hand: List[int], visible: List[int]):
 
 Flags = Enum("Flags", "_SENTINEL"
     " CHASER_GAINED_POINTS"
-    " CHASING_PLAYER_HAS_WORSE_WAIT"
     " FIVE_SHANTEN_START"
     " YOU_FOLDED_FROM_TENPAI"
     " GAME_ENDED_WITH_RON"
     " GAME_ENDED_WITH_RYUUKYOKU"
+    " LOST_POINTS_TO_FIRST_ROW_WIN"
     " NINE_DRAWS_NO_IMPROVEMENT"
     " YOU_GAINED_POINTS"
     " YOU_GOT_CHASED"
@@ -245,6 +245,7 @@ Flags = Enum("Flags", "_SENTINEL"
     # unused:
     " CHASER_LOST_POINTS"
     " GAME_ENDED_WITH_TSUMO"
+    " FIRST_ROW_TENPAI"
 
     # TODO:
     " HAITEI_HAPPENED_WHILE_YOU_ARE_TENPAI"
@@ -272,6 +273,7 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     starting_player_shanten = None
     player_shanten: Tuple[float, List[int]] = (99, [])
     someone_is_tenpai = False
+    turn_number = 1
     for event in kyoku["events"]:
         if event[0] == player:
             if event[1] == "shanten":
@@ -301,7 +303,8 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                     del flags[ix]
                     del data[ix]
                 flags.append(Flags.YOU_REACHED_TENPAI)
-                data.append({"hand": event[2],
+                data.append({"seat": event[0],
+                             "hand": event[2],
                              "wait": event[3],
                              "ukeire": event[4]})
                 if not someone_is_tenpai:
@@ -309,11 +312,16 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                     data.append({})
             elif Flags.YOU_TENPAI_FIRST in flags:
                 flags.append(Flags.YOU_GOT_CHASED)
-                data.append({"player": event[0],
+                data.append({"seat": event[0],
                              "hand": event[2],
                              "wait": event[3],
                              "ukeire": event[4]})
+            if turn_number <= 6:
+                flags.append(Flags.FIRST_ROW_TENPAI)
+                data.append({"seat": event[0], "turn": turn_number})
             someone_is_tenpai = True
+        if event[0] == kyoku["round"] % 4: # dealer turn
+            turn_number += 1
 
     if kyoku["result"][0] == "和了":
         if 0 in kyoku["result"][1]:
@@ -325,36 +333,30 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
         if kyoku["result"][1][player] < 0:
             flags.append(Flags.YOU_LOST_POINTS)
             data.append({"amount": kyoku["result"][1][player]})
+            if turn_number <= 6:
+                flags.append(Flags.LOST_POINTS_TO_FIRST_ROW_WIN)
+                data.append({"seat": event[0], "turn": turn_number, "amount": kyoku["result"][1][player]})
         elif kyoku["result"][1][player] > 0:
             flags.append(Flags.YOU_GAINED_POINTS)
             data.append({"amount": kyoku["result"][1][player]})
 
         if Flags.YOU_GOT_CHASED in flags:
             assert Flags.YOU_TENPAI_FIRST in flags, "somehow got YOU_GOT_CHASED without YOU_TENPAI_FIRST"
-            for index in [i for i, f in enumerate(flags) if f == Flags.YOU_GOT_CHASED]:
+            for i in [i for i, f in enumerate(flags) if f == Flags.YOU_GOT_CHASED]:
                 # for every chaser, check if they gained or lost points
-                chaser_player_data = data[index]
-                chaser_player = chaser_player_data["player"]
-                if kyoku["result"][1][chaser_player] < 0:
+                chaser_data = data[i]
+                chaser = chaser_data["seat"]
+                assert player != chaser, "Player should not be chaser for Flags.YOU_GOT_CHASED"
+                if kyoku["result"][1][chaser] < 0:
                     flags.append(Flags.CHASER_LOST_POINTS)
-                    data.append({"player": chaser_player,
-                                 "amount": kyoku["result"][1][chaser_player]})
-                if kyoku["result"][1][chaser_player] > 0:
+                    data.append({"seat": chaser,
+                                 "amount": kyoku["result"][1][chaser]})
+                if kyoku["result"][1][chaser] > 0:
                     flags.append(Flags.CHASER_GAINED_POINTS)
-                    data.append({"player": chaser_player,
-                                 "amount": kyoku["result"][1][chaser_player]})
+                    data.append({"seat": chaser,
+                                 "amount": kyoku["result"][1][chaser]})
                 # for every chaser, check if their wait is worse than yours
                 player_data = data[flags.index(Flags.YOU_REACHED_TENPAI)]
-                player_ukeire = player_data["ukeire"]
-                chaser_ukeire = chaser_player_data["ukeire"]
-                if chaser_ukeire < player_ukeire: # type: ignore
-                    flags.append(Flags.CHASING_PLAYER_HAS_WORSE_WAIT)
-                    player_wait = player_data["wait"]
-                    chaser_wait = chaser_player_data["wait"]
-                    data.append({"your_wait": player_wait,
-                                 "chaser_wait": chaser_wait,
-                                 "your_ukeire": player_ukeire,
-                                 "chaser_ukeire": chaser_ukeire})
     elif kyoku["result"][0] in ["流局", "全員聴牌"] :
         flags.append(Flags.GAME_ENDED_WITH_RYUUKYOKU)
         data.append({})
@@ -379,7 +381,7 @@ def evaluate_unluckiness(kyoku: Kyoku, player: int) -> None:
 ###
 
 injustices: List[Dict[str, Any]] = []
-InjusticeFunc = Callable[[List[Flags], List[Dict[str, Any]], str], None]
+InjusticeFunc = Callable[[List[Flags], List[Dict[str, Any]], int, int, int], None]
 def injustice(require: List[Flags] = [], forbid: List[Flags] = []) -> Callable[[InjusticeFunc], InjusticeFunc] :
     """Decorator for DIY injustices, see below for usage"""
     global injustices
@@ -392,54 +394,69 @@ def injustice(require: List[Flags] = [], forbid: List[Flags] = []) -> Callable[[
 # `evaluate_unluckiness` calls an injustice function if all require flags and no forbid flags are satisfied
 
 # Print if your tenpai got chased by a worse wait, and they won
-@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.YOU_TENPAI_FIRST, Flags.YOU_GOT_CHASED,
-                    Flags.CHASER_GAINED_POINTS, Flags.CHASING_PLAYER_HAS_WORSE_WAIT],
-            forbid=[Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.YOU_GAINED_POINTS, Flags.YOU_LOST_POINTS,
-                    Flags.YOU_FOLDED_FROM_TENPAI])
-def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], round_name: str) -> None:
-    chase_data = data[flags.index(Flags.CHASING_PLAYER_HAS_WORSE_WAIT)]
-    your_wait = chase_data["your_wait"]
-    chaser_wait = chase_data["chaser_wait"]
-    your_ukeire = chase_data["your_ukeire"]
-    chaser_ukeire = chase_data["chaser_ukeire"]
-    print(f"Unluckiness detected in {round_name}:"
-          f" your wait {ph(your_wait)} ({your_ukeire} ukeire)"
-          f" was chased by a worse wait {ph(chaser_wait)} ({chaser_ukeire} ukeire), and they won")
-
-# Print if your tenpai got chased by a worse wait, and you dealt in
 @injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.YOU_TENPAI_FIRST,
-                    Flags.YOU_GOT_CHASED, Flags.CHASING_PLAYER_HAS_WORSE_WAIT,
-                    Flags.GAME_ENDED_WITH_RON, Flags.YOU_LOST_POINTS, Flags.CHASER_GAINED_POINTS],
-            forbid=[Flags.YOU_FOLDED_FROM_TENPAI])
-def dealt_into_chaser_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], round_name: str) -> None:
-    chase_data = data[flags.index(Flags.CHASING_PLAYER_HAS_WORSE_WAIT)]
-    your_wait = chase_data["your_wait"]
-    chaser_wait = chase_data["chaser_wait"]
-    your_ukeire = chase_data["your_ukeire"]
-    chaser_ukeire = chase_data["chaser_ukeire"]
-    print(f"Major unluckiness detected in {round_name}:"
-          f" your wait {ph(your_wait)} ({your_ukeire} ukeire)"
-          f" was chased by a worse wait {ph(chaser_wait)} ({chaser_ukeire} ukeire), and you dealt into it")
+                    Flags.YOU_GOT_CHASED, Flags.CHASER_GAINED_POINTS],
+            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.GAME_ENDED_WITH_RYUUKYOKU,
+                    Flags.YOU_GAINED_POINTS])
+def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> None:
+    player_data = data[flags.index(Flags.YOU_REACHED_TENPAI)]
+    your_seat = player_data["seat"]
+    your_wait = player_data["wait"]
+    your_ukeire = player_data["ukeire"]
+    chasers = {}
+    for i in [i for i, f in enumerate(flags) if f == Flags.YOU_GOT_CHASED]:
+        chaser_data = data[i]
+        chasers[chaser_data["seat"]] = chaser_data
+    for chaser_data in chasers.values():
+        chaser_seat = chaser_data["seat"]
+        chaser_wait = chaser_data["wait"]
+        chaser_ukeire = chaser_data["ukeire"]
+        try:
+            winner_seat = data[i+flags[i:].index(Flags.CHASER_GAINED_POINTS)]["seat"]
+        except ValueError:
+            continue
+        if chaser_seat == winner_seat and chaser_ukeire < your_ukeire:
+            if Flags.YOU_LOST_POINTS in flags:
+                print(f"Major unluckiness detected in {round_name(round_number, honba)}:"
+                      f" your wait {ph(your_wait)} ({your_ukeire} ukeire)"
+                      f" was chased by a worse wait {ph(chaser_wait)} ({chaser_ukeire} ukeire), and you dealt into it")
+            else:
+                print(f"Unluckiness detected in {round_name(round_number, honba)}:"
+                      f" your wait {ph(your_wait)} ({your_ukeire} ukeire)"
+                      f" was chased by {relative_seat(your_seat, chaser_seat)}"
+                      f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} ukeire), and they won")
 
 # Print if you failed to improve your shanten for at least nine consecutive draws
 @injustice(require=[Flags.NINE_DRAWS_NO_IMPROVEMENT],
             forbid=[Flags.YOU_REACHED_TENPAI])
-def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_name: str) -> None:
+def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> None:
     shanten_data = data[len(flags) - 1 - flags[::-1].index(Flags.NINE_DRAWS_NO_IMPROVEMENT)]
     turns = shanten_data["turns"]
     shanten = shanten_data["shanten"]
     iishanten_tiles = shanten_data["iishanten_tiles"]
     if len(iishanten_tiles) > 0:
-        print(f"Unluckiness detected in {round_name}: you were stuck at {SHANTEN_NAMES[shanten]} ({ph(iishanten_tiles)}) for {turns} turns")
+        print(f"Unluckiness detected in {round_name(round_number, honba)}:"
+              f" you were stuck at {SHANTEN_NAMES[shanten]} ({ph(iishanten_tiles)}) for {turns} turns")
     else:
-        print(f"Unluckiness detected in {round_name}: you were stuck at {SHANTEN_NAMES[shanten]} for {turns} turns")
+        print(f"Unluckiness detected in {round_name(round_number, honba)}:"
+              f" you were stuck at {SHANTEN_NAMES[shanten]} for {turns} turns")
 
 # Print if you started with atrocious shanten and never got to tenpai
 @injustice(require=[Flags.FIVE_SHANTEN_START],
             forbid=[Flags.YOU_REACHED_TENPAI])
-def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_name: str) -> None:
+def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> None:
     shanten = data[flags.index(Flags.FIVE_SHANTEN_START)]["shanten"]
-    print(f"Unluckiness detected in {round_name}: you started at {shanten}-shanten")
+    print(f"Unluckiness detected in {round_name(round_number, honba)}:"
+          f" you started at {SHANTEN_NAMES[shanten]}")
+
+# Print if you lost points to a first row ron/tsumo
+@injustice(require=[Flags.LOST_POINTS_TO_FIRST_ROW_WIN])
+def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> None:
+    win_data = data[flags.index(Flags.LOST_POINTS_TO_FIRST_ROW_WIN)]
+    winner = win_data["seat"]
+    turn = win_data["turn"]
+    print(f"Unluckiness detected in {round_name(round_number, honba)}:"
+          f" you lost points to an early win by {relative_seat((player+round_number)%4, winner)} on turn {turn}")
 
 ###
 ### loading and parsing mahjong soul games
