@@ -464,18 +464,6 @@ class MahjongSoulAPI:
         assert not res.error.code, f"{method.full_name} request recieved error {res.error.code}"
         return res
 
-@functools.cache
-def parse_wrapped_bytes(data):
-    wrapper = proto.Wrapper()
-    wrapper.ParseFromString(data)
-    name = wrapper.name.strip(f'.{proto.DESCRIPTOR.package}')
-    try:
-        msg = pb.reflection.MakeClass(proto.DESCRIPTOR.message_types_by_name[name])()
-        msg.ParseFromString(wrapper.data)
-    except KeyError as e:
-        raise Exception(f"Failed to find message name {name}")
-    return name, msg
-
 def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
     metadata, raw_actions = log
     kyokus: List[Kyoku] = []
@@ -486,6 +474,19 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
     convert_tile = lambda tile: {"m": 51, "p": 52, "s": 53}[tile[1]] if tile[0] == "0" else {"m": 10, "p": 20, "s": 30, "z": 40}[tile[1]] + int(tile[0])
     majsoul_hand_to_tenhou = lambda hand: sorted_hand(list(map(convert_tile, hand)))
     pred = lambda tile: tile+8 if tile in {11,21,31} else 47 if tile == 41 else (tile*10)-496 if tile in {51,52,53} else tile-1
+
+    @functools.cache
+    def parse_wrapped_bytes(data):
+        wrapper = proto.Wrapper()
+        wrapper.ParseFromString(data)
+        name = wrapper.name.strip(f'.{proto.DESCRIPTOR.package}')
+        try:
+            msg = pb.reflection.MakeClass(proto.DESCRIPTOR.message_types_by_name[name])()
+            msg.ParseFromString(wrapper.data)
+        except KeyError as e:
+            raise Exception(f"Failed to find message name {name}")
+        return name, msg
+
     for name, action in [parse_wrapped_bytes(action.result) for action in parse_wrapped_bytes(raw_actions)[1].actions if len(action.result) > 0]:
         if name == "RecordNewRound":
             if "events" in kyoku:
@@ -618,33 +619,6 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:    # expects a lin
 ### loading and parsing tenhou games
 ###
 
-@functools.cache
-def get_call_name(draw: str) -> str:
-    """Get the type of a call from tenhou's log format, e.g. "12p1212" -> "pon" """
-    ret = "chii"   if "c" in draw else \
-          "riichi" if "r" in draw else \
-          "pon"    if "p" in draw else \
-          "kakan"  if "k" in draw else \
-          "ankan"  if "a" in draw else \
-          "minkan" if "m" in draw else "" # minkan = daiminkan, but we want it to start with "m"
-    assert ret != "", f"couldn't figure out call name of {draw}"
-    return ret
-
-@functools.cache
-def extract_call_tile(draw: str) -> int:
-    call_type = get_call_name(draw)
-    # the position of the letter determines where it's called from
-    # but we don't use this information, we just brute force check for calls
-    if draw[0] == call_type[0]: # from kamicha
-        return int(draw[1:3])
-    elif draw[2] == call_type[0]: # from toimen
-        return int(draw[3:5])
-    elif draw[4] == call_type[0]: # from shimocha
-        return int(draw[5:7])
-    elif len(draw) > 7 and draw[6] == call_type[0]: # from shimocha
-        return int(draw[7:9])
-    assert False, f"failed to extract {call_type} tile from {draw}"
-
 def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
     [
         [current_round, current_honba, num_riichis],
@@ -686,6 +660,34 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
     for t in range(4):
         events.append((t, "haipai", sorted_hand(hand[t])))
         events.append((t, "shanten", shanten[t]))
+
+    @functools.cache
+    def get_call_name(draw: str) -> str:
+        """Get the type of a call from tenhou's log format, e.g. "12p1212" -> "pon" """
+        ret = "chii"   if "c" in draw else \
+              "riichi" if "r" in draw else \
+              "pon"    if "p" in draw else \
+              "kakan"  if "k" in draw else \
+              "ankan"  if "a" in draw else \
+              "minkan" if "m" in draw else "" # minkan = daiminkan, but we want it to start with "m"
+        assert ret != "", f"couldn't figure out call name of {draw}"
+        return ret
+
+    @functools.cache
+    def extract_call_tile(draw: str) -> int:
+        call_type = get_call_name(draw)
+        # the position of the letter determines where it's called from
+        # but we don't use this information, we just brute force check for calls
+        if draw[0] == call_type[0]: # from kamicha
+            return int(draw[1:3])
+        elif draw[2] == call_type[0]: # from toimen
+            return int(draw[3:5])
+        elif draw[4] == call_type[0]: # from shimocha
+            return int(draw[5:7])
+        elif len(draw) > 7 and draw[6] == call_type[0]: # from shimocha
+            return int(draw[7:9])
+        assert False, f"failed to extract {call_type} tile from {draw}"
+
     while gas >= 0:
         gas -= 1
         if i[turn] >= len(discards[turn]):
