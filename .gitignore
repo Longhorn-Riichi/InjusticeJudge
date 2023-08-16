@@ -1,1 +1,3 @@
 config.env
+__pycache__
+cached_games/*
