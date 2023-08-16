@@ -567,7 +567,7 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
 
 async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:    # expects a link like 'https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203'
     assert link.startswith("https://mahjongsoul.game.yo-star.com/?paipu="), "expected mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu="
-    print("Assuming you're the first east player")
+    # print("Assuming you're the first east player")
     player = 0
 
     identifier = link.split("https://mahjongsoul.game.yo-star.com/?paipu=")[1].split("_")[0]
@@ -812,7 +812,7 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, int]:
             json.dump(log, f, ensure_ascii=False)
         return log["log"], player
 
-def analyze_game(link: str) -> None:
+def analyze_game(link: str, specified_player = None) -> None:
     print(f"Analyzing game {link}:")
     kyokus = []
     if link.startswith("https://tenhou.net/0/?log="):
@@ -826,15 +826,18 @@ def analyze_game(link: str) -> None:
     else:
         raise Exception("expected tenhou link starting with https://tenhou.net/0/?log="
                         "or mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu=")
+    if specified_player is not None:
+        player = specified_player
     for kyoku in kyokus:
         evaluate_unluckiness(kyoku, player)
 
 import sys
 if __name__ == "__main__":
-    assert len(sys.argv) == 2, "expected one argument, the tenhou/majsoul url"
+    assert len(sys.argv) >= 2, "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
     link = sys.argv[1]
-    assert link != "", "expected one argument, the tenhou/majsoul url"
-    analyze_game(link)
+    player = int(sys.argv[2]) if len(sys.argv) == 3 else 0
+    assert link != "", "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
+    analyze_game(link, player)
 
     # # shanten tests
     # hand = [24, 24, 52, 27, 28, 29, 33, 34, 35, 53, 37, 38, 39]
