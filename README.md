@@ -10,7 +10,7 @@ Analyzes your tenhou.net game to find instances of mahjong injustice. Currently,
 
 ## Usage
 
-Clone this and run with either:
+Clone this repository and run with either:
 
 - `python main.py '<tenhou url>'`
 - `python main.py '<mahjong soul url> <seat number 0-3>'`
@@ -18,6 +18,23 @@ Clone this and run with either:
 where 0 = East, 1 = South, 2 = West, 3 = North
 
 Outputs injustices to console
+
+## Setup for mahjong soul links
+
+This is only required if you want to analyze mahjong soul logs
+
+Create a `config.env` file containing the following:
+
+    ms_uid = "<your uid>"
+    ms_token = "<your token>"
+
+Both your UID (not friend code!) and token can be found by capturing the login request.
+
+To do this, open up the Network tab in the developer tools of your browser and filter for XHR requests.
+Visit Mahjong Soul. Once you see a request that says POST, click it.
+Check the request field, which should look like:
+
+    {"uid":"<your uid>","token":"<your token>","deviceId":"..."}
 
 ## High level TODOs
 
