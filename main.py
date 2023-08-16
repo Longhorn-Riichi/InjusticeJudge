@@ -1,3 +1,4 @@
+import asyncio
 import functools
 from pprint import pprint
 import re
@@ -5,12 +6,13 @@ import json
 from typing import *
 from enum import Enum
 
-
 ###
 ### types
 ###
 
-Log = List[List[Any]]
+from google.protobuf.message import Message  # type: ignore[import]
+TenhouLog = List[List[Any]]
+MajsoulLog = Tuple[Message, bytes]
 Kyoku = Dict[str, Any]
 
 ###
@@ -186,7 +188,7 @@ def calculate_shanten(starting_hand: List[int]) -> Tuple[float, List[int]]:
     hands = {tuple(starting_hand)}
     # pprint(list(map(ph,hands)))
 
-    succ = lambda tile: 0 if tile in {0,19,29,39,41,42,43,44,45,46,47} else (tile*10)-494 if tile in [51,52,53] else tile+1
+    succ = lambda tile: 0 if tile in {0,19,29,39,41,42,43,44,45,46,47} else (tile*10)-494 if tile in {51,52,53} else tile+1
     for i in range(4):
         hands = remove_all(hands, lambda tile: [[tile, tile, tile], [tile, succ(tile), succ(succ(tile))]])
     # pprint(list(map(ph,hands)))
@@ -514,7 +516,205 @@ def evaluate_unluckiness(kyoku: Kyoku, player: int) -> None:
         no_injustice_detected(flags, data, round_name)
 
 ###
-### loading and parsing games
+### loading and parsing mahjong soul games
+###
+
+import google.protobuf as pb  # type: ignore[import]
+import proto.liqi_combined_pb2 as proto
+class MahjongSoulAPI:
+    async def __aenter__(self):
+        import websockets
+        self.ws = await websockets.connect("wss://mjusgs.mahjongsoul.com:9663/")
+        self.ix = 0
+        return self
+    async def __aexit__(self, err_type, err_value, traceback):
+        await self.ws.close()
+
+    async def call(self, name, **fields: Dict[str, Any]) -> Message:
+        method = next((svc.FindMethodByName(name) for svc in proto.DESCRIPTOR.services_by_name.values() if name in [method.name for method in svc.methods]), None)
+        assert method is not None, f"couldn't find method {name}"
+
+        req: Message = pb.reflection.MakeClass(method.input_type)(**fields)
+        res: Message = pb.reflection.MakeClass(method.output_type)()
+
+        tx: bytes = b'\x02' + self.ix.to_bytes(2, "little") + proto.Wrapper(name=f".{method.full_name}", data=req.SerializeToString()).SerializeToString()  # type: ignore[attr-defined]
+        await self.ws.send(tx)
+        rx: bytes = await self.ws.recv()
+        assert rx[0] == 3, f"Expected response message, got message of type {rx[0]}"
+        assert self.ix == int.from_bytes(rx[1:3], "little"), f"Expected response index {self.ix}, got index {int.from_bytes(rx[1:3], 'little')}"
+        self.ix += 1
+
+        wrapper: Message = proto.Wrapper()  # type: ignore[attr-defined]
+        wrapper.ParseFromString(rx[3:])
+        res.ParseFromString(wrapper.data)
+        assert not res.error.code, f"{method.full_name} request recieved error {res.error.code}"
+        return res
+
+def parse_wrapped_bytes(data):
+    wrapper = proto.Wrapper()
+    wrapper.ParseFromString(data)
+    name = wrapper.name.strip(f'.{proto.DESCRIPTOR.package}')
+    try:
+        msg = pb.reflection.MakeClass(proto.DESCRIPTOR.message_types_by_name[name])()
+        msg.ParseFromString(wrapper.data)
+    except KeyError as e:
+        raise Exception(f"Failed to find message name {name}")
+    return name, msg
+
+def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
+    metadata, raw_actions = log
+    kyokus: List[Kyoku] = []
+    kyoku: Kyoku = {}
+    visible_tiles: List[int] = []
+    dora_indicators: List[int] = []
+    shanten: List[Tuple[float, List[int]]] = []
+    convert_tile = lambda tile: {"m": 51, "p": 52, "s": 53}[tile[1]] if tile[0] == "0" else {"m": 10, "p": 20, "s": 30, "z": 40}[tile[1]] + int(tile[0])
+    majsoul_hand_to_tenhou = lambda hand: sorted_hand(list(map(convert_tile, hand)))
+    pred = lambda tile: tile+8 if tile in {11,21,31} else 47 if tile == 41 else (tile*10)-496 if tile in {51,52,53} else tile-1
+    for name, action in [parse_wrapped_bytes(action.result) for action in parse_wrapped_bytes(raw_actions)[1].actions if len(action.result) > 0]:
+        if name == "RecordNewRound":
+            if "events" in kyoku:
+                kyokus.append(kyoku)
+            kyoku = {
+                "round": action.chang*4 + action.ju,
+                "honba": action.ben,
+                "events": [],
+                "result": None,
+                "hands": list(map(majsoul_hand_to_tenhou, [action.tiles0, action.tiles1, action.tiles2, action.tiles3])),
+                "final_waits": None,
+                "final_ukeire": None
+            }
+            dora_indicators = [pred(convert_tile(dora)) for dora in action.doras]
+            visible_tiles = []
+            first_tile: int = kyoku["hands"][action.ju].pop() # dealer starts with 14, remove the last tile
+            shanten = list(map(calculate_shanten, kyoku["hands"]))
+            for t in range(4):
+                kyoku["events"].append((t, "haipai", kyoku["hands"][t]))
+                kyoku["events"].append((t, "shanten", shanten[t]))
+            kyoku["events"].append((action.ju, "draw", first_tile))
+            kyoku["hands"][action.ju].append(first_tile)
+        elif name == "RecordDealTile":
+            tile = convert_tile(action.tile)
+            kyoku["events"].append((action.seat, "draw", tile))
+            kyoku["hands"][action.seat].append(tile)
+        elif name == "RecordDiscardTile":
+            tile = convert_tile(action.tile)
+            hand = kyoku["hands"][action.seat]
+            kyoku["events"].append((action.seat, "discard", tile))
+            hand.remove(tile)
+            visible_tiles.append(tile)
+            new_shanten = calculate_shanten(hand)
+            if new_shanten != shanten[action.seat]:
+                kyoku["events"].append((action.seat, "shanten_change", shanten[action.seat], new_shanten))
+                shanten[action.seat] = new_shanten
+
+            # check if the resulting hand is tenpai
+            potential_waits = get_waits(hand)
+            if len(potential_waits) > 0:
+                ukeire = calculate_ukeire(hand, visible_tiles + dora_indicators)
+                kyoku["events"].append((action.seat, "tenpai", sorted_hand(hand), potential_waits, ukeire))
+
+            # TODO check shanten and tenpai waits
+        elif name == "RecordChiPengGang":
+            tile = convert_tile(action.tiles[-1])
+            if action.tiles[0] == action.tiles[1]:
+                kyoku["events"].append((action.seat, "pon", tile))
+            elif len(action.tiles) == 4:
+                kyoku["events"].append((action.seat, "minkan", tile))
+                dora_indicators = [pred(convert_tile(dora)) for dora in action.doras]
+            else:
+                kyoku["events"].append((action.seat, "chii", tile))
+            kyoku["hands"][action.seat].append(tile)
+        elif name == "RecordAnGangAddGang":
+            tile = convert_tile(action.tiles)
+            kyoku["events"].append((action.seat, "ankan", tile))
+            kyoku["hands"][action.seat].remove(tile)
+            visible_tiles.append(tile)
+            dora_indicators = [pred(convert_tile(dora)) for dora in action.doras]
+        elif name == "RecordHule":
+            if len(action.hules) > 1:
+                print("don't know how tenhou represents multi ron")
+            h = action.hules[0]
+            if h.zimo:
+                kyoku["hands"][h.seat].pop() # remove that tile so we can calculate waits/ukeire
+            kyoku["result"] = ["和了", list(action.delta_scores), h.fans]
+            kyoku["final_waits"] = [get_waits(h) for h in kyoku["hands"]]
+            kyoku["final_ukeire"] = [calculate_ukeire(h, visible_tiles + dora_indicators) for h in kyoku["hands"]]
+        elif name == "RecordNoTile":
+            kyoku["result"] = ["流局", [score_info.delta_scores for score_info in action.scores]]
+            kyoku["final_waits"] = [get_waits(h) for h in kyoku["hands"]]
+            kyoku["final_ukeire"] = [calculate_ukeire(h, visible_tiles + dora_indicators) for h in kyoku["hands"]]
+        else:
+            print("unhandled action:", name, action)
+    return kyokus
+
+async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:    # expects a link like 'https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203'
+    assert link.startswith("https://mahjongsoul.game.yo-star.com/?paipu="), "expected mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu="
+    print("Assuming you're the first east player")
+    player = 0
+
+    identifier = link.split("https://mahjongsoul.game.yo-star.com/?paipu=")[1].split("_")[0]
+
+    try:
+        f = open(f"cached_games/game-{identifier}.json", 'rb')
+        record = proto.ResGameRecord()  # type: ignore[attr-defined]
+        record.ParseFromString(f.read())
+        data = record.data
+        return (record.head, record.data), 0
+    except Exception as e:
+
+        import os
+        from os.path import join, dirname
+        import dotenv
+        import requests
+        import uuid
+        env_path = join(dirname(__file__), "config.env")
+        dotenv.load_dotenv("config.env")
+
+        MS_VERSION = "0.10.259" # from https://mahjongsoul.game.yo-star.com/version.json
+        UID = os.environ.get("ms_uid")
+        TOKEN = os.environ.get("ms_token")
+
+        async with MahjongSoulAPI() as api:
+            print("Calling heatbeat...")
+            await api.call("heatbeat")
+
+            print("Requesting initial access token...")
+            USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
+            access_token = requests.post(url="https://passport.mahjongsoul.com/user/login", headers={"User-Agent": USER_AGENT, "Referer": "https://mahjongsoul.game.yo-star.com/"}, data={"uid":UID,"token":TOKEN,"deviceId":f"web|{UID}"}).json()["accessToken"]
+            print("Got initial access token:", access_token)
+
+            # now we call oauth2Auth
+            print("Requesting oauth access token...")
+            oauth_token = (await api.call("oauth2Auth", type=7, code=access_token, uid=UID, client_version_string=f"web-{MS_VERSION}")).access_token
+            print("Got oauth access token:", oauth_token)
+
+            # then we do another heatbeat
+            print("Calling heatbeat...")
+            await api.call("heatbeat")
+
+            # then we call oauth2Check
+            print("Calling oauth2Check...")
+            assert (await api.call("oauth2Check", type=7, access_token=oauth_token)).has_account, "couldn't find account with oauth2Check"
+
+            # now we call oauth2Login
+            print("Calling oauth2Login...")
+            client_device_info = {"platform": "pc", "hardware": "pc", "os": "mac", "is_browser": True, "software": "Firefox", "sale_platform": "web"}
+            await api.call("oauth2Login", type=7, access_token=oauth_token, reconnect=False, device=client_device_info, random_key=str(uuid.uuid1()), client_version={"resource": f"{MS_VERSION}.w"}, currency_platforms=[], client_version_string=f"web-{MS_VERSION}", tag="en")
+
+            # test game log retrieval
+            print("Calling fetchGameRecord...")
+            res3 = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=f"web-{MS_VERSION}")
+
+        if not os.path.isdir("cached_games"):
+            os.mkdir("cached_games")
+        with open(f"cached_games/game-{identifier}.json", "wb") as f2:
+            f2.write(res3.SerializeToString())
+            
+        return (res3.head, res3.data), player
+
+###
+### loading and parsing tenhou games
 ###
 
 @functools.cache
@@ -544,12 +744,12 @@ def extract_call_tile(draw: str) -> int:
         return int(draw[7:9])
     assert False, f"failed to extract {call_type} tile from {draw}"
 
-def read_kyoku(raw_kyoku: Log) -> Kyoku:
+def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
     [
         [current_round, current_honba, num_riichis],
         scores,
-        dora_indicators,
-        ura_indicators,
+        doras,
+        uras,
         haipai0,
         draws0,
         discards0,
@@ -567,9 +767,9 @@ def read_kyoku(raw_kyoku: Log) -> Kyoku:
     hand = [haipai0, haipai1, haipai2, haipai3]
     draws = [draws0, draws1, draws2, draws3]
     discards = [discards0, discards1, discards2, discards3]
+    pred = lambda tile: tile+8 if tile in {11,21,31} else 47 if tile == 41 else (tile*10)-496 if tile in {51,52,53} else tile-1
+    dora_indicators = list(map(pred, doras))
 
-    # assume we're player 1 (south)
-    
     # get a sequence of events based on discards only
     turn = current_round
     if current_round >= 4:
@@ -683,10 +883,14 @@ def read_kyoku(raw_kyoku: Log) -> Kyoku:
         "final_ukeire": final_ukeire,
     }
 
-def fetch_game(link: str) -> Log:
+def fetch_tenhou(link: str) -> Tuple[TenhouLog, int]:
     # expects a link like 'https://tenhou.net/0/?log=2023072712gm-0089-0000-eff781e1&tw=1'
+    assert link.startswith("https://tenhou.net/0/?log="), "expected tenhou link starting with https://tenhou.net/0/?log="
+    if not link[:-1].endswith("&tw="):
+        print("Assuming you're the first east player, since tenhou link did not end with ?tw=<number>")
+
     identifier = link.split("https://tenhou.net/0/?log=")[1].split("&")[0]
-    player = link[-1]
+    player = int(link[-1])
     try:
         f = open(f"cached_games/game-{identifier}.json", 'r')
         return json.load(f)["log"]
@@ -703,7 +907,7 @@ def fetch_game(link: str) -> Log:
             os.mkdir("cached_games")
         with open(f"cached_games/game-{identifier}.json", "w", encoding="utf-8") as f:
             json.dump(log, f, ensure_ascii=False)
-        return log["log"]
+        return log["log"], player
 
 def load_game(filename: str, player: int) -> None:
     with open(filename, 'r') as file:
@@ -712,20 +916,27 @@ def load_game(filename: str, player: int) -> None:
 
 def analyze_game(link: str) -> None:
     print(f"Analyzing game {link}:")
-    log = fetch_game(link)
-    player = int(link[-1])
-    for raw_kyoku in log:
-        kyoku = read_kyoku(raw_kyoku)
+    kyokus = []
+    if link.startswith("https://tenhou.net/0/?log="):
+        tenhou_log, player = fetch_tenhou(link)
+        for raw_kyoku in tenhou_log:
+            kyoku = parse_tenhou(raw_kyoku)
+            kyokus.append(kyoku)
+    elif link.startswith("https://mahjongsoul.game.yo-star.com/?paipu="):
+        majsoul_log, player = asyncio.run(fetch_majsoul(link))
+        kyokus = parse_majsoul(majsoul_log)
+    else:
+        raise Exception("expected tenhou link starting with https://tenhou.net/0/?log="
+                        "or mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu=")
+
+    for kyoku in kyokus:
         evaluate_unluckiness(kyoku, player)
 
 import sys
 if __name__ == "__main__":
-    assert len(sys.argv) == 2, "expected one argument, the tenhou url"
+    assert len(sys.argv) == 2, "expected one argument, the tenhou/majsoul url"
     link = sys.argv[1]
-    assert link != "", "expected one argument, the tenhou url"
-    assert link.startswith("https://tenhou.net/0/?log="), "expected tenhou link starting with https://tenhou.net/0/?log="
-    if not link[:-1].endswith("&tw="):
-        print("Assuming you're the first east player, since tenhou link did not end with ?tw=<number>")
+    assert link != "", "expected one argument, the tenhou/majsoul url"
     analyze_game(link)
 
 
