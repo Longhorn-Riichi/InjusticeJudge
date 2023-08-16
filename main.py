@@ -171,7 +171,7 @@ def calculate_shanten(starting_hand: List[int]) -> Tuple[float, List[int]]:
     starting_hand = sorted_hand(starting_hand) # not necessary, but helpful
 
     # standard shanten
-    def try_remove_tiles(hand: Iterable[int], tiles: Iterable[int]) -> List[int]:
+    def try_remove_all_tiles(hand: Iterable[int], tiles: Iterable[int]) -> List[int]:
         hand_copy = list(hand)
         for tile in tiles:
             if tile in hand_copy:
@@ -181,9 +181,9 @@ def calculate_shanten(starting_hand: List[int]) -> Tuple[float, List[int]]:
             else:
                 return list(hand)
         return hand_copy
-    # remove = lambda hand, groups: set(tuple(try_remove_tiles(hand, group)) for tile in set(hand) for group in groups(tile))
+    # remove = lambda hand, groups: set(tuple(try_remove_all_tiles(hand, group)) for tile in set(hand) for group in groups(tile))
     # remove_all = lambda hands, groups: set(flatmap(lambda hand: remove(hand, groups), hands))
-    remove_all = lambda hands, groups: set(tuple(try_remove_tiles(hand, group)) for hand in hands for tile in set(hand) for group in groups(tile))
+    remove_all = lambda hands, groups: set(tuple(try_remove_all_tiles(hand, group)) for hand in hands for tile in set(hand) for group in groups(tile))
     # try to remove all groups first
     hands = {tuple(starting_hand)}
     # pprint(list(map(ph,hands)))
@@ -209,12 +209,17 @@ def calculate_shanten(starting_hand: List[int]) -> Tuple[float, List[int]]:
 
     # calculate shanten based on remaining floating tiles
     for pairs, floating in zip(num_pairs, num_floating):
-        if num_groups == 3 and pairs == 0 and floating == 0:
-            min_shanten = min(min_shanten, 1) # headless requires a pair
-        elif num_groups == 4:
+        # print(min_shanten, ph(hand), num_groups, pairs, floating)
+        if num_groups == 4:
             min_shanten = 0 # tanki wait
+        elif num_groups == 3 and floating <= 2:
+            min_shanten = min(min_shanten, 1)
+        elif num_groups == 3 and floating > 2:
+            min_shanten = min(min_shanten, 2)
         else:
-            min_shanten = min(min_shanten, (floating+1)//2 - pairs)
+            min_shanten = min(min_shanten, (floating+1)//2 - pairs) + (2 - num_groups)
+
+    assert min_shanten >= 0, "somehow got negative shanten"
 
     # if iishanten, get the type of iishanten based on possible remaining tiles
     floating_iishanten_tiles: Set[int] = set()
@@ -228,13 +233,10 @@ def calculate_shanten(starting_hand: List[int]) -> Tuple[float, List[int]]:
         for hand in hands:
             if num_groups == 2 and len(hand) == 3:
                 tile = sorted_hand(hand)[0]
-                # check if each complex shape is in the hand
-                for shape in [[tile, tile, succ(tile)],
-                             [tile, succ(tile), succ(tile)],
-                             [tile, tile, succ(succ(tile))],
-                             [tile, succ(succ(tile)), succ(succ(tile))],
-                             [tile, succ(succ(tile)), succ(succ(succ(succ(tile))))]]:
-                    if len(try_remove_tiles(hand, shape)) == 0:
+                # check if the hand is a complex shape
+                t1, t2, t3, t5 = tile, succ(tile), succ(succ(tile)), succ(succ(succ(succ(tile))))
+                for shape in [[t1,t1,t2],[t1,t2,t2],[t1,t1,t3],[t1,t3,t3],[t1,t3,t5]]:
+                    if len(try_remove_all_tiles(hand, shape)) == 0:
                         # print(f"{ph(starting_hand)} is complete iishanten, with complex shape {ph(hand)}")
                         complete_iishanten_tiles = complete_iishanten_tiles.union([hand, removed_red_fives(hand)])
             elif num_groups == 2 and len(hand) == 1:
@@ -243,16 +245,16 @@ def calculate_shanten(starting_hand: List[int]) -> Tuple[float, List[int]]:
             elif num_groups == 3 and len(hand) == 4:
                 for tile in set(hand):
                     # ensure there is no pair
-                    hand_copy = tuple(try_remove_tiles(hand, [tile, tile]))
+                    hand_copy = tuple(try_remove_all_tiles(hand, [tile, tile]))
                     if len(hand_copy) == 4:
                         # print(f"{ph(starting_hand)} is headless iishanten, with waits {ph(hand_copy)}")
                         headless_iishanten_tiles = headless_iishanten_tiles.union(hand_copy + removed_red_fives(hand))
             elif num_groups == 3 and len(hand) == 2:
                 # check that the hand has floating tiles
                 for tile in set(hand):
-                    hand = tuple(try_remove_tiles(hand, [tile, succ(tile)]))
-                    hand = tuple(try_remove_tiles(hand, [tile, succ(succ(tile))]))
-                    hand = tuple(try_remove_tiles(hand, [tile, tile]))
+                    hand = tuple(try_remove_all_tiles(hand, [tile, succ(tile)]))
+                    hand = tuple(try_remove_all_tiles(hand, [tile, succ(succ(tile))]))
+                    hand = tuple(try_remove_all_tiles(hand, [tile, tile]))
                 if len(hand) != 0:
                     # print(f"{ph(starting_hand)} is kutsuki iishanten, with kutsuki tiles {ph(hand)}")
                     kutsuki_iishanten_tiles = kutsuki_iishanten_tiles.union(hand + removed_red_fives(hand))
@@ -277,13 +279,27 @@ def calculate_shanten(starting_hand: List[int]) -> Tuple[float, List[int]]:
         # chiitoitsu shanten
         num_unique_pairs = count_pairs(starting_hand)
         min_shanten = min(min_shanten, 6 - num_unique_pairs)
+        if min_shanten == 1:
+            min_shanten = 1.5
+            hand = tuple(starting_hand)
+            for tile in set(hand):
+                hand = tuple(try_remove_all_tiles(hand, [tile, tile]))
+            return_data = sorted_hand(hand)
         # kokushi musou shanten
         min_shanten = min(min_shanten, (12 if num_unique_pairs >= 1 else 13) - len({11,19,21,29,31,39,41,42,43,44,45,46,47}.intersection(starting_hand)))
+        if min_shanten == 1:
+            min_shanten = 1.6
+            if num_unique_pairs > 0:
+                return_data = list({11,19,21,29,31,39,41,42,43,44,45,46,47}.difference(starting_hand))
+            else:
+                return_data = [11,19,21,29,31,39,41,42,43,44,45,46,47]
     return min_shanten, return_data
 
 def get_shanten_name(shanten):
     if shanten == 0:
         return "tenpai"
+    elif shanten == 1:
+        return "iishanten" # unused
     elif shanten == 1.1:
         return "kutsuki iishanten"
     elif shanten == 1.2:
@@ -292,6 +308,10 @@ def get_shanten_name(shanten):
         return "complete iishanten"
     elif shanten == 1.4:
         return "floating tile iishanten"
+    elif shanten == 1.5:
+        return "chiitoitsu iishanten"
+    elif shanten == 1.6:
+        return "kokushi musou iishanten"
     else:
         return f"{shanten}-shanten"
 
@@ -483,7 +503,7 @@ def dealt_into_chaser_with_worse_wait(flags: List[Flags], data: List[Dict[str, A
           f" your wait {ph(your_wait)} ({your_ukeire} ukeire)"
           f" was chased by a worse wait {ph(chaser_wait)} ({chaser_ukeire} ukeire), and you dealt into it")
 
-# Print if you failed to improve your shanten for nine consecutive draws
+# Print if you failed to improve your shanten for at least nine consecutive draws
 @injustice([Flags.NINE_DRAWS_NO_IMPROVEMENT])
 def nine_draws_no_improvement(flags: List[Flags], data: List[Dict[str, Any]], round_name: str) -> None:
     shanten_data = data[len(flags) - 1 - flags[::-1].index(Flags.NINE_DRAWS_NO_IMPROVEMENT)]
@@ -940,9 +960,8 @@ if __name__ == "__main__":
     analyze_game(link)
 
 
-    # shanten tests
-
-    # hand = [12,15,51,23,25,33,39,41,42,44,45,45,46]
+    # # shanten tests
+    # hand = [19,19,21,29,29,31,39,41,42,44,46,46,47]
     # print(ph(hand), calculate_shanten(hand))
 
     # print("tenpai:")
@@ -957,6 +976,12 @@ if __name__ == "__main__":
     # assert calculate_shanten([11,11,11,12,13,13,21,22,23,25,26,37,37])[0] == 1.3 # 111233m12356p77s  complete iishanten
     # print("floating tile iishanten:")
     # assert calculate_shanten([11,11,11,12,13,17,21,22,23,25,26,37,37])[0] == 1.4 # 111237m12356p77s  floating tile iishanten
+    # print("chiitoitsu iishanten:")
+    # assert calculate_shanten([15,15,16,16,24,24,52,27,27,35,53,37,37])[0] == 1.5 # 5566m44577p5577s  chiitoitsu iishanten
+    # assert calculate_shanten([15,16,16,17,24,24,52,27,27,35,53,37,37])[0] == 2
+    # print("kokushi musou iishanten:")
+    # assert calculate_shanten([14,19,21,29,29,31,39,41,42,44,45,46,47])[0] == 1.6 # 5667m44577p5577s  kokushi musou iishanten
+    # assert calculate_shanten([19,19,21,29,29,31,39,41,42,44,46,46,47])[0] == 2
     # print("2+ shanten:")
     # assert calculate_shanten([11,19,22,24,25,31,32,35,36,37,38,43,43])[0] == 2 # 19m245p125678s33z  2-shanten
     # assert calculate_shanten([11,19,22,24,25,31,32,35,36,37,38,43,47])[0] == 3 # 19m245p125678s37z  3-shanten
