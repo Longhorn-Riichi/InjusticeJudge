@@ -43,7 +43,6 @@ def pt(tile: int) -> str:
 ph = lambda hand: "".join(map(pt, hand)) # print hand
 flatmap = lambda f, xs: [y for x in xs for y in f(x)]
 RED_FIVE = {51: 15, 52: 25, 53: 35}
-toggle_red = lambda tile: int(str(tile)[::-1])
 remove_red_five = lambda tile: RED_FIVE[tile] if tile in RED_FIVE.keys() else tile
 remove_red_fives = lambda hand: list(map(remove_red_five, hand))
 sorted_hand = lambda hand: sorted(hand, key=remove_red_five)
@@ -60,6 +59,7 @@ def _calculate_shanten(_starting_hand: Tuple[int]) -> Tuple[float, List[int]]:
     # standard shanten
     def try_remove_all_tiles(hand: Iterable[int], tiles: Iterable[int]) -> List[int]:
         hand_copy = list(hand)
+        toggle_red = lambda tile: int(str(tile)[::-1])
         for tile in tiles:
             if tile in hand_copy:
                 hand_copy.remove(tile)
@@ -140,7 +140,8 @@ def _calculate_shanten(_starting_hand: Tuple[int]) -> Tuple[float, List[int]]:
             # print(f"{ph(starting_hand)} is headless iishanten, with shapes {ph(return_data)}")
         elif len(complete_iishanten_tiles) > 0:
             shanten = 1.3
-            return_data = sorted_hand(flatmap(lambda x: x, complete_iishanten_tiles))
+            intersect = lambda l1, l2: [l1.remove(x) or x for x in l2 if x in l1]
+            return_data = sorted_hand(intersect(list(starting_hand), flatmap(lambda x: x, complete_iishanten_tiles)))
             # print(f"{ph(starting_hand)} is complete iishanten, with complex shape {ph(return_data)}")
         elif len(floating_iishanten_tiles) > 0:
             shanten = 1.4
@@ -563,6 +564,7 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
             kyoku["final_ukeire"] = [calculate_ukeire(h, visible_tiles + dora_indicators) for h in kyoku["hands"]]
         else:
             print("unhandled action:", name, action)
+    kyokus.append(kyoku)
     return kyokus
 
 async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:    # expects a link like 'https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203'
@@ -588,7 +590,7 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:    # expects a lin
         dotenv.load_dotenv("config.env")
         UID = os.environ.get("ms_uid")
         TOKEN = os.environ.get("ms_token")
-        MS_VERSION = "0.10.259" # from https://mahjongsoul.game.yo-star.com/version.json
+        MS_VERSION = requests.get(url="https://mahjongsoul.game.yo-star.com/version.json").json()["version"][:-2]
 
         async with MahjongSoulAPI() as api:
             print("Calling heatbeat...")
@@ -796,7 +798,7 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, int]:
     player = int(link[-1])
     try:
         f = open(f"cached_games/game-{identifier}.json", 'r')
-        return json.load(f)["log"]
+        return json.load(f)["log"], player
     except Exception as e:
         import requests
         import os
@@ -835,12 +837,12 @@ import sys
 if __name__ == "__main__":
     assert len(sys.argv) >= 2, "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
     link = sys.argv[1]
-    player = int(sys.argv[2]) if len(sys.argv) == 3 else 0
+    player = int(sys.argv[2]) if len(sys.argv) == 3 else None
     assert link != "", "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
     analyze_game(link, player)
 
     # # shanten tests
-    # hand = [24, 24, 52, 27, 28, 29, 33, 34, 35, 53, 37, 38, 39]
+    # hand = [11,11,11,12,13,13,21,22,23,25,26,37,37]
     # print(ph(hand), calculate_shanten(hand))
 
     # print("tenpai:")
@@ -856,6 +858,8 @@ if __name__ == "__main__":
     # assert calculate_shanten([11,11,12,13,13,21,22,23,25,26,27,37,38])[0] == 1.2 # 11223m123567p78s  headless iishanten
     # print("complete iishanten:")
     # assert calculate_shanten([11,11,11,12,13,13,21,22,23,25,26,37,37])[0] == 1.3 # 111233m12356p77s  complete iishanten
+    # assert calculate_shanten([11,12,13,17,18,19,23,23,25,27,27,32,33])[0] == 1.3
+    # assert calculate_shanten([11,12,13,17,18,19,23,23,25,27,27,32,33])[1] == [23,23,25,27,27]
     # print("floating tile iishanten:")
     # assert calculate_shanten([11,11,11,12,13,17,21,22,23,25,26,37,37])[0] == 1.4 # 111237m12356p77s  floating tile iishanten
     # print("chiitoitsu iishanten:")
