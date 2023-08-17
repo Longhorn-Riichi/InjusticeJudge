@@ -39,14 +39,7 @@ def pt(tile: int) -> str:
         return "🀔·"
     else:
         return "??"
-
 ph = lambda hand: "".join(map(pt, hand)) # print hand
-TOGGLE_RED_FIVE = {15:51,25:52,35:53,51:15,52:25,53:35}
-remove_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else tile
-remove_red_fives = lambda hand: map(remove_red_five, hand)
-sorted_hand = lambda hand: sorted(hand, key=remove_red_five)
-round_name = lambda rnd, honba: f"East {rnd+1}" if rnd <= 3 else f"South {rnd-3}" + f" ({honba} honba)"
-relative_seat = lambda you, other: {0: "self", 1: "shimocha", 2: "toimen", 3: "kamicha"}[(other-you)%4]
 PRED = {0:0,11:0,12:11,13:12,14:13,15:14,16:15,17:16,18:17,19:18,
             21:0,22:21,23:22,24:23,25:24,26:25,27:26,28:27,29:28,
             31:0,32:31,33:32,34:33,35:34,36:35,37:36,38:37,39:38,
@@ -55,11 +48,12 @@ SUCC = {0:0,11:12,12:13,13:14,14:15,15:16,16:17,17:18,18:19,19:0,
             21:22,22:23,23:24,24:25,25:26,26:27,27:28,28:29,29:0,
             31:32,32:33,33:34,34:35,35:36,36:37,37:38,38:39,39:0,
             41:0,42:0,43:0,44:0,45:0,46:0,47:0,51:16,52:26,53:36}
-
-###
-### ukeire and shanten calculations
-###
-
+TOGGLE_RED_FIVE = {15:51,25:52,35:53,51:15,52:25,53:35}
+remove_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else tile
+remove_red_fives = lambda hand: map(remove_red_five, hand)
+sorted_hand = lambda hand: sorted(hand, key=remove_red_five)
+round_name = lambda rnd, honba: (f"East {rnd+1}" if rnd <= 3 else f"South {rnd-3}") + ("" if honba == 0 else f"-{honba}")
+relative_seat_name = lambda you, other: {0: "self", 1: "shimocha", 2: "toimen", 3: "kamicha"}[(other-you)%4]
 SHANTEN_NAMES = {
     0: "tenpai",
     1: "iishanten", # unused
@@ -75,10 +69,16 @@ SHANTEN_NAMES = {
     5: "5-shanten",
     6: "6-shanten"
 }
+###
+### ukeire and shanten calculations
+###
+
 
 @functools.cache
 def try_remove_all_tiles(hand: Tuple[int], tiles: Tuple[int]) -> Tuple[int, ...]:
-    """Tries to remove all of `tiles` from `hand`. If it can't, returns `hand` unchanged"""
+    """
+    Tries to remove all of `tiles` from `hand`. If it can't, returns `hand` unchanged
+    """
     hand_copy = list(hand)
     for tile in tiles:
         if tile in hand_copy or tile in TOGGLE_RED_FIVE and (tile := TOGGLE_RED_FIVE[tile]) in hand_copy:
@@ -99,43 +99,44 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     """
     assert len(starting_hand) == 13, f"calculate_shanten() needs a 13-tile hand, hand passed in has {len(starting_hand)} tiles"
 
-    # first, calculate standard shanten
+    # Calculate standard shanten:
+    # 1. Remove all groups
+    # 2. Count floating tiles
+    # 3. Calculate shanten
+    # 4. Check for iishanten/tenpai, and output extra data if so
 
+    # helpers for removing tiles from hand
     remove_all = lambda hands, to_groups: set(try_remove_all_tiles(hand, group) for hand in hands for tile in set(hand) for group in to_groups(tile))
-
-    # try to remove all groups first
-    # succ = lambda tile: 0 if tile in {0,19,29,39,41,42,43,44,45,46,47} else (tile*10)-494 if tile in {51,52,53} else tile+1
     make_groups = lambda tile: ((SUCC[SUCC[tile]], SUCC[tile], tile), (tile, tile, tile))
     remove_groups = lambda hands: functools.reduce(lambda hs, _: remove_all(hs, make_groups), range(4), hands)
-    hands = remove_groups({starting_hand})
-    # only keep the hands with min length, since we want to have as many groups removed as possible
-    min_length = min(len(hand) for hand in hands)
-    hands = set(filter(lambda hand: len(hand) == min_length, hands))
-    num_groups = (13 - min_length) // 3
-
-    # utility functions for what comes next
     def fix(f, x):
         while True:
             if len(y := f(x)) == len(x):
                 return x
             x = y
     make_taatsus = lambda tile: ((tile, tile), (SUCC[tile], tile), (SUCC[SUCC[tile]], tile))
-    # remove_taatsus = lambda hands: functools.reduce(lambda hs, _: remove_all(hs, make_taatsus), range(6 - num_groups), hands)
     remove_taatsus = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus), hands)
-    count_floating = lambda hand: min(len(hand) for hand in remove_taatsus({hand}))
-    has_pair = lambda hand: len(set(remove_red_fives(hand))) < len(hand)
 
-    # calculate shanten directly from each hand with groups removed.
-    # shanten = 1 + (3 + floating - groups) // 2      if floating + num_groups <= 3 and pairs == 0
-    # shanten =     (3 + floating - groups) // 2      otherwise
+    # remove all groups
+    hands = remove_groups({starting_hand})
+    # only keep the hands with min length, since we want to have as many groups removed as possible
+    min_length = min(len(hand) for hand in hands)
+    hands = set(filter(lambda hand: len(hand) == min_length, hands))
+    num_groups = (13 - min_length) // 3
+
+    # calculate shanten for every combination of groups removed
     shanten: float = 99
+    has_pair = lambda hand: len(set(remove_red_fives(hand))) < len(hand)
+    count_floating = lambda hand: min(len(hand) for hand in remove_taatsus({hand}))
     for pair_exists, floating in zip(map(has_pair, hands), map(count_floating, hands)):
-        # print(shanten, ph(hand), num_groups, "groups", pairs, "pairs", floating, "floating")
+        # we calculate shanten directly:
+        # shanten = 1 + (3 + floating - groups) // 2      if floating + num_groups <= 3 and pairs == 0
+        # shanten =     (3 + floating - groups) // 2      otherwise
         needs_pair = 1 if floating + num_groups <= 3 and not pair_exists else 0
         shanten = min(shanten, needs_pair + (3 + floating - num_groups) // 2)
-    assert shanten >= 0, "somehow got negative shanten"
+    assert shanten >= 0, f"somehow calculated negative shanten for {ph(sorted_hand(starting_hand))}"
 
-    # if iishanten, get the type of iishanten based on possible remaining tiles
+    # if iishanten, get the type of iishanten based on tiles remaining after removing some number of taatsus
     extra_data: List[int] = []
     if shanten == 1:
         floating_iishanten_tiles: Set[int] = set()
@@ -199,6 +200,8 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
         count_unique_pairs = lambda hand: len(list(filter(lambda ct: ct > 1, Counter(remove_red_fives(hand)).values())))
         num_unique_pairs = count_unique_pairs(starting_hand)
         shanten = min(shanten, 6 - num_unique_pairs)
+
+        # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
         if shanten <= 1:
             extra_data = sorted_hand(functools.reduce(lambda hand, tile: try_remove_all_tiles(hand, (tile, tile)), set(starting_hand), tuple(starting_hand)))
         if shanten == 1:
@@ -206,6 +209,8 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
 
         # kokushi musou shanten
         shanten = min(shanten, (12 if num_unique_pairs >= 1 else 13) - len({11,19,21,29,31,39,41,42,43,44,45,46,47}.intersection(starting_hand)))
+
+        # get kokushi waits (iishanten or tenpai) and label iishanten type
         if shanten <= 1 and extra_data == []:
             if num_unique_pairs > 0:
                 extra_data = list({11,19,21,29,31,39,41,42,43,44,45,46,47}.difference(starting_hand))
@@ -430,7 +435,7 @@ def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], r
             else:
                 print(f"Unluckiness detected in {round_name(round_number, honba)}:"
                       f" your wait {ph(your_wait)} ({your_ukeire} ukeire)"
-                      f" was chased by {relative_seat(your_seat, chaser_seat)}"
+                      f" was chased by {relative_seat_name(your_seat, chaser_seat)}"
                       f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} ukeire), and they won")
 
 # Print if you failed to improve your shanten for at least nine consecutive draws
@@ -443,10 +448,10 @@ def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: i
     iishanten_tiles = shanten_data["iishanten_tiles"]
     if len(iishanten_tiles) > 0:
         print(f"Unluckiness detected in {round_name(round_number, honba)}:"
-              f" you were stuck at {SHANTEN_NAMES[shanten]} ({ph(iishanten_tiles)}) for {turns} turns")
+              f" you were stuck at {SHANTEN_NAMES[shanten]} ({ph(iishanten_tiles)}) for {turns} turns, and never reached tenpai")
     else:
         print(f"Unluckiness detected in {round_name(round_number, honba)}:"
-              f" you were stuck at {SHANTEN_NAMES[shanten]} for {turns} turns")
+              f" you were stuck at {SHANTEN_NAMES[shanten]} for {turns} turns, and never reached tenpai")
 
 # Print if you started with atrocious shanten and never got to tenpai
 @injustice(require=[Flags.FIVE_SHANTEN_START],
@@ -463,7 +468,7 @@ def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]],
     winner = win_data["seat"]
     turn = win_data["turn"]
     print(f"Unluckiness detected in {round_name(round_number, honba)}:"
-          f" you lost points to an early win by {relative_seat((player+round_number)%4, winner)} on turn {turn}")
+          f" you lost points to an early win by {relative_seat_name((player+round_number)%4, winner)} on turn {turn}")
 
 ###
 ### loading and parsing mahjong soul games
@@ -602,7 +607,12 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
     kyokus.append(kyoku)
     return kyokus
 
-async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:    # expects a link like 'https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203'
+async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:
+    """
+    Fetch a raw majsoul log from a given link, returning a parsed log and the specified player's seat
+    Example link: https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203
+
+    """
     assert link.startswith("https://mahjongsoul.game.yo-star.com/?paipu="), "expected mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu="
     # print("Assuming you're the first east player")
 
@@ -822,8 +832,11 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
     }
 
 def fetch_tenhou(link: str) -> Tuple[TenhouLog, int]:
+    """
+    Fetch a raw tenhou log from a given link, returning a parsed log and the specified player's seat
+    Example link: https://tenhou.net/0/?log=2023072712gm-0089-0000-eff781e1&tw=1
+    """
     import json
-    # expects a link like 'https://tenhou.net/0/?log=2023072712gm-0089-0000-eff781e1&tw=1'
     assert link.startswith("https://tenhou.net/0/?log="), "expected tenhou link starting with https://tenhou.net/0/?log="
     if not link[:-1].endswith("&tw="):
         print("Assuming you're the first east player, since tenhou link did not end with ?tw=<number>")
