@@ -605,16 +605,15 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
 async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:    # expects a link like 'https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203'
     assert link.startswith("https://mahjongsoul.game.yo-star.com/?paipu="), "expected mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu="
     # print("Assuming you're the first east player")
-    player = 0
 
-    identifier = link.split("https://mahjongsoul.game.yo-star.com/?paipu=")[1].split("_")[0]
-
+    identifier, *player_string = link.split("https://mahjongsoul.game.yo-star.com/?paipu=")[1].split("_a")
+    ms_account_id = None if len(player_string) == 0 else int((((int(player_string[0])-1358437)^86216345)-1117113)/7)
     try:
         f = open(f"cached_games/game-{identifier}.json", 'rb')
         record = proto.ResGameRecord()  # type: ignore[attr-defined]
         record.ParseFromString(f.read())
         data = record.data
-        return (record.head, record.data), player
+        return (record.head, record.data), next((acc.seat for acc in record.head.accounts if acc.account_id == ms_account_id), 0)
     except Exception as e:
         import os
         from os.path import join, dirname
@@ -650,7 +649,7 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:    # expects a lin
         with open(f"cached_games/game-{identifier}.json", "wb") as f2:
             f2.write(res3.SerializeToString())
 
-        return (res3.head, res3.data), player
+        return (res3.head, res3.data), next((acc.seat for acc in record.head.accounts if acc.account_id == ms_account_id), 0)
 
 ###
 ### loading and parsing tenhou games
