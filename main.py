@@ -41,13 +41,20 @@ def pt(tile: int) -> str:
         return "??"
 
 ph = lambda hand: "".join(map(pt, hand)) # print hand
-flatmap = lambda f, xs: [y for x in xs for y in f(x)]
-RED_FIVE = {51: 15, 52: 25, 53: 35}
-remove_red_five = lambda tile: RED_FIVE[tile] if tile in RED_FIVE.keys() else tile
-remove_red_fives = lambda hand: list(map(remove_red_five, hand))
+TOGGLE_RED_FIVE = {15:51,25:52,35:53,51:15,52:25,53:35}
+remove_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else tile
+remove_red_fives = lambda hand: map(remove_red_five, hand)
 sorted_hand = lambda hand: sorted(hand, key=remove_red_five)
 round_name = lambda rnd, honba: f"East {rnd+1}" if rnd <= 3 else f"South {rnd-3}" + f" ({honba} honba)"
 relative_seat = lambda you, other: {0: "self", 1: "shimocha", 2: "toimen", 3: "kamicha"}[(other-you)%4]
+PRED = {0:0,11:0,12:11,13:12,14:13,15:14,16:15,17:16,18:17,19:18,
+            21:0,22:21,23:22,24:23,25:24,26:25,27:26,28:27,29:28,
+            31:0,32:31,33:32,34:33,35:34,36:35,37:36,38:37,39:38,
+            41:0,42:0,43:0,44:0,45:0,46:0,47:0,51:14,52:24,53:34}
+SUCC = {0:0,11:12,12:13,13:14,14:15,15:16,16:17,17:18,18:19,19:0,
+            21:22,22:23,23:24,24:25,25:26,26:27,27:28,28:29,29:0,
+            31:32,32:33,33:34,34:35,35:36,36:37,37:38,38:39,39:0,
+            41:0,42:0,43:0,44:0,45:0,46:0,47:0,51:16,52:26,53:36}
 
 ###
 ### ukeire and shanten calculations
@@ -70,57 +77,61 @@ SHANTEN_NAMES = {
 }
 
 @functools.cache
-def _calculate_shanten(_starting_hand: Tuple[int]) -> Tuple[float, List[int]]:
+def try_remove_all_tiles(hand: Tuple[int], tiles: Tuple[int]) -> Tuple[int, ...]:
+    """Tries to remove all of `tiles` from `hand`. If it can't, returns `hand` unchanged"""
+    hand_copy = list(hand)
+    for tile in tiles:
+        if tile in hand_copy or tile in TOGGLE_RED_FIVE and (tile := TOGGLE_RED_FIVE[tile]) in hand_copy:
+            hand_copy.remove(tile)
+        else:
+            return tuple(hand)
+    return tuple(hand_copy)
+
+@functools.cache
+def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]]:
     """
     Return the shanten of the hand plus some extra data.
-    If the shanten is 2+ the extra data is just an empty list.
-    If iishanten, it returns shanten 1.1 to 1.7 based on the type of iishanten,
+    If the shanten is 2+, the extra data is just an empty list.
+    If iishanten, the returned shanten is 1.1 to 1.7, based on the type of iishanten.
       The extra data consists of the relevant shapes in the iishanten
-      (e.g. the floating tiles for floating tile iishanten = 1.4)
+      (e.g. the floating tiles, for floating tile iishanten = 1.4)
     If tenpai, the extra data contains the waits.
     """
-    assert len(_starting_hand) == 13, f"calculate_shanten() needs a 13-tile hand, hand passed in has {len(_starting_hand)} tiles"
-    starting_hand = list(sorted_hand(_starting_hand)) # not necessary, but helpful when debugging
+    assert len(starting_hand) == 13, f"calculate_shanten() needs a 13-tile hand, hand passed in has {len(starting_hand)} tiles"
 
     # first, calculate standard shanten
 
-    def try_remove_all_tiles(hand: Iterable[int], tiles: Iterable[int]) -> List[int]:
-        """Tries to remove all of `tiles` from `hand`. If it can't, returns `hand` unchanged"""
-        hand_copy = list(hand)
-        toggle_red = lambda tile: int(str(tile)[::-1])
-        for tile in tiles:
-            if tile in hand_copy:
-                hand_copy.remove(tile)
-            elif tile in [15,25,35,51,52,53] and toggle_red(tile) in hand_copy:
-                hand_copy.remove(toggle_red(tile))
-            else:
-                return list(hand)
-        return hand_copy
-    remove_all = lambda hands, to_groups: set(tuple(try_remove_all_tiles(hand, group)) for hand in hands for tile in set(hand) for group in to_groups(tile))
+    remove_all = lambda hands, to_groups: set(try_remove_all_tiles(hand, group) for hand in hands for tile in set(hand) for group in to_groups(tile))
 
     # try to remove all groups first
-    succ = lambda tile: 0 if tile in {0,19,29,39,41,42,43,44,45,46,47} else (tile*10)-494 if tile in {51,52,53} else tile+1
-    make_groups = lambda tile: [[tile, tile, tile], [tile, succ(tile), succ(succ(tile))]]
+    # succ = lambda tile: 0 if tile in {0,19,29,39,41,42,43,44,45,46,47} else (tile*10)-494 if tile in {51,52,53} else tile+1
+    make_groups = lambda tile: ((SUCC[SUCC[tile]], SUCC[tile], tile), (tile, tile, tile))
     remove_groups = lambda hands: functools.reduce(lambda hs, _: remove_all(hs, make_groups), range(4), hands)
-    hands = remove_groups({tuple(starting_hand)})
+    hands = remove_groups({starting_hand})
     # only keep the hands with min length, since we want to have as many groups removed as possible
     min_length = min(len(hand) for hand in hands)
     hands = set(filter(lambda hand: len(hand) == min_length, hands))
     num_groups = (13 - min_length) // 3
 
     # utility functions for what comes next
-    make_taatsus = lambda tile: [[tile, tile], [tile, succ(tile)], [tile, succ(succ(tile))]]
-    remove_taatsus = lambda hands: functools.reduce(lambda hs, _: remove_all(hs, make_taatsus), range(6), hands)
+    def fix(f, x):
+        while True:
+            if len(y := f(x)) == len(x):
+                return x
+            x = y
+    make_taatsus = lambda tile: ((tile, tile), (SUCC[tile], tile), (SUCC[SUCC[tile]], tile))
+    # remove_taatsus = lambda hands: functools.reduce(lambda hs, _: remove_all(hs, make_taatsus), range(6 - num_groups), hands)
+    remove_taatsus = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus), hands)
     count_floating = lambda hand: min(len(hand) for hand in remove_taatsus({hand}))
-    count_pairs = lambda hand: len(list(filter(lambda ct: ct > 1, Counter(remove_red_fives(hand)).values())))
+    has_pair = lambda hand: len(set(remove_red_fives(hand))) < len(hand)
 
     # calculate shanten directly from each hand with groups removed.
     # shanten = 1 + (3 + floating - groups) // 2      if floating + num_groups <= 3 and pairs == 0
     # shanten =     (3 + floating - groups) // 2      otherwise
     shanten: float = 99
-    for pairs, floating in zip(map(count_pairs, hands), map(count_floating, hands)):
+    for pair_exists, floating in zip(map(has_pair, hands), map(count_floating, hands)):
         # print(shanten, ph(hand), num_groups, "groups", pairs, "pairs", floating, "floating")
-        needs_pair = 1 if floating + num_groups <= 3 and pairs == 0 else 0
+        needs_pair = 1 if floating + num_groups <= 3 and not pair_exists else 0
         shanten = min(shanten, needs_pair + (3 + floating - num_groups) // 2)
     assert shanten >= 0, "somehow got negative shanten"
 
@@ -131,12 +142,12 @@ def _calculate_shanten(_starting_hand: Tuple[int]) -> Tuple[float, List[int]]:
         complete_iishanten_tiles: Set[Tuple[int, ...]] = set()
         headless_iishanten_tiles: Set[int] = set()
         kutsuki_iishanten_tiles: Set[int] = set()
-        for hand in remove_taatsus(hands):
+        for hand in filter(lambda hand: len(hand) <= 4, remove_taatsus(hands)):
             if num_groups == 2 and len(hand) == 3:
                 tile = sorted_hand(hand)[0]
                 # check if the hand is a complex shape
-                t1, t2, t3, t5 = tile, succ(tile), succ(succ(tile)), succ(succ(succ(succ(tile))))
-                for shape in [[t1,t1,t2],[t1,t2,t2],[t1,t1,t3],[t1,t3,t3],[t1,t3,t5]]:
+                t1, t2, t3, t5 = tile, SUCC[tile], SUCC[SUCC[tile]], SUCC[SUCC[SUCC[SUCC[tile]]]]
+                for shape in ((t2,t1,t1),(t2,t2,t1),(t3,t1,t1),(t3,t3,t1),(t5,t3,t1)):
                     if len(try_remove_all_tiles(remove_red_fives(hand), shape)) == 0:
                         # print(f"{ph(starting_hand)} is complete iishanten, with complex shape {ph(hand)}")
                         complete_iishanten_tiles |= {hand}
@@ -145,7 +156,7 @@ def _calculate_shanten(_starting_hand: Tuple[int]) -> Tuple[float, List[int]]:
                 floating_iishanten_tiles |= set(hand)
             elif num_groups == 3 and len(hand) in [2,4]:
                 for tile in set(hand):
-                    hand_copy = tuple(try_remove_all_tiles(hand, [tile, tile]))
+                    hand_copy = try_remove_all_tiles(hand, (tile, tile))
                     if len(hand_copy) == 4:
                         # print(f"{ph(starting_hand)} is headless iishanten on {ph(hand_copy)}")
                         headless_iishanten_tiles |= set(hand_copy)
@@ -164,7 +175,8 @@ def _calculate_shanten(_starting_hand: Tuple[int]) -> Tuple[float, List[int]]:
         elif len(complete_iishanten_tiles) > 0:
             shanten = 1.3
             intersect = lambda l1, l2: [l1.remove(x) or x for x in l2 if x in l1]
-            extra_data = sorted_hand(intersect(list(starting_hand), flatmap(lambda x: x, complete_iishanten_tiles)))
+            flatten = lambda xss: [x for xs in xss for x in xs]
+            extra_data = sorted_hand(intersect(list(starting_hand), flatten(complete_iishanten_tiles)))
             # print(f"{ph(starting_hand)} is complete iishanten, with complex shape {ph(extra_data)}")
         elif len(floating_iishanten_tiles) > 0:
             shanten = 1.4
@@ -173,22 +185,22 @@ def _calculate_shanten(_starting_hand: Tuple[int]) -> Tuple[float, List[int]]:
 
     # if tenpai, get the waits
     elif shanten == 0:
-        hand = tuple(remove_red_fives(starting_hand))
-        side_tiles = lambda tile: [] if tile >= 40 else ([] if tile in [11,21,31] else [tile-1]) + ([] if tile in [19,29,39] else [tile+1])
-        possible_winning_tiles = set(hand).union(flatmap(side_tiles, hand))
-        makes_winning_hand = lambda tile: () in remove_all(remove_groups([(*starting_hand, tile)]), lambda tile: [[tile, tile]])
+        hand_copy = tuple(remove_red_fives(starting_hand))
+        possible_winning_tiles = {t for tile in hand_copy for t in (PRED[tile], tile, SUCC[tile])}
+
+        is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
+        makes_winning_hand = lambda tile: any(map(is_pair, remove_groups({(*hand_copy, tile)})))
         extra_data = sorted_hand(filter(makes_winning_hand, possible_winning_tiles))
+        assert len(extra_data) > 0, f"tenpai hand {ph(sorted_hand(hand_copy))} has no waits?"
 
     # otherwise, check for chiitoitsu and kokushi musou
     else:
         # chiitoitsu shanten
-        num_unique_pairs = count_pairs(starting_hand)
+        count_unique_pairs = lambda hand: len(list(filter(lambda ct: ct > 1, Counter(remove_red_fives(hand)).values())))
+        num_unique_pairs = count_unique_pairs(starting_hand)
         shanten = min(shanten, 6 - num_unique_pairs)
         if shanten <= 1:
-            hand = tuple(starting_hand)
-            for tile in set(hand):
-                hand = tuple(try_remove_all_tiles(hand, [tile, tile]))
-            extra_data = sorted_hand(hand)
+            extra_data = sorted_hand(functools.reduce(lambda hand, tile: try_remove_all_tiles(hand, (tile, tile)), set(starting_hand), tuple(starting_hand)))
         if shanten == 1:
             shanten = 1.5
 
@@ -204,25 +216,20 @@ def _calculate_shanten(_starting_hand: Tuple[int]) -> Tuple[float, List[int]]:
     return shanten, extra_data
 
 def calculate_shanten(starting_hand: Iterable[int]) -> Tuple[float, List[int]]:
-    """This just converts the input to a tuple so it can be serialized as a cache key"""
-    return _calculate_shanten(tuple(starting_hand))
+    """This just converts the input to a sorted tuple so it can be serialized as a cache key"""
+    return _calculate_shanten(tuple(sorted(starting_hand)))
 
 def calculate_ukeire(hand: List[int], visible: List[int]):
     """
-    Return the ukeire of the hand given the visible tiles on board (not including hand)
-    If the hand is not tenpai, returns 0
+    Return the ukeire of the hand, or 0 if the hand is not tenpai.
+    Requires passing in the visible tiles on board (not including hand).
     """
     shanten, waits = calculate_shanten(hand)
-    if shanten != 0:
+    if shanten > 0:
         return 0
-    waits = remove_red_fives(waits)
-    ukeire = 4 * len(waits)
-    visible_tiles = remove_red_fives(hand + visible)
-    for wait in waits:
-        while wait in visible_tiles:
-            visible_tiles.remove(wait)
-            ukeire -= 1
-    return ukeire
+    relevant_tiles = set(remove_red_fives(waits))
+    visible = list(remove_red_fives(hand + visible))
+    return 4 * len(relevant_tiles) - sum(visible.count(wait) for wait in relevant_tiles)
 
 ###
 ### round flags used to determine injustices
