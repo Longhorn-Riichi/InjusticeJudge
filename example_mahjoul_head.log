@@ -1,0 +1,176 @@
+https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203:
+head {
+  uuid: "230811-cb1a9816-25b4-4db8-aac2-1588a6b94858"
+  start_time: 1691706190
+  end_time: 1691708098
+  config {
+    category: 2
+    mode {
+      mode: 2
+      detail_rule {
+      }
+    }
+    meta {
+      mode_id: 9
+    }
+  }
+  accounts {
+    account_id: 70478575
+    nickname: "JJkumaberry"
+    avatar_id: 403101
+    character {
+      charid: 200031
+      level: 4
+      exp: 24365
+      skin: 403101
+    }
+    title: 600009
+    level {
+      id: 10302
+      score: 357
+    }
+    level3 {
+      id: 20401
+      score: 1861
+    }
+    views {
+      item_id: 305621
+    }
+    views {
+      slot: 1
+      item_id: 305029
+    }
+    views {
+      slot: 2
+      item_id: 305318
+    }
+    views {
+      slot: 4
+      item_id: 305026
+    }
+    views {
+      slot: 7
+      item_id: 305715
+    }
+  }
+  accounts {
+    account_id: 107741371
+    seat: 1
+    nickname: "さとぽんたミ"
+    avatar_id: 400101
+    character {
+      charid: 200001
+      level: 1
+      exp: 2480
+      skin: 400101
+    }
+    level {
+      id: 10303
+      score: 441
+    }
+    level3 {
+      id: 20101
+    }
+  }
+  accounts {
+    account_id: 118325554
+    seat: 2
+    nickname: "Kalanchloe"
+    avatar_id: 400101
+    character {
+      charid: 200001
+      level: 3
+      exp: 14000
+      skin: 400101
+    }
+    level {
+      id: 10301
+      score: 156
+    }
+    level3 {
+      id: 20102
+      score: 71
+    }
+    views {
+      item_id: 305003
+    }
+    views {
+      slot: 1
+      item_id: 305007
+    }
+    views {
+      slot: 3
+    }
+    views {
+      slot: 4
+      item_id: 305051
+    }
+    views {
+      slot: 5
+    }
+    views {
+      slot: 6
+    }
+  }
+  accounts {
+    account_id: 74721552
+    seat: 3
+    nickname: "yuzuchelly"
+    avatar_id: 400101
+    character {
+      charid: 200001
+      level: 4
+      exp: 25385
+      skin: 400101
+    }
+    level {
+      id: 10303
+      score: 912
+    }
+    level3 {
+      id: 20201
+      score: 360
+    }
+    views {
+      item_id: 305018
+    }
+    views {
+      slot: 1
+      item_id: 305008
+    }
+    views {
+      slot: 6
+      item_id: 308004
+    }
+  }
+  
+  result {
+    players {
+      seat: 2
+      total_point: 32100
+      part_point_1: 42100
+      grading_score: 113
+      gold: 4494
+    }
+    players {
+      total_point: 6600
+      part_point_1: 26600
+      grading_score: 47
+      gold: 924
+    }
+    players {
+      seat: 1
+      total_point: -5900
+      part_point_1: 24100
+      grading_score: -5
+      gold: -826
+    }
+    players {
+      seat: 3
+      total_point: -32800
+      part_point_1: 7200
+      grading_score: -152
+      gold: -4592
+    }
+  }
+}
