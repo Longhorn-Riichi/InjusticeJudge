@@ -7,6 +7,7 @@ Analyzes your tenhou.net game to find instances of mahjong injustice. Currently,
 - You experience iishanten hell (9+ draws)
 - You start with 5+ shanten
 - You lost points to someone's first-row win
+- You dealt into dama
 
 ## Usage
 

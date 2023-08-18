@@ -276,6 +276,10 @@ Flags = Enum("Flags", "_SENTINEL"
     " CHASER_LOST_POINTS"
     " GAME_ENDED_WITH_TSUMO"
     " FIRST_ROW_TENPAI"
+    " YOU_DECLARED_RIICHI"
+    " YOU_DEALT_INTO_DAMA"
+    " YOU_WON_BIG_HAND"
+    " OTHER_WON_BIG_HAND"
 
     # TODO:
     " HAITEI_HAPPENED_WHILE_YOU_ARE_TENPAI"
@@ -304,6 +308,8 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     player_shanten: Tuple[float, List[int]] = (99, [])
     someone_is_tenpai = False
     turn_number = 1
+    opened_hand = [False]*4
+    in_riichi = [False]*4
     for event in kyoku["events"]:
         if event[0] == player:
             if event[1] == "shanten":
@@ -326,7 +332,14 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                     data.append({"shanten": player_shanten[0],
                                  "iishanten_tiles": player_shanten[1],  # type: ignore[dict-item]
                                  "turns": draws_since_shanten_change})
-        if event[1] == "tenpai":
+        if event[1] == "riichi":
+            in_riichi[event[0]] = True
+            if event[0] == player:
+                flags.append(Flags.YOU_DECLARED_RIICHI)
+                data.append({})
+        elif event[1] in ["chii", "pon", "minkan"]:
+            opened_hand[event[0]] = True
+        elif event[1] == "tenpai":
             if event[0] == player:
                 if Flags.YOU_FOLDED_FROM_TENPAI in flags:
                     ix = flags.index(Flags.YOU_FOLDED_FROM_TENPAI)
@@ -360,16 +373,18 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
         else:
             flags.append(Flags.GAME_ENDED_WITH_TSUMO)
             data.append({})
-        if kyoku["result"][1][player] < 0:
-            flags.append(Flags.YOU_LOST_POINTS)
-            data.append({"amount": kyoku["result"][1][player]})
-            if turn_number <= 6:
-                flags.append(Flags.LOST_POINTS_TO_FIRST_ROW_WIN)
-                data.append({"seat": event[0], "turn": turn_number, "amount": kyoku["result"][1][player]})
-        elif kyoku["result"][1][player] > 0:
-            flags.append(Flags.YOU_GAINED_POINTS)
-            data.append({"amount": kyoku["result"][1][player]})
-
+        winners = [t for t in range(4) if kyoku["result"][1][t] > 0]
+        for w in winners:
+            if not opened_hand[w] and not in_riichi[w]:
+                if kyoku["result"][1][player] < 0:
+                    flags.append(Flags.YOU_DEALT_INTO_DAMA)
+                    data.append({"seat": w,
+                                 "score": kyoku["result"][1][w]})
+            if kyoku["result"][1][w] >= 7700:
+                if w == player:
+                    flags.append(Flags.YOU_WON_BIG_HAND)
+                else:
+                    flags.append(Flags.OTHER_WON_BIG_HAND)
         if Flags.YOU_GOT_CHASED in flags:
             assert Flags.YOU_TENPAI_FIRST in flags, "somehow got YOU_GOT_CHASED without YOU_TENPAI_FIRST"
             for i in [i for i, f in enumerate(flags) if f == Flags.YOU_GOT_CHASED]:
@@ -390,6 +405,18 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     elif kyoku["result"][0] in ["流局", "全員聴牌"] :
         flags.append(Flags.GAME_ENDED_WITH_RYUUKYOKU)
         data.append({})
+
+    if kyoku["result"][0] in ["和了", "流局"] :
+        if kyoku["result"][1][player] < 0:
+            flags.append(Flags.YOU_LOST_POINTS)
+            data.append({"amount": kyoku["result"][1][player]})
+            if turn_number <= 6:
+                flags.append(Flags.LOST_POINTS_TO_FIRST_ROW_WIN)
+                data.append({"seat": event[0], "turn": turn_number, "amount": kyoku["result"][1][player]})
+        elif kyoku["result"][1][player] > 0:
+            flags.append(Flags.YOU_GAINED_POINTS)
+            data.append({"amount": kyoku["result"][1][player]})
+
 
     # TODO: other results?
 
@@ -488,6 +515,15 @@ def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]],
     print(f"Unluckiness detected in {round_name(round_number, honba)}:"
           f" you lost points to an early win by {relative_seat_name((player+round_number)%4, winner)} on turn {turn}")
 
+# Print if you dealt into dama
+@injustice(require=[Flags.YOU_DEALT_INTO_DAMA])
+def dealt_into_dama(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> None:
+    dama_data = data[flags.index(Flags.YOU_DEALT_INTO_DAMA)]
+    winner = dama_data["seat"]
+    score = dama_data["score"]
+    print(f"Unluckiness detected in {round_name(round_number, honba)}:"
+          f" you dealt into {relative_seat_name((player+round_number)%4, winner)}'s {score} point dama")
+
 ###
 ### loading and parsing mahjong soul games
 ###
@@ -578,6 +614,8 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
             tile = convert_tile(action.tile)
             hand = kyoku["hands"][action.seat]
             kyoku["events"].append((action.seat, "discard", tile))
+            if action.is_liqi:
+                kyoku["events"].append((action.seat, "riichi", tile))
             hand.remove(tile)
             visible_tiles.append(tile)
             dora_indicators = [pred(convert_tile(dora)) for dora in action.doras]
@@ -617,7 +655,7 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
             kyoku["final_waits"] = [w for _, w in shanten]
             kyoku["final_ukeire"] = [calculate_ukeire(h, visible_tiles + dora_indicators) for h in kyoku["hands"]]
         elif name == "RecordNoTile":
-            kyoku["result"] = ["流局", [score_info.delta_scores for score_info in action.scores]]
+            kyoku["result"] = ["流局", *(score_info.delta_scores for score_info in action.scores)]
             kyoku["final_waits"] = [w for _, w in shanten]
             kyoku["final_ukeire"] = [calculate_ukeire(h, visible_tiles + dora_indicators) for h in kyoku["hands"]]
         else:
