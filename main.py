@@ -70,6 +70,72 @@ SHANTEN_NAMES = {
     5: "5-shanten",
     6: "6-shanten"
 }
+YAKU = {
+    1: "門前清自摸和", # Fully Concealed Hand"
+    2: "立直", # Riichi"
+    3: "槍槓", # Robbing a Kan"
+    4: "嶺上開花", # After a Kan"
+    5: "海底摸月", # Under the Sea"
+    6: "河底撈魚", # Under the River"
+    7: "役牌 白", # White Dragon (Haku)"
+    8: "役牌 發", # Green Dragon (Hatsu)"
+    9: "役牌 中", # Red Dragon (Chun)"
+    10: "役牌:自風牌", # Seat Wind"
+    11: "役牌:場風牌", # Prevalent Wind"
+    12: "断幺九", # All Simples"
+    13: "一盃口", # Pure Double Sequence"
+    14: "平和", # Pinfu"
+    15: "混全帯幺九", # Half Outside Hand"
+    16: "一気通貫", # Pure Straight"
+    17: "三色同順", # Mixed Triple Sequence"
+    18: "ダブル立直", # Double riichi"
+    19: "三色同刻", # Triple Triplets"
+    20: "三槓子", # Three Quads"
+    21: "対々和", # All Triplets"
+    22: "三暗刻", # Three Concealed Triplets"
+    23: "小三元", # Little Three Dragons"
+    24: "混老頭", # All Terminals and Honours"
+    25: "七対子", # Seven Pairs"
+    26: "純全帯幺九", # Fully Outside Hand"
+    27: "混一色", # Half Flush"
+    28: "二盃口", # Twice Pure Double Sequence"
+    29: "清一色", # Full Flush"
+    30: "一発", # Ippatsu"
+    31: "ドラ", # Dora"
+    32: "赤ドラ", # Red Five"
+    33: "裏ドラ", # Uradora"
+    34: "抜きドラ", # Kita"
+    35: "天和", # Blessing of Heaven"
+    36: "地和", # Blessing of Earth"
+    37: "大三元", # Big Three Dragons"
+    38: "四暗刻", # Four Concealed Triplets"
+    39: "字一色", # All Honors"
+    40: "緑一色", # All Green"
+    41: "清老頭", # All Terminals"
+    42: "国士無双", # Thirteen Orphans"
+    43: "小四喜", # Four Little Winds"
+    44: "四槓子", # Four Quads"
+    45: "九蓮宝燈", # Nine Gates"
+    46: "八連荘", # Paarenchan"
+    47: "純正九蓮宝燈", # True Nine Gates"
+    48: "四暗刻単騎", # Single-wait Four Concealed Triplets"
+    49: "国士無双十三面待ち", # Thirteen-wait Thirteen Orphans"
+    50: "大四喜", # Four Big Winds"
+    51: "燕返し", # Tsubame-gaeshi"
+    52: "槓振り", # Kanburi"
+    53: "十二落抬", # Shiiaruraotai"
+    54: "五門斉", # Uumensai"
+    55: "三連刻", # Three Chained Triplets"
+    56: "一色三順", # Pure Triple Chow"
+    57: "一筒摸月", # Iipinmoyue"
+    58: "九筒撈魚", # Chuupinraoyui"
+    59: "人和", # Hand of Man"
+    60: "大車輪", # Big Wheels"
+    61: "大竹林", # Bamboo Forest"
+    62: "大数隣", # Numerous Neighbours"
+    63: "石の上にも三年", # Ishinouenimosannen"
+    64: "大七星", # Big Seven Stars
+}
 
 ###
 ### ukeire and shanten calculations
@@ -266,6 +332,8 @@ Flags = Enum("Flags", "_SENTINEL"
     " GAME_ENDED_WITH_RYUUKYOKU"
     " LOST_POINTS_TO_FIRST_ROW_WIN"
     " NINE_DRAWS_NO_IMPROVEMENT"
+    " YOU_DEALT_INTO_DAMA"
+    " YOU_DEALT_INTO_IPPATSU"
     " YOU_GAINED_POINTS"
     " YOU_GOT_CHASED"
     " YOU_LOST_POINTS"
@@ -277,7 +345,6 @@ Flags = Enum("Flags", "_SENTINEL"
     " GAME_ENDED_WITH_TSUMO"
     " FIRST_ROW_TENPAI"
     " YOU_DECLARED_RIICHI"
-    " YOU_DEALT_INTO_DAMA"
     " YOU_WON_BIG_HAND"
     " OTHER_WON_BIG_HAND"
 
@@ -363,21 +430,26 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 flags.append(Flags.FIRST_ROW_TENPAI)
                 data.append({"seat": event[0], "turn": turn_number})
             someone_is_tenpai = True
-        if event[0] == kyoku["round"] % 4: # dealer turn
+        if event[0] == kyoku["round"] % kyoku["num_players"]: # dealer turn
             turn_number += 1
 
     if kyoku["result"][0] == "和了":
-        if 0 in kyoku["result"][1]:
-            flags.append(Flags.GAME_ENDED_WITH_RON)
-            data.append({})
-        else:
+        is_tsumo = kyoku["result"][2][0] == kyoku["result"][2][1]
+        if is_tsumo:
             flags.append(Flags.GAME_ENDED_WITH_TSUMO)
             data.append({})
-        winners = [t for t in range(4) if kyoku["result"][1][t] > 0]
+        else:
+            flags.append(Flags.GAME_ENDED_WITH_RON)
+            data.append({})
+        winners = [t for t in range(kyoku["num_players"]) if kyoku["result"][1][t] > 0]
         for w in winners:
-            if not opened_hand[w] and not in_riichi[w]:
-                if kyoku["result"][1][player] < 0:
+            if kyoku["result"][1][player] < 0 and not is_tsumo:
+                if not opened_hand[w] and not in_riichi[w]:
                     flags.append(Flags.YOU_DEALT_INTO_DAMA)
+                    data.append({"seat": w,
+                                 "score": kyoku["result"][1][w]})
+                if "一発(1飜)" in kyoku["result"][2]:
+                    flags.append(Flags.YOU_DEALT_INTO_IPPATSU)
                     data.append({"seat": w,
                                  "score": kyoku["result"][1][w]})
             if kyoku["result"][1][w] >= 7700:
@@ -406,7 +478,7 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
         flags.append(Flags.GAME_ENDED_WITH_RYUUKYOKU)
         data.append({})
 
-    if kyoku["result"][0] in ["和了", "流局"] :
+    if kyoku["result"][0] in ["和了", "流局"] and len(kyoku["result"][1]) > 0:
         if kyoku["result"][1][player] < 0:
             flags.append(Flags.YOU_LOST_POINTS)
             data.append({"amount": kyoku["result"][1][player]})
@@ -414,8 +486,10 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 flags.append(Flags.LOST_POINTS_TO_FIRST_ROW_WIN)
                 data.append({"seat": event[0], "turn": turn_number, "amount": kyoku["result"][1][player]})
         elif kyoku["result"][1][player] > 0:
+            "(1飜)"
             flags.append(Flags.YOU_GAINED_POINTS)
             data.append({"amount": kyoku["result"][1][player]})
+
 
 
     # TODO: other results?
@@ -513,16 +587,25 @@ def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]],
     winner = win_data["seat"]
     turn = win_data["turn"]
     print(f"Unluckiness detected in {round_name(round_number, honba)}:"
-          f" you lost points to an early win by {relative_seat_name((player+round_number)%4, winner)} on turn {turn}")
+          f" you lost points to an early win by {relative_seat_name(player, winner)} on turn {turn}")
 
 # Print if you dealt into dama
 @injustice(require=[Flags.YOU_DEALT_INTO_DAMA])
 def dealt_into_dama(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> None:
-    dama_data = data[flags.index(Flags.YOU_DEALT_INTO_DAMA)]
-    winner = dama_data["seat"]
-    score = dama_data["score"]
+    win_data = data[flags.index(Flags.YOU_DEALT_INTO_DAMA)]
+    winner = win_data["seat"]
+    score = win_data["score"]
     print(f"Unluckiness detected in {round_name(round_number, honba)}:"
-          f" you dealt into {relative_seat_name((player+round_number)%4, winner)}'s {score} point dama")
+          f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama")
+
+# Print if you dealt into ippatsu
+@injustice(require=[Flags.YOU_DEALT_INTO_IPPATSU])
+def dealt_into_ippatsu(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> None:
+    win_data = data[flags.index(Flags.YOU_DEALT_INTO_IPPATSU)]
+    winner = win_data["seat"]
+    score = win_data["score"]
+    print(f"Unluckiness detected in {round_name(round_number, honba)}:"
+          f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu")
 
 ###
 ### loading and parsing mahjong soul games
@@ -570,6 +653,7 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
     convert_tile = lambda tile: {"m": 51, "p": 52, "s": 53}[tile[1]] if tile[0] == "0" else {"m": 10, "p": 20, "s": 30, "z": 40}[tile[1]] + int(tile[0])
     majsoul_hand_to_tenhou = lambda hand: list(sorted_hand(map(convert_tile, hand)))
     pred = lambda tile: tile+8 if tile in {11,21,31} else 47 if tile == 41 else (tile*10)-496 if tile in {51,52,53} else tile-1
+    last_seat = 0
 
     @functools.cache
     def parse_wrapped_bytes(data):
@@ -587,12 +671,18 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
         if name == "RecordNewRound":
             if "events" in kyoku:
                 kyokus.append(kyoku)
+            haipais = [action.tiles0, action.tiles1, action.tiles2]
+            num_players = 3
+            if len(action.tiles3) > 0:
+                haipais.append(action.tiles3)
+                num_players = 4
             kyoku = {
                 "round": action.chang*4 + action.ju,
                 "honba": action.ben,
+                "num_players": num_players,
                 "events": [],
                 "result": None,
-                "hands": list(map(majsoul_hand_to_tenhou, [action.tiles0, action.tiles1, action.tiles2, action.tiles3])),
+                "hands": list(map(majsoul_hand_to_tenhou, haipais)),
                 "final_waits": None,
                 "final_ukeire": None
             }
@@ -600,7 +690,7 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
             visible_tiles = []
             first_tile: int = kyoku["hands"][action.ju].pop() # dealer starts with 14, remove the last tile so we can calculate shanten
             shanten = list(map(calculate_shanten, kyoku["hands"]))
-            for t in range(4):
+            for t in range(num_players):
                 kyoku["events"].append((t, "haipai", sorted_hand(kyoku["hands"][t])))
                 kyoku["events"].append((t, "shanten", shanten[t]))
             # pretend we drew the first tile
@@ -628,7 +718,6 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
                 ukeire = calculate_ukeire(hand, visible_tiles + dora_indicators)
                 potential_waits = new_shanten[1]
                 kyoku["events"].append((action.seat, "tenpai", sorted_hand(hand), potential_waits, ukeire))
-            # TODO check shanten and tenpai waits
         elif name == "RecordChiPengGang":
             tile = convert_tile(action.tiles[-1])
             if len(action.tiles) == 4:
@@ -649,17 +738,37 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
             if len(action.hules) > 1:
                 print("don't know how tenhou represents multi ron")
             h = action.hules[0]
+            han = sum(fan.val for fan in h.fans)
+            score_string = f"{h.fu}符{han}飜"
+            point_string = f"{h.point_rong}点"
+            if h.point_rong >= 8000:
+                LIMIT_HANDS = {2: "満貫", 3: "満貫", 4: "満貫", 5: "満貫",
+                               6: "跳満", 7: "跳満",
+                               8: "倍满", 9: "倍满", 10: "倍满",
+                               11: "三倍满", 12: "三倍满",
+                               13: "役満", 14: "役満", 15: "役満", 16: "役満", 17: "役満", 18: "役満"}
+                assert han in LIMIT_HANDS, f"limit hand with {han} han is not in LIMIT_HANDS"
+                score_string = LIMIT_HANDS[han]
             if h.zimo:
+                point_string = f"{h.point_zimo_xian}-{h.point_zimo_qin}点"
                 kyoku["hands"][h.seat].pop() # remove that tile so we can calculate waits/ukeire
-            kyoku["result"] = ["和了", list(action.delta_scores), h.fans]
+            yakus = [name for _, name in sorted((fan.id, f"{YAKU[fan.id]}({fan.val}飜)") for fan in h.fans)]
+            kyoku["result"] = ["和了", list(action.delta_scores), [h.seat, last_seat, h.seat, score_string+point_string, *yakus]]
             kyoku["final_waits"] = [w for _, w in shanten]
             kyoku["final_ukeire"] = [calculate_ukeire(h, visible_tiles + dora_indicators) for h in kyoku["hands"]]
         elif name == "RecordNoTile":
             kyoku["result"] = ["流局", *(score_info.delta_scores for score_info in action.scores)]
             kyoku["final_waits"] = [w for _, w in shanten]
             kyoku["final_ukeire"] = [calculate_ukeire(h, visible_tiles + dora_indicators) for h in kyoku["hands"]]
+        elif name == "RecordBaBei": # kita
+            hand = kyoku["hands"][action.seat]
+            kyoku["events"].append((action.seat, "kita"))
+            kyoku["hands"][action.seat].remove(44)
+            visible_tiles.append(44)
         else:
             print("unhandled action:", name, action)
+        if hasattr(action, "seat"):
+            last_seat = action.seat
     kyokus.append(kyoku)
     return kyokus
 
@@ -715,7 +824,7 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:
         with open(f"cached_games/game-{identifier}.json", "wb") as f2:
             f2.write(res3.SerializeToString())
 
-        return (res3.head, res3.data), next((acc.seat for acc in record.head.accounts if acc.account_id == ms_account_id), 0)
+        return (res3.head, res3.data), next((acc.seat for acc in res3.head.accounts if acc.account_id == ms_account_id), 0)
 
 ###
 ### loading and parsing tenhou games
@@ -753,13 +862,14 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
         turn -= 4
     last_turn = None
     last_discard = None
-    i = [0,0,0,0]
+    num_players = 4
+    i = [0] * num_players
     visible_tiles = []
     events: List[Any] = []
     gas = 1000
     num_dora = 1
     shanten = list(map(calculate_shanten, hand))
-    for t in range(4):
+    for t in range(num_players):
         events.append((t, "haipai", sorted_hand(hand[t])))
         events.append((t, "shanten", shanten[t]))
 
@@ -800,7 +910,7 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
         # if any of them pons or kans the previously discarded tile, control goes to them
         turn_changed = False
         if last_discard is not None:
-            for t in range(4):
+            for t in range(num_players):
                 if turn != t and i[t] < len(draws[t]):
                     draw = draws[t][i[t]]
                     if type(draw) is str:
@@ -867,7 +977,7 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
 
         # change turn to next player
         turn += 1
-        if turn == 4:
+        if turn == num_players:
             turn = 0
     assert gas >= 0, "ran out of gas"
     assert len(dora_indicators) == num_dora, "there's a bug in counting dora"
@@ -880,6 +990,7 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
     return {
         "round": current_round,
         "honba": current_honba,
+        "num_players": num_players,
         "events": events,
         "result": result,
         "hands": hand,
