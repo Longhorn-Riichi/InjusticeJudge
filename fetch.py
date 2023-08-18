@@ -3,7 +3,7 @@ import google.protobuf as pb  # type: ignore[import]
 import proto.liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from typing import *
-from constants import Kyoku, LIMIT_HANDS, YAKU_NAMES
+from constants import Kyoku, DORA_INDICATOR, LIMIT_HANDS, YAKU_NAMES
 from utils import remove_red_five, sorted_hand
 from shanten import calculate_shanten, calculate_ukeire
 
@@ -48,6 +48,60 @@ class MahjongSoulAPI:
         assert not res.error.code, f"{method.full_name} request recieved error {res.error.code}"
         return res
 
+async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:
+    """
+    Fetch a raw majsoul log from a given link, returning a parsed log and the specified player's seat
+    Example link: https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203
+
+    """
+    assert link.startswith("https://mahjongsoul.game.yo-star.com/?paipu="), "expected mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu="
+    if not "_a" in link:
+        print("Assuming you're the first east player, since mahjong soul link did not end with _a<number>")
+
+    identifier, *player_string = link.split("https://mahjongsoul.game.yo-star.com/?paipu=")[1].split("_a")
+    ms_account_id = None if len(player_string) == 0 else int((((int(player_string[0])-1358437)^86216345)-1117113)/7)
+    try:
+        f = open(f"cached_games/game-{identifier}.json", 'rb')
+        record = proto.ResGameRecord()  # type: ignore[attr-defined]
+        record.ParseFromString(f.read())
+        data = record.data
+        return (record.head, record.data), next((acc.seat for acc in record.head.accounts if acc.account_id == ms_account_id), 0)
+    except Exception as e:
+        import os
+        import dotenv
+        import requests
+        import uuid
+        env_path = os.path.join(os.path.dirname(__file__), "config.env")
+        dotenv.load_dotenv("config.env")
+        UID = os.environ.get("ms_uid")
+        TOKEN = os.environ.get("ms_token")
+        MS_VERSION = requests.get(url="https://mahjongsoul.game.yo-star.com/version.json").json()["version"][:-2]
+
+        async with MahjongSoulAPI() as api:
+            print("Calling heatbeat...")
+            await api.call("heatbeat")
+            print("Requesting initial access token...")
+            USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
+            access_token = requests.post(url="https://passport.mahjongsoul.com/user/login", headers={"User-Agent": USER_AGENT, "Referer": "https://mahjongsoul.game.yo-star.com/"}, data={"uid":UID,"token":TOKEN,"deviceId":f"web|{UID}"}).json()["accessToken"]
+            print("Requesting oauth access token...")
+            oauth_token = (await api.call("oauth2Auth", type=7, code=access_token, uid=UID, client_version_string=f"web-{MS_VERSION}")).access_token
+            print("Calling heatbeat...")
+            await api.call("heatbeat")
+            print("Calling oauth2Check...")
+            assert (await api.call("oauth2Check", type=7, access_token=oauth_token)).has_account, "couldn't find account with oauth2Check"
+            print("Calling oauth2Login...")
+            client_device_info = {"platform": "pc", "hardware": "pc", "os": "mac", "is_browser": True, "software": "Firefox", "sale_platform": "web"}
+            await api.call("oauth2Login", type=7, access_token=oauth_token, reconnect=False, device=client_device_info, random_key=str(uuid.uuid1()), client_version={"resource": f"{MS_VERSION}.w"}, currency_platforms=[], client_version_string=f"web-{MS_VERSION}", tag="en")
+            print("Calling fetchGameRecord...")
+            res3 = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=f"web-{MS_VERSION}")
+
+        if not os.path.isdir("cached_games"):
+            os.mkdir("cached_games")
+        with open(f"cached_games/game-{identifier}.json", "wb") as f2:
+            f2.write(res3.SerializeToString())
+
+        return (res3.head, res3.data), next((acc.seat for acc in res3.head.accounts if acc.account_id == ms_account_id), 0)
+
 def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
     metadata, raw_actions = log
     kyokus: List[Kyoku] = []
@@ -57,7 +111,6 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
     shanten: List[Tuple[float, List[int]]] = []
     convert_tile = lambda tile: {"m": 51, "p": 52, "s": 53}[tile[1]] if tile[0] == "0" else {"m": 10, "p": 20, "s": 30, "z": 40}[tile[1]] + int(tile[0])
     majsoul_hand_to_tenhou = lambda hand: list(sorted_hand(map(convert_tile, hand)))
-    pred = lambda tile: tile+8 if tile in {11,21,31} else 47 if tile == 41 else (tile*10)-496 if tile in {51,52,53} else tile-1
     last_seat = 0
 
     @functools.cache
@@ -91,7 +144,7 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
                 "final_waits": None,
                 "final_ukeire": None
             }
-            dora_indicators = [pred(convert_tile(dora)) for dora in action.doras]
+            dora_indicators = [DORA_INDICATOR[convert_tile(dora)] for dora in action.doras]
             visible_tiles = []
             first_tile: int = kyoku["hands"][action.ju].pop() # dealer starts with 14, remove the last tile so we can calculate shanten
             shanten = list(map(calculate_shanten, kyoku["hands"]))
@@ -113,7 +166,7 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
                 kyoku["events"].append((action.seat, "riichi", tile))
             hand.remove(tile)
             visible_tiles.append(tile)
-            dora_indicators = [pred(convert_tile(dora)) for dora in action.doras]
+            dora_indicators = [DORA_INDICATOR[convert_tile(dora)] for dora in action.doras]
             new_shanten = calculate_shanten(hand)
             if new_shanten != shanten[action.seat]:
                 kyoku["events"].append((action.seat, "shanten_change", shanten[action.seat], new_shanten))
@@ -138,7 +191,7 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
             kyoku["events"].append((action.seat, "ankan", tile))
             kyoku["hands"][action.seat].remove(tile)
             visible_tiles.append(tile)
-            dora_indicators = [pred(convert_tile(dora)) for dora in action.doras]
+            dora_indicators = [DORA_INDICATOR[convert_tile(dora)] for dora in action.doras]
         elif name == "RecordHule":
             if len(action.hules) > 1:
                 print("don't know how tenhou represents multi ron")
@@ -172,63 +225,39 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
     kyokus.append(kyoku)
     return kyokus
 
-async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:
-    """
-    Fetch a raw majsoul log from a given link, returning a parsed log and the specified player's seat
-    Example link: https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203
-
-    """
-    assert link.startswith("https://mahjongsoul.game.yo-star.com/?paipu="), "expected mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu="
-    # print("Assuming you're the first east player")
-
-    identifier, *player_string = link.split("https://mahjongsoul.game.yo-star.com/?paipu=")[1].split("_a")
-    ms_account_id = None if len(player_string) == 0 else int((((int(player_string[0])-1358437)^86216345)-1117113)/7)
-    try:
-        f = open(f"cached_games/game-{identifier}.json", 'rb')
-        record = proto.ResGameRecord()  # type: ignore[attr-defined]
-        record.ParseFromString(f.read())
-        data = record.data
-        return (record.head, record.data), next((acc.seat for acc in record.head.accounts if acc.account_id == ms_account_id), 0)
-    except Exception as e:
-        import os
-        from os.path import join, dirname
-        import dotenv
-        import requests
-        import uuid
-        env_path = join(dirname(__file__), "config.env")
-        dotenv.load_dotenv("config.env")
-        UID = os.environ.get("ms_uid")
-        TOKEN = os.environ.get("ms_token")
-        MS_VERSION = requests.get(url="https://mahjongsoul.game.yo-star.com/version.json").json()["version"][:-2]
-
-        async with MahjongSoulAPI() as api:
-            print("Calling heatbeat...")
-            await api.call("heatbeat")
-            print("Requesting initial access token...")
-            USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
-            access_token = requests.post(url="https://passport.mahjongsoul.com/user/login", headers={"User-Agent": USER_AGENT, "Referer": "https://mahjongsoul.game.yo-star.com/"}, data={"uid":UID,"token":TOKEN,"deviceId":f"web|{UID}"}).json()["accessToken"]
-            print("Requesting oauth access token...")
-            oauth_token = (await api.call("oauth2Auth", type=7, code=access_token, uid=UID, client_version_string=f"web-{MS_VERSION}")).access_token
-            print("Calling heatbeat...")
-            await api.call("heatbeat")
-            print("Calling oauth2Check...")
-            assert (await api.call("oauth2Check", type=7, access_token=oauth_token)).has_account, "couldn't find account with oauth2Check"
-            print("Calling oauth2Login...")
-            client_device_info = {"platform": "pc", "hardware": "pc", "os": "mac", "is_browser": True, "software": "Firefox", "sale_platform": "web"}
-            await api.call("oauth2Login", type=7, access_token=oauth_token, reconnect=False, device=client_device_info, random_key=str(uuid.uuid1()), client_version={"resource": f"{MS_VERSION}.w"}, currency_platforms=[], client_version_string=f"web-{MS_VERSION}", tag="en")
-            print("Calling fetchGameRecord...")
-            res3 = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=f"web-{MS_VERSION}")
-
-        if not os.path.isdir("cached_games"):
-            os.mkdir("cached_games")
-        with open(f"cached_games/game-{identifier}.json", "wb") as f2:
-            f2.write(res3.SerializeToString())
-
-        return (res3.head, res3.data), next((acc.seat for acc in res3.head.accounts if acc.account_id == ms_account_id), 0)
-
 ###
 ### loading and parsing tenhou games
 ###
+
+def fetch_tenhou(link: str) -> Tuple[TenhouLog, int]:
+    """
+    Fetch a raw tenhou log from a given link, returning a parsed log and the specified player's seat
+    Example link: https://tenhou.net/0/?log=2023072712gm-0089-0000-eff781e1&tw=1
+    """
+    import json
+    assert link.startswith("https://tenhou.net/0/?log="), "expected tenhou link starting with https://tenhou.net/0/?log="
+    if not link[:-1].endswith("&tw="):
+        print("Assuming you're the first east player, since tenhou link did not end with ?tw=<number>")
+
+    identifier = link.split("https://tenhou.net/0/?log=")[1].split("&")[0]
+    player = int(link[-1])
+    try:
+        f = open(f"cached_games/game-{identifier}.json", 'r')
+        return json.load(f)["log"], player
+    except Exception as e:
+        import requests
+        import os
+        USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
+        url = f"https://tenhou.net/5/mjlog2json.cgi?{identifier}"
+        print(f" Fetching game log at url {url}")
+        r = requests.get(url=url, headers={"User-Agent": USER_AGENT})
+        r.raise_for_status()
+        log = r.json()
+        if not os.path.isdir("cached_games"):
+            os.mkdir("cached_games")
+        with open(f"cached_games/game-{identifier}.json", "w", encoding="utf-8") as f:
+            json.dump(log, f, ensure_ascii=False)
+        return log["log"], player
 
 def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
     [
@@ -250,18 +279,17 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
         discards3,
         result
     ] = raw_kyoku
-    hand = [haipai0, haipai1, haipai2, haipai3]
-    draws = [draws0, draws1, draws2, draws3]
-    discards = [discards0, discards1, discards2, discards3]
-    pred = lambda tile: tile+8 if tile in {11,21,31} else 47 if tile == 41 else (tile*10)-496 if tile in {51,52,53} else tile-1
-    dora_indicators = list(map(pred, doras))
+    hand = cast(List[List[int]], [haipai0, haipai1, haipai2, haipai3])
+    draws = cast(List[List[Union[int, str]]], [draws0, draws1, draws2, draws3])
+    discards = cast(List[List[Union[int, str]]], [discards0, discards1, discards2, discards3])
+    dora_indicators = cast(List[int], list(map(DORA_INDICATOR.get, doras)))
 
     # get a sequence of events based on discards only
     turn = current_round
     if current_round >= 4:
         turn -= 4
-    last_turn = None
-    last_discard = None
+    last_turn: int = 0
+    last_discard: int = 0
     num_players = 4
     i = [0] * num_players
     visible_tiles = []
@@ -309,7 +337,7 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
         # we have to look at the next draw of every player first
         # if any of them pons or kans the previously discarded tile, control goes to them
         turn_changed = False
-        if last_discard is not None:
+        if last_discard != 0:
             for t in range(num_players):
                 if turn != t and i[t] < len(draws[t]):
                     draw = draws[t][i[t]]
@@ -320,7 +348,7 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
                             turn_changed = True
                             break
         if turn_changed:
-            last_discard = None
+            last_discard = 0
             continue
 
         # first handle the draw
@@ -342,6 +370,7 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
         draw = draws[turn][i[turn]]
         if type(draw) is str:
             hand[turn].append(handle_call(draw))
+            draw = hand[turn][-1]
         else:
             assert type(draw) == int, f"failed to handle unknown draw type: {draw}"
             hand[turn].append(draw)
@@ -397,33 +426,3 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
         "final_waits": final_waits,
         "final_ukeire": final_ukeire,
     }
-
-def fetch_tenhou(link: str) -> Tuple[TenhouLog, int]:
-    """
-    Fetch a raw tenhou log from a given link, returning a parsed log and the specified player's seat
-    Example link: https://tenhou.net/0/?log=2023072712gm-0089-0000-eff781e1&tw=1
-    """
-    import json
-    assert link.startswith("https://tenhou.net/0/?log="), "expected tenhou link starting with https://tenhou.net/0/?log="
-    if not link[:-1].endswith("&tw="):
-        print("Assuming you're the first east player, since tenhou link did not end with ?tw=<number>")
-
-    identifier = link.split("https://tenhou.net/0/?log=")[1].split("&")[0]
-    player = int(link[-1])
-    try:
-        f = open(f"cached_games/game-{identifier}.json", 'r')
-        return json.load(f)["log"], player
-    except Exception as e:
-        import requests
-        import os
-        USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
-        url = f"https://tenhou.net/5/mjlog2json.cgi?{identifier}"
-        print(f" Fetching game log at url {url}")
-        r = requests.get(url=url, headers={"User-Agent": USER_AGENT})
-        r.raise_for_status()
-        log = r.json()
-        if not os.path.isdir("cached_games"):
-            os.mkdir("cached_games")
-        with open(f"cached_games/game-{identifier}.json", "w", encoding="utf-8") as f:
-            json.dump(log, f, ensure_ascii=False)
-        return log["log"], player

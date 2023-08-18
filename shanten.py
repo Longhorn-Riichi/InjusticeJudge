@@ -15,13 +15,13 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     """
     Return the shanten of the hand plus some extra data.
     If the shanten is 2+, the extra data is just an empty list.
-    If iishanten, the returned shanten is 1.1 to 1.7, based on the type of iishanten.
+    If iishanten, the returned shanten is 1.1 to 1.6, based on the type of iishanten.
     If iishanten, some extra data is returned:
     - 1.1 kutsuki iishanten: all kutsuki tiles (e.g. 49m or 14m8s)
     - 1.2 headless iishanten: all taatsu (e.g. 24m89p, 3467p12s)
     - 1.3 complete iishanten: the complex group (e.g. 246m or 44688p)
     - 1.4 floating tile iishanten: the floating tile(s) (e.g. 8s or 14m)
-    - 1.5 chiitoitsu/1.6 kokushi iishanten: the wait (e.g. 1p1z)
+    - 1.5 chiitoitsu/1.6 kokushi iishanten: the wait (e.g. 1p14z)
     If tenpai (shanten = 0), returns the waits as the extra data.
     """
     assert len(starting_hand) == 13, f"calculate_shanten() needs a 13-tile hand, hand passed in has {len(starting_hand)} tiles"
