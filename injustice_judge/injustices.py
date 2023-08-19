@@ -130,11 +130,11 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 if not opened_hand[w] and not in_riichi[w]:
                     flags.append(Flags.YOU_DEALT_INTO_DAMA)
                     data.append({"seat": w,
-                                 "score": kyoku["result"][1][w]})
+                                 "score": -kyoku["result"][1][player]})
                 if "一発(1飜)" in kyoku["result"][2]:
                     flags.append(Flags.YOU_DEALT_INTO_IPPATSU)
                     data.append({"seat": w,
-                                 "score": kyoku["result"][1][w]})
+                                 "score": -kyoku["result"][1][player]})
             if kyoku["result"][1][w] >= 7700:
                 if w == player:
                     flags.append(Flags.YOU_WON_BIG_HAND)
@@ -286,7 +286,7 @@ def dealt_into_dama(flags: List[Flags], data: List[Dict[str, Any]], round_number
     score = win_data["score"]
     if Flags.YOU_DECLARED_RIICHI in flags:
         return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama, while in riichi"]
+                f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama, while in riichi (goodbye riichi stick)"]
     elif Flags.YOU_REACHED_TENPAI in flags:
         return [f"Injustice detected in {round_name(round_number, honba)}:"
                 f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama, while tenpai"]
@@ -302,7 +302,7 @@ def dealt_into_ippatsu(flags: List[Flags], data: List[Dict[str, Any]], round_num
     score = win_data["score"]
     if Flags.YOU_DECLARED_RIICHI in flags:
         return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu, while in riichi"]
+                f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu, while in riichi (goodbye riichi stick)"]
     elif Flags.YOU_REACHED_TENPAI in flags:
         return [f"Injustice detected in {round_name(round_number, honba)}:"
                 f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu, while tenpai"]
