@@ -179,7 +179,7 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
 
     return flags, data
 
-def evaluate_unluckiness(kyoku: Kyoku, player: int) -> List[str]:
+def evaluate_injustices(kyoku: Kyoku, player: int) -> List[str]:
     """
     Run each injustice function (defined below this function) against a parsed kyoku
     Relevant injustice functions should return a list of strings each
@@ -209,7 +209,7 @@ def injustice(require: List[Flags] = [], forbid: List[Flags] = []) -> Callable[[
     return decorator
 
 # each injustice function takes two lists of flags: require and forbid
-# `evaluate_unluckiness` calls an injustice function if all require flags and no forbid flags are satisfied
+# `evaluate_injustices` calls an injustice function if all require flags and no forbid flags are satisfied
 
 # Print if your tenpai got chased by a worse wait, and they won
 @injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.YOU_TENPAI_FIRST,
@@ -236,11 +236,11 @@ def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], r
             continue
         if chaser_seat == winner_seat and chaser_ukeire < your_ukeire:
             if Flags.YOU_LOST_POINTS in flags:
-                ret.append(f"Major unluckiness detected in {round_name(round_number, honba)}:"
+                ret.append(f"Major injustice detected in {round_name(round_number, honba)}:"
                            f" your wait {ph(your_wait)} ({your_ukeire} ukeire)"
                            f" was chased by a worse wait {ph(chaser_wait)} ({chaser_ukeire} ukeire), and you dealt into it")
             else:
-                ret.append(f"Unluckiness detected in {round_name(round_number, honba)}:"
+                ret.append(f"Injustice detected in {round_name(round_number, honba)}:"
                            f" your wait {ph(your_wait)} ({your_ukeire} ukeire)"
                            f" was chased by {relative_seat_name(your_seat, chaser_seat)}"
                            f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} ukeire), and they won")
@@ -255,10 +255,10 @@ def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: i
     shanten = shanten_data["shanten"]
     iishanten_tiles = shanten_data["iishanten_tiles"]
     if len(iishanten_tiles) > 0:
-        return [f"Unluckiness detected in {round_name(round_number, honba)}:"
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
                 f" you were stuck at {SHANTEN_NAMES[shanten]} ({ph(iishanten_tiles)}) for {turns} turns, and never reached tenpai"]
     else:
-        return [f"Unluckiness detected in {round_name(round_number, honba)}:"
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
                 f" you were stuck at {SHANTEN_NAMES[shanten]} for {turns} turns, and never reached tenpai"]
 
 # Print if you started with atrocious shanten and never got to tenpai
@@ -266,7 +266,7 @@ def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: i
             forbid=[Flags.YOU_REACHED_TENPAI])
 def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
     shanten = data[flags.index(Flags.FIVE_SHANTEN_START)]["shanten"]
-    return [f"Unluckiness detected in {round_name(round_number, honba)}:"
+    return [f"Injustice detected in {round_name(round_number, honba)}:"
             f" you started at {SHANTEN_NAMES[shanten]}"]
 
 # Print if you lost points to a first row ron/tsumo
@@ -275,7 +275,7 @@ def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]],
     win_data = data[flags.index(Flags.LOST_POINTS_TO_FIRST_ROW_WIN)]
     winner = win_data["seat"]
     turn = win_data["turn"]
-    return [f"Unluckiness detected in {round_name(round_number, honba)}:"
+    return [f"Injustice detected in {round_name(round_number, honba)}:"
             f" you lost points to an early win by {relative_seat_name(player, winner)} on turn {turn}"]
 
 # Print if you dealt into dama
@@ -284,7 +284,7 @@ def dealt_into_dama(flags: List[Flags], data: List[Dict[str, Any]], round_number
     win_data = data[flags.index(Flags.YOU_DEALT_INTO_DAMA)]
     winner = win_data["seat"]
     score = win_data["score"]
-    return [f"Unluckiness detected in {round_name(round_number, honba)}:"
+    return [f"Injustice detected in {round_name(round_number, honba)}:"
             f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama"]
 
 # Print if you dealt into ippatsu
@@ -293,5 +293,5 @@ def dealt_into_ippatsu(flags: List[Flags], data: List[Dict[str, Any]], round_num
     win_data = data[flags.index(Flags.YOU_DEALT_INTO_IPPATSU)]
     winner = win_data["seat"]
     score = win_data["score"]
-    return [f"Unluckiness detected in {round_name(round_number, honba)}:"
+    return [f"Injustice detected in {round_name(round_number, honba)}:"
             f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu"]

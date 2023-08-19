@@ -1,11 +1,11 @@
 import asyncio
 from typing import *
 from .fetch import fetch_tenhou, parse_tenhou, fetch_majsoul, parse_majsoul
-from .injustices import evaluate_unluckiness
+from .injustices import evaluate_injustices
 
 def analyze_game(link: str, specified_player = None) -> List[str]:
     """Given a game link, fetch and parse the game into kyokus, then evaluate each kyoku"""
-    print(f"Analyzing game {link}:")
+    # print(f"Analyzing game {link}:")
     kyokus = []
     if link.startswith("https://tenhou.net/0/?log="):
         tenhou_log, player = fetch_tenhou(link)
@@ -20,4 +20,4 @@ def analyze_game(link: str, specified_player = None) -> List[str]:
                         "or mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu=")
     if specified_player is not None:
         player = specified_player
-    return [injustice for kyoku in kyokus for injustice in evaluate_unluckiness(kyoku, player)]
+    return [injustice for kyoku in kyokus for injustice in evaluate_injustices(kyoku, player)]
