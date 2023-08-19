@@ -1,9 +1,8 @@
 import functools
 import itertools
-from constants import PRED, SUCC
+from .constants import PRED, SUCC
 from typing import *
-# from utils import pt, ph, remove_red_five, remove_red_fives, sorted_hand, round_name, relative_seat_name
-from utils import pt, ph, remove_red_fives, sorted_hand, try_remove_all_tiles
+from .utils import pt, ph, remove_red_fives, sorted_hand, try_remove_all_tiles
 
 
 ###

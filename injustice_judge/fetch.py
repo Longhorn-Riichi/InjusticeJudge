@@ -3,9 +3,9 @@ import google.protobuf as pb  # type: ignore[import]
 import proto.liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from typing import *
-from constants import Kyoku, DORA_INDICATOR, LIMIT_HANDS, YAKU_NAMES
-from utils import remove_red_five, sorted_hand
-from shanten import calculate_shanten, calculate_ukeire
+from .constants import Kyoku, DORA_INDICATOR, LIMIT_HANDS, YAKU_NAMES
+from .utils import remove_red_five, sorted_hand
+from .shanten import calculate_shanten, calculate_ukeire
 
 ###
 ### parsing-related types

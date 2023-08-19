@@ -1,7 +1,7 @@
-from constants import Kyoku, SHANTEN_NAMES
+from .constants import Kyoku, SHANTEN_NAMES
 from enum import Enum
 from typing import *
-from utils import ph, relative_seat_name, round_name
+from .utils import ph, relative_seat_name, round_name
 
 ###
 ### round flags used to determine injustices

@@ -1,29 +1,7 @@
 import asyncio
 from pprint import pprint
-from injustices import evaluate_unluckiness
-from fetch import fetch_tenhou, parse_tenhou, fetch_majsoul, parse_majsoul
+from injustice_judge import analyze_game
 from typing import *
-
-def analyze_game(link: str, specified_player = None) -> List[str]:
-    """Given a game link, fetch and parse the game into kyokus, then evaluate each kyoku"""
-    print(f"Analyzing game {link}:")
-    kyokus = []
-    if link.startswith("https://tenhou.net/0/?log="):
-        tenhou_log, player = fetch_tenhou(link)
-        for raw_kyoku in tenhou_log:
-            kyoku = parse_tenhou(raw_kyoku)
-            kyokus.append(kyoku)
-    elif link.startswith("https://mahjongsoul.game.yo-star.com/?paipu="):
-        majsoul_log, player = asyncio.run(fetch_majsoul(link))
-        kyokus = parse_majsoul(majsoul_log)
-    else:
-        raise Exception("expected tenhou link starting with https://tenhou.net/0/?log="
-                        "or mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu=")
-    if specified_player is not None:
-        player = specified_player
-    return [injustice for kyoku in kyokus for injustice in evaluate_unluckiness(kyoku, player)]
-        
-
 import sys
 if __name__ == "__main__":
     assert len(sys.argv) >= 2, "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
@@ -34,11 +12,12 @@ if __name__ == "__main__":
     print("\n".join(analyze_game(link, player)))
 
     # # shanten tests
-    # from shanten import calculate_shanten
+    # from injustice_judge.utils import ph
+    # from injustice_judge.shanten import calculate_shanten
     # hand = [12,13,14,22,23,52,27,28,28,34,35,38,38]
     # print(ph(hand), calculate_shanten(hand))
 
-    # from shanten import calculate_shanten
+    # from injustice_judge.shanten import calculate_shanten
     # print("tenpai:")
     # assert calculate_shanten([11,11,11,12,13,21,22,23,25,26,27,37,37])[0] == 0   # 11123m123567p77s  tenpai
     # assert calculate_shanten([16,17,18,24,25,26,32,32,33,34,34,53,36])[0] == 0

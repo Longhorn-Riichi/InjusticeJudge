@@ -1,5 +1,5 @@
 import functools
-from constants import TOGGLE_RED_FIVE
+from .constants import TOGGLE_RED_FIVE
 from typing import *
 
 ###
