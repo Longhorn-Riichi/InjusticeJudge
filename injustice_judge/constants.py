@@ -91,6 +91,30 @@ YAKU_NAMES = {
     63: "石の上にも三年",      # Ishinouenimosannen
     64: "大七星",            # Big Seven Star
 }
+YAKUMAN = {
+    35: "天和",              # Blessing of Heaven
+    36: "地和",              # Blessing of Earth
+    37: "大三元",            # Big Three Dragons
+    38: "四暗刻",            # Four Concealed Triplets
+    39: "字一色",            # All Honors
+    40: "緑一色",            # All Green
+    41: "清老頭",            # All Terminals
+    42: "国士無双",          # Thirteen Orphans
+    43: "小四喜",            # Four Little Winds
+    44: "四槓子",            # Four Quads
+    45: "九蓮宝燈",          # Nine Gates
+    46: "八連荘",            # Paarenchan
+    47: "純正九蓮宝燈",       # True Nine Gates
+    48: "四暗刻単騎",         # Single-wait Four Concealed Triplets
+    49: "国士無双十三面待ち",  # Thirteen-wait Thirteen Orphans
+    50: "大四喜",            # Four Big Winds
+    59: "人和",              # Hand of Man
+    60: "大車輪",            # Big Wheels
+    61: "大竹林",            # Bamboo Forest
+    62: "大数隣",            # Numerous Neighbours
+    63: "石の上にも三年",      # Ishinouenimosannen
+    64: "大七星",            # Big Seven Star
+}
 LIMIT_HANDS = {2: "満貫", 3: "満貫", 4: "満貫", 5: "満貫",
                6: "跳満", 7: "跳満",
                8: "倍满", 9: "倍满", 10: "倍满",

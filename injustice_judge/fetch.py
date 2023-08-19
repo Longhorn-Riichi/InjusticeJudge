@@ -3,7 +3,7 @@ import google.protobuf as pb  # type: ignore[import]
 from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from typing import *
-from .constants import Kyoku, DORA_INDICATOR, LIMIT_HANDS, YAKU_NAMES
+from .constants import Kyoku, DORA_INDICATOR, LIMIT_HANDS, YAKU_NAMES, YAKUMAN
 from .utils import remove_red_five, sorted_hand
 from .shanten import calculate_shanten, calculate_ukeire
 
@@ -198,10 +198,12 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
             h = action.hules[0]
             han = sum(fan.val for fan in h.fans)
             score_string = f"{h.fu}符{han}飜"
-            point_string = f"{h.point_rong}点"
-            if h.point_rong >= 8000:
+            if any(fan.id in YAKUMAN.keys() for fan in h.fans):
+                score_string = "役満"
+            elif h.point_rong >= 8000:
                 assert han in LIMIT_HANDS, f"limit hand with {han} han is not in LIMIT_HANDS"
                 score_string = LIMIT_HANDS[han]
+            point_string = f"{h.point_rong}点"
             if h.zimo:
                 point_string = f"{h.point_zimo_xian}-{h.point_zimo_qin}点"
                 kyoku["hands"][h.seat].pop() # remove that tile so we can calculate waits/ukeire
