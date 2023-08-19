@@ -2,8 +2,9 @@ import asyncio
 from pprint import pprint
 from injustices import evaluate_unluckiness
 from fetch import fetch_tenhou, parse_tenhou, fetch_majsoul, parse_majsoul
+from typing import *
 
-def analyze_game(link: str, specified_player = None) -> None:
+def analyze_game(link: str, specified_player = None) -> List[str]:
     """Given a game link, fetch and parse the game into kyokus, then evaluate each kyoku"""
     print(f"Analyzing game {link}:")
     kyokus = []
@@ -20,8 +21,8 @@ def analyze_game(link: str, specified_player = None) -> None:
                         "or mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu=")
     if specified_player is not None:
         player = specified_player
-    for kyoku in kyokus:
-        evaluate_unluckiness(kyoku, player)
+    return [injustice for kyoku in kyokus for injustice in evaluate_unluckiness(kyoku, player)]
+        
 
 import sys
 if __name__ == "__main__":
@@ -30,7 +31,7 @@ if __name__ == "__main__":
     player = int(sys.argv[2]) if len(sys.argv) == 3 else None
     assert link != "", "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
     assert player in [0,1,2,3,None], "expected second argument to be 0,1,2,3"
-    analyze_game(link, player)
+    print("\n".join(analyze_game(link, player)))
 
     # # shanten tests
     # from shanten import calculate_shanten
