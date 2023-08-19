@@ -14,7 +14,7 @@ if __name__ == "__main__":
     # # shanten tests
     # from injustice_judge.utils import ph
     # from injustice_judge.shanten import calculate_shanten
-    # hand = [12,13,14,22,23,52,27,28,28,34,35,38,38]
+    # hand = [16,18,23,24,25,31,32,33,37,38,39,39,39]
     # print(ph(hand), calculate_shanten(hand))
 
     # from injustice_judge.shanten import calculate_shanten
@@ -22,6 +22,8 @@ if __name__ == "__main__":
     # assert calculate_shanten([11,11,11,12,13,21,22,23,25,26,27,37,37])[0] == 0   # 11123m123567p77s  tenpai
     # assert calculate_shanten([16,17,18,24,25,26,32,32,33,34,34,53,36])[0] == 0
     # assert calculate_shanten([16,17,18,24,25,26,32,32,33,34,34,53,36])[1] == [32,35]
+    # assert calculate_shanten([16,18,23,24,25,31,32,33,37,38,39,39,39])[0] == 0
+    # assert calculate_shanten([16,18,23,24,25,31,32,33,37,38,39,39,39])[1] == [17]
     # print("kutsuki iishanten:")
     # assert calculate_shanten([11,11,11,12,13,21,22,23,25,26,27,28,38])[0] == 1.1 # 11123m1235678p8s  kutsuki iishanten
     # assert calculate_shanten([11,12,13,23,24,25,52,33,37,38,39,42,42])[0] == 1.1

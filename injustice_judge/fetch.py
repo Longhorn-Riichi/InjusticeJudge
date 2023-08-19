@@ -4,7 +4,7 @@ from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from typing import *
 from .constants import Kyoku, DORA_INDICATOR, LIMIT_HANDS, YAKU_NAMES, YAKUMAN
-from .utils import remove_red_five, sorted_hand
+from .utils import ph, remove_red_five, sorted_hand
 from .shanten import calculate_shanten, calculate_ukeire
 
 def save_cache(filename: str, data: bytes) -> None:
