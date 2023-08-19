@@ -7,6 +7,18 @@ from .constants import Kyoku, DORA_INDICATOR, LIMIT_HANDS, YAKU_NAMES, YAKUMAN
 from .utils import remove_red_five, sorted_hand
 from .shanten import calculate_shanten, calculate_ukeire
 
+def save_cache(filename: str, data: bytes) -> None:
+    """Save data to a cache file"""
+    import os
+    # make sure the cache directory exists
+    if not os.path.isdir("cached_games"):
+        os.mkdir("cached_games")
+    # make sure we have enough space
+    dir_size = sum(os.path.getsize(os.path.join(dirpath, f)) for dirpath, _, filenames in os.walk("cached_games") for f in filenames)
+    if dir_size < (1024 ** 3): # 1GB
+        with open(f"cached_games/{filename}", "wb") as file:
+            file.write(data)
+
 ###
 ### parsing-related types
 ###
@@ -61,7 +73,7 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:
     identifier, *player_string = link.split("https://mahjongsoul.game.yo-star.com/?paipu=")[1].split("_a")
     ms_account_id = None if len(player_string) == 0 else int((((int(player_string[0])-1358437)^86216345)-1117113)/7)
     try:
-        f = open(f"cached_games/game-{identifier}.json", 'rb')
+        f = open(f"cached_games/game-{identifier}.log", 'rb')
         record = proto.ResGameRecord()  # type: ignore[attr-defined]
         record.ParseFromString(f.read())
         data = record.data
@@ -95,10 +107,7 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:
             print("Calling fetchGameRecord...")
             res3 = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=f"web-{MS_VERSION}")
 
-        if not os.path.isdir("cached_games"):
-            os.mkdir("cached_games")
-        with open(f"cached_games/game-{identifier}.json", "wb") as f2:
-            f2.write(res3.SerializeToString())
+        save_cache(filename=f"game-{identifier}.log", data=res3.SerializeToString())
 
         return (res3.head, res3.data), next((acc.seat for acc in res3.head.accounts if acc.account_id == ms_account_id), 0)
 
@@ -255,10 +264,7 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, int]:
         r = requests.get(url=url, headers={"User-Agent": USER_AGENT})
         r.raise_for_status()
         log = r.json()
-        if not os.path.isdir("cached_games"):
-            os.mkdir("cached_games")
-        with open(f"cached_games/game-{identifier}.json", "w", encoding="utf-8") as f:
-            json.dump(log, f, ensure_ascii=False)
+        save_cache(filename=f"game-{identifier}.json", data=json.dumps(log, ensure_ascii=False).encode("utf-8"))
         return log["log"], player
 
 def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
