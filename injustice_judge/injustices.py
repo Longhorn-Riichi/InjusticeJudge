@@ -284,8 +284,15 @@ def dealt_into_dama(flags: List[Flags], data: List[Dict[str, Any]], round_number
     win_data = data[flags.index(Flags.YOU_DEALT_INTO_DAMA)]
     winner = win_data["seat"]
     score = win_data["score"]
-    return [f"Injustice detected in {round_name(round_number, honba)}:"
-            f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama"]
+    if Flags.YOU_DECLARED_RIICHI in flags:
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
+                f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama, while in riichi"]
+    elif Flags.YOU_REACHED_TENPAI in flags:
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
+                f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama, while tenpai"]
+    else:
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
+                f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama"]
 
 # Print if you dealt into ippatsu
 @injustice(require=[Flags.YOU_DEALT_INTO_IPPATSU])
@@ -293,5 +300,12 @@ def dealt_into_ippatsu(flags: List[Flags], data: List[Dict[str, Any]], round_num
     win_data = data[flags.index(Flags.YOU_DEALT_INTO_IPPATSU)]
     winner = win_data["seat"]
     score = win_data["score"]
-    return [f"Injustice detected in {round_name(round_number, honba)}:"
-            f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu"]
+    if Flags.YOU_DECLARED_RIICHI in flags:
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
+                f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu, while in riichi"]
+    elif Flags.YOU_REACHED_TENPAI in flags:
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
+                f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu, while tenpai"]
+    else:
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
+                f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu"]
