@@ -1,9 +1,8 @@
-import asyncio
 from typing import *
 from .fetch import fetch_tenhou, parse_tenhou, fetch_majsoul, parse_majsoul
 from .injustices import evaluate_injustices
 
-def analyze_game(link: str, specified_player = None) -> List[str]:
+async def analyze_game(link: str, specified_player = None) -> List[str]:
     """Given a game link, fetch and parse the game into kyokus, then evaluate each kyoku"""
     # print(f"Analyzing game {link}:")
     kyokus = []
@@ -13,7 +12,7 @@ def analyze_game(link: str, specified_player = None) -> List[str]:
             kyoku = parse_tenhou(raw_kyoku)
             kyokus.append(kyoku)
     elif link.startswith("https://mahjongsoul.game.yo-star.com/?paipu="):
-        majsoul_log, player = asyncio.run(fetch_majsoul(link))
+        majsoul_log, player = await fetch_majsoul(link)
         kyokus = parse_majsoul(majsoul_log)
     else:
         raise Exception("expected tenhou link starting with https://tenhou.net/0/?log="
