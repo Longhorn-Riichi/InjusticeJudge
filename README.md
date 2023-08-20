@@ -10,7 +10,7 @@ Analyzes your tenhou.net game to find instances of mahjong injustice. Currently,
 - You dealt into dama or ippatsu
 - Someone else had a bad wait ippatsu tsumo
 - You just barely fail nagashi (due to the draw or a call)
-- You deal into someone with your riichi tile
+- You deal into someone with your riichi tile (or tile that got you into tenpai)
 - You draw a tile that would have completed a past tenpai wait
 
 ## Usage (standalone)
