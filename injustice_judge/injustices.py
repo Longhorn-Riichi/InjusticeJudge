@@ -17,17 +17,17 @@ Flags = Enum("Flags", "_SENTINEL"
     " LAST_NAGASHI_TILE_CALLED"
     " LOST_POINTS_TO_FIRST_ROW_WIN"
     " NINE_DRAWS_NO_IMPROVEMENT"
-    " TENPAI_TILE_DEALT_IN"
     " SOMEONE_REACHED_TENPAI"
     " WINNER"
-    " WINNER_GOT_MANGAN"
-    " WINNER_GOT_HANEMAN"
     " WINNER_GOT_BAIMAN"
+    " WINNER_GOT_HANEMAN"
+    " WINNER_GOT_MANGAN"
     " WINNER_GOT_SANBAIMAN"
     " WINNER_GOT_YAKUMAN"
     " WINNER_HAD_BAD_WAIT"
     " WINNER_IPPATSU_TSUMO"
     " YOU_ARE_DEALER"
+    " YOU_DEALT_IN_BEFORE_NOTEN_PAYMENT"
     " YOU_DEALT_INTO_DAMA"
     " YOU_DEALT_INTO_IPPATSU"
     " YOU_DREW_PREVIOUSLY_WAITED_TILE"
@@ -37,6 +37,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_LOST_POINTS"
     " YOU_REACHED_TENPAI"
     " YOU_TENPAI_FIRST"
+    " YOUR_TENPAI_TILE_DEALT_IN"
 
 
     # unused:
@@ -79,6 +80,8 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     nagashi: List[bool] = [True]*num_players
     last_draw_event_ix: List[int] = [-1]*num_players
     last_discard_event_ix: List[int] = [-1]*num_players
+    tiles_in_wall = 70 if num_players == 4 else 55
+    assert num_players in {3,4}, f"somehow we have {num_players} players"
 
     # First, get some basic data about the game.
     # - whether you're dealer
@@ -114,6 +117,8 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     # - slow shanten changes
     for i, event in enumerate(kyoku["events"]):
         seat, event_type, *event_data = event
+        if event_type in {"draw", "minkan", "ankan", "kakan"}:
+            tiles_in_wall -= 1
         if seat == player:
             if event_type == "start_shanten":
                 starting_player_shanten = event_data[0]
@@ -153,11 +158,17 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
         elif event_type in {"chii", "pon", "minkan"}:
             opened_hand[seat] = True
         elif event_type == "discard":
-            if i == max(last_discard_event_ix): # no more discards from anyone after this
-                just_reached_tenpai = Flags.YOU_REACHED_TENPAI not in flags and any(e[0] == seat and e[1] == "tenpai" for e in kyoku["events"])
-                if seat == player and just_reached_tenpai and kyoku["result"][0] == "和了" and not is_tsumo:
-                    flags.append(Flags.TENPAI_TILE_DEALT_IN)
+            dealt_in = i == max(last_discard_event_ix) and kyoku["result"][0] == "和了" and not is_tsumo
+            already_tenpai = Flags.YOU_REACHED_TENPAI in flags
+            just_reached_tenpai = not already_tenpai and any(e[0] == seat and e[1] == "tenpai" for e in kyoku["events"][i:])
+            if dealt_in:
+                if seat == player and just_reached_tenpai:
+                    flags.append(Flags.YOUR_TENPAI_TILE_DEALT_IN)
                     data.append({"tile": event_data[0]})
+                if already_tenpai and tiles_in_wall <= 3:
+                    flags.append(Flags.YOU_DEALT_IN_BEFORE_NOTEN_PAYMENT)
+                    data.append({"tile": event_data[0]})
+
         elif event_type == "tenpai":
             flags.append(Flags.SOMEONE_REACHED_TENPAI)
             data.append({"seat": seat,
@@ -279,6 +290,7 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                                  "amount": kyoku["result"][1][chaser]})
                 player_data = data[flags.index(Flags.YOU_REACHED_TENPAI)]
     elif kyoku["result"][0] in {"流局", "全員聴牌", "流し満貫"}:
+        assert tiles_in_wall == 0, f"somehow ryuukyoku with {tiles_in_wall} tiles left in wall"
         flags.append(Flags.GAME_ENDED_WITH_RYUUKYOKU)
         data.append({})
         for seat in (seat for seat, achieved in enumerate(nagashi) if achieved):
@@ -487,9 +499,9 @@ def baiman_oyakaburi(flags: List[Flags], data: List[Dict[str, Any]], round_numbe
             f" you were dealer and {relative_seat_name(player, winner)} got a baiman tsumo"]
 
 # Print if your riichi/tenpai tile dealt in
-@injustice(require=[Flags.TENPAI_TILE_DEALT_IN])
-def TENPAI_tile_dealt_in(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
-    tile = data[flags.index(Flags.TENPAI_TILE_DEALT_IN)]["tile"]
+@injustice(require=[Flags.YOUR_TENPAI_TILE_DEALT_IN])
+def your_tenpai_tile_dealt_in(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+    tile = data[flags.index(Flags.YOUR_TENPAI_TILE_DEALT_IN)]["tile"]
     if Flags.YOU_DECLARED_RIICHI in flags:
         return [f"Injustice detected in {round_name(round_number, honba)}:"
                 f" you declared riichi with {pt(tile)} and immediately dealt in"]
@@ -507,5 +519,16 @@ def drew_tile_completing_past_wait(flags: List[Flags], data: List[Dict[str, Any]
     return [f"Injustice detected in {round_name(round_number, honba)}:"
             f" you drew a tile {pt(tile)} that would have completed your past wait on {ph(wait)}"
             f" if you didn't change to {shanten_name(shanten)}"]
+
+# Print if you dealt in while tenpai, right before you would have received tenpai payments
+@injustice(require=[Flags.YOU_DEALT_IN_BEFORE_NOTEN_PAYMENT])
+def you_dealt_in_before_noten_payment(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+    tile = data[flags.index(Flags.YOU_DEALT_IN_BEFORE_NOTEN_PAYMENT)]["tile"]
+    if Flags.YOU_DECLARED_RIICHI in flags:
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
+                f" you were in riichi and about to get noten payments, but then dealt in with {pt(tile)}"]
+    else:
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
+                f" you were tenpai and about to get noten payments, but then dealt in with {pt(tile)}"]
 
 # TODO: head bump, furiten
