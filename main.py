@@ -8,13 +8,13 @@ if __name__ == "__main__":
     link = sys.argv[1]
     player = int(sys.argv[2]) if len(sys.argv) == 3 else None
     assert link != "", "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
-    assert player in [0,1,2,3,None], "expected second argument to be 0,1,2,3"
+    assert player in {0,1,2,3,None}, "expected second argument to be 0,1,2,3"
     print("\n".join(asyncio.run(analyze_game(link, player))))
 
     # # shanten tests
     # from injustice_judge.utils import ph
     # from injustice_judge.shanten import calculate_shanten
-    # hand = [16,18,23,24,25,31,32,33,37,38,39,39,39]
+    # hand = [11,19,21,29,31,39,41,42,43,44,45,46,47]
     # print(ph(hand), calculate_shanten(hand))
 
     # from injustice_judge.shanten import calculate_shanten
@@ -57,6 +57,7 @@ if __name__ == "__main__":
     # assert calculate_shanten([11,19,23,24,25,31,32,35,36,37,38,43,43])[0] == 2   # 19m345p125678s33z  2-shanten
     # assert calculate_shanten([11,19,22,24,25,31,32,35,36,37,38,43,43])[0] == 3   # 19m245p125678s33z  3-shanten
     # assert calculate_shanten([11,19,22,24,25,31,32,35,36,37,38,43,47])[0] == 4   # 19m245p125678s37z  4-shanten
+    # assert calculate_shanten([12,13,16,17,23,24,28,29,31,32,35,36,39])[0] == 4   # 2367m3489p12569s  4-shanten
     # assert calculate_shanten([11,12,16,18,22,26,27,34,41,42,44,45,46])[0] == 5   # 1268m267p4s12456z  5-shanten
     # assert calculate_shanten([13,16,18,19,27,28,31,35,38,42,44,45,46])[0] == 6   # 3689m78p158s2456z  6-shanten
     # assert calculate_shanten([12,15,51,23,25,33,39,41,42,44,45,45,46])[0] == 4   # 150m25p39s124556z  4-shanten for chiitoitsu

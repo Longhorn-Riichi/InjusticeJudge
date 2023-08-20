@@ -1,5 +1,5 @@
 import functools
-from .constants import TOGGLE_RED_FIVE
+from .constants import TOGGLE_RED_FIVE, SHANTEN_NAMES
 from typing import *
 
 ###
@@ -36,7 +36,7 @@ round_name = lambda rnd, honba: (f"East {rnd+1}" if rnd <= 3 else f"South {rnd-3
 relative_seat_name = lambda you, other: {0: "self", 1: "shimocha", 2: "toimen", 3: "kamicha"}[(other-you)%4]
 
 @functools.cache
-def try_remove_all_tiles(hand: Tuple[int], tiles: Tuple[int]) -> Tuple[int, ...]:
+def try_remove_all_tiles(hand: Tuple[int, ...], tiles: Tuple[int, ...]) -> Tuple[int, ...]:
     """
     Tries to remove all of `tiles` from `hand`. If it can't, returns `hand` unchanged
     """
@@ -47,3 +47,15 @@ def try_remove_all_tiles(hand: Tuple[int], tiles: Tuple[int]) -> Tuple[int, ...]
         else:
             return tuple(hand)
     return tuple(hand_copy)
+
+def shanten_name(shanten: Tuple[int, List[int]]):
+    if shanten[0] >= 2:
+        return SHANTEN_NAMES[shanten[0]]
+    elif shanten[0] == 1.1:
+        return SHANTEN_NAMES[shanten[0]] + " with kutsuki tiles " + ph(shanten[1])
+    elif shanten[0] == 1.2:
+        return SHANTEN_NAMES[shanten[0]] + " on " + ph(shanten[1])
+    elif shanten[0] == 1.4:
+        return SHANTEN_NAMES[shanten[0]] + " with " + ph(shanten[1]) + " as floating tile(s)"
+    else:
+        return SHANTEN_NAMES[shanten[0]] + " waiting on " + ph(shanten[1])

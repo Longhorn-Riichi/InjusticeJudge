@@ -1,7 +1,7 @@
 from .constants import Kyoku, SHANTEN_NAMES
 from enum import Enum
 from typing import *
-from .utils import ph, relative_seat_name, round_name
+from .utils import ph, pt, relative_seat_name, round_name, shanten_name
 from pprint import pprint
 
 ###
@@ -13,13 +13,24 @@ Flags = Enum("Flags", "_SENTINEL"
     " FIVE_SHANTEN_START"
     " GAME_ENDED_WITH_RON"
     " GAME_ENDED_WITH_RYUUKYOKU"
+    " LAST_DISCARD_STOPPED_NAGASHI"
+    " LAST_NAGASHI_TILE_CALLED"
     " LOST_POINTS_TO_FIRST_ROW_WIN"
     " NINE_DRAWS_NO_IMPROVEMENT"
+    " RIICHI_TILE_DEALT_IN"
     " SOMEONE_REACHED_TENPAI"
-    " WINNER_IPPATSU_TSUMO"
+    " WINNER"
+    " WINNER_GOT_MANGAN"
+    " WINNER_GOT_HANEMAN"
+    " WINNER_GOT_BAIMAN"
+    " WINNER_GOT_SANBAIMAN"
+    " WINNER_GOT_YAKUMAN"
     " WINNER_HAD_BAD_WAIT"
+    " WINNER_IPPATSU_TSUMO"
+    " YOU_ARE_DEALER"
     " YOU_DEALT_INTO_DAMA"
     " YOU_DEALT_INTO_IPPATSU"
+    " YOU_DREW_PREVIOUSLY_WAITED_TILE"
     " YOU_FOLDED_FROM_TENPAI"
     " YOU_GAINED_POINTS"
     " YOU_GOT_CHASED"
@@ -27,13 +38,13 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_REACHED_TENPAI"
     " YOU_TENPAI_FIRST"
 
+
     # unused:
     " CHASER_LOST_POINTS"
-    " GAME_ENDED_WITH_TSUMO"
     " FIRST_ROW_TENPAI"
+    " GAME_ENDED_WITH_TSUMO"
+    " YOU_ACHIEVED_NAGASHI"
     " YOU_DECLARED_RIICHI"
-    " YOU_WON_BIG_HAND"
-    " OTHER_WON_BIG_HAND"
 
     # TODO:
     " HAITEI_HAPPENED_WHILE_YOU_ARE_TENPAI"
@@ -59,86 +70,125 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     draws_since_shanten_change = 0
     starting_player_shanten = None
     player_shanten: Tuple[float, List[int]] = (99, [])
+    player_past_waits = []
     someone_is_tenpai = False
     turn_number = 1
     num_players = kyoku["num_players"]
-    opened_hand = [False]*num_players
-    in_riichi = [False]*num_players
+    opened_hand: List[bool] = [False]*num_players
+    in_riichi: List[bool] = [False]*num_players
+    nagashi: List[bool] = [True]*num_players
+    last_draw_event_ix: List[int] = [-1]*num_players
+    # First figure out each player's last draw event's index by going through the game backwards
+    for i, event in enumerate(kyoku["events"][::-1]):
+        seat, event_type, *event_data = event
+        if event_type in {"draw", "minkan"}:
+            last_draw_event_ix[seat] = len(kyoku["events"]) - 1 - i
+            if all(ix != -1 for ix in last_draw_event_ix):
+                break
 
-    # First, go through the events of the game in order. This determines flags related to:
+    # Go through the events of the game in order. This determines flags related to:
     # - starting shanten
     # - tenpais/riichis and chases/folds
     # - slow shanten changes
-    for event in kyoku["events"]:
-        if event[0] == player:
-            if event[1] == "shanten":
-                starting_player_shanten = event[2]
-                player_shanten = event[2]
+    for i, event in enumerate(kyoku["events"]):
+        seat, event_type, *event_data = event
+        if seat == player:
+            if event_type == "start_shanten":
+                starting_player_shanten = event_data[0]
+                player_shanten = event_data[0]
                 if player_shanten[0] >= 5:
                     flags.append(Flags.FIVE_SHANTEN_START)
                     data.append({"shanten": player_shanten[0]})
-            elif event[1] == "shanten_change":
+            elif event_type == "shanten_change":
                 assert starting_player_shanten is not None
-                player_shanten = event[3]
+                prev_shanten = event_data[0]
+                new_shanten = event_data[1]
                 draws_since_shanten_change = 0
-                if event[2][0] == 0 and event[3][0] > 0:
-                    flags.append(Flags.YOU_FOLDED_FROM_TENPAI)
-                    data.append({})
-            elif event[1] in ["draw", "minkan"]:
+                if prev_shanten[0] == 0:
+                    player_past_waits.append(prev_shanten[1])
+                    if new_shanten[0] > 0:
+                        flags.append(Flags.YOU_FOLDED_FROM_TENPAI)
+                        data.append({})
+                player_shanten = new_shanten
+            elif event_type in {"draw", "minkan"}:
+                if event_type == "draw":
+                    # check if draw would have completed a past wait
+                    for wait in player_past_waits:
+                        if event_data[0] in wait:
+                            flags.append(Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE)
+                            data.append({"tile": event_data[0], "wait": wait, "shanten": player_shanten})
                 draws_since_shanten_change += 1
                 if player_shanten[0] > 0 and draws_since_shanten_change >= 9:
                     flags.append(Flags.NINE_DRAWS_NO_IMPROVEMENT)
                     data.append({"shanten": player_shanten[0],
                                  "iishanten_tiles": player_shanten[1],
                                  "turns": draws_since_shanten_change})
-        if event[1] == "riichi":
-            in_riichi[event[0]] = True
-            if event[0] == player:
+        if event_type == "riichi":
+            in_riichi[seat] = True
+            if seat == player:
                 flags.append(Flags.YOU_DECLARED_RIICHI)
                 data.append({})
-        elif event[1] in ["chii", "pon", "minkan"]:
-            opened_hand[event[0]] = True
-        elif event[1] == "tenpai":
+            if i > max(last_draw_event_ix): # no more draws after this
+                if kyoku["result"][0] == "和了":
+                    flags.append(Flags.RIICHI_TILE_DEALT_IN)
+                    data.append({"tile": event_data[0]})
+        elif event_type in {"chii", "pon", "minkan"}:
+            opened_hand[seat] = True
+        elif event_type == "tenpai":
             flags.append(Flags.SOMEONE_REACHED_TENPAI)
-            data.append({"seat": event[0],
-                         "hand": event[2],
-                         "wait": event[3],
-                         "ukeire": event[4]})
-            if event[0] == player:
+            data.append({"seat": seat,
+                         "hand": event_data[0],
+                         "wait": event_data[1],
+                         "ukeire": event_data[2]})
+            if seat == player:
                 if Flags.YOU_FOLDED_FROM_TENPAI in flags: # folded no longer
                     ix = flags.index(Flags.YOU_FOLDED_FROM_TENPAI)
                     del flags[ix]
                     del data[ix]
                 flags.append(Flags.YOU_REACHED_TENPAI)
-                data.append({"seat": event[0],
-                             "hand": event[2],
-                             "wait": event[3],
-                             "ukeire": event[4]})
+                data.append({"seat": seat,
+                             "hand": event_data[0],
+                             "wait": event_data[1],
+                             "ukeire": event_data[2]})
                 if not someone_is_tenpai:
                     flags.append(Flags.YOU_TENPAI_FIRST)
                     data.append({})
             elif Flags.YOU_REACHED_TENPAI in flags:
                 player_data = data[len(flags) - 1 - flags[::-1].index(Flags.YOU_REACHED_TENPAI)]
                 flags.append(Flags.YOU_GOT_CHASED)
-                data.append({"seat": event[0],
-                             "hand": event[2],
-                             "wait": event[3],
-                             "ukeire": event[4],
+                data.append({"seat": seat,
+                             "hand": event_data[0],
+                             "wait": event_data[1],
+                             "ukeire": event_data[2],
                              "your_seat": player_data["seat"],
                              "your_hand": player_data["hand"],
                              "your_wait": player_data["wait"],
                              "your_ukeire": player_data["ukeire"]})
             if turn_number <= 6:
                 flags.append(Flags.FIRST_ROW_TENPAI)
-                data.append({"seat": event[0], "turn": turn_number})
+                data.append({"seat": seat, "turn": turn_number})
             someone_is_tenpai = True
-        if event[0] == kyoku["round"] % kyoku["num_players"]: # dealer turn
+        elif event_type == "end_nagashi":
+            nagashi[seat] = False
+            tile = event_data[2]
+            # if the game ended in ryuukyoku, mark if this happened after our final draw
+            if kyoku["result"][0] == "流局" and i > last_draw_event_ix[seat]:
+                if event_data[1] == "discard":
+                    flags.append(Flags.LAST_DISCARD_STOPPED_NAGASHI)
+                    data.append({"seat": seat, "tile": tile})
+                elif event_data[1] in {"minkan", "pon", "chii"}:
+                    flags.append(Flags.LAST_NAGASHI_TILE_CALLED)
+                    data.append({"seat": event_data[0], "tile": tile, "caller": seat})
+        if seat == kyoku["round"] % kyoku["num_players"]: # dealer turn
             turn_number += 1
 
-    # Next, look at the final result of the game. This determines flags related to:
+    # Next, look at the game as a whole. This determines flags related to:
     # - game ending type (ron, tsumo, ryuukyoku)
     # - deal-ins
     # - scoring
+    if (player + kyoku["round"] % 4) == 0:
+        flags.append(Flags.YOU_ARE_DEALER)
+        data.append({})
     if kyoku["result"][0] == "和了":
         is_tsumo = kyoku["result"][2][0] == kyoku["result"][2][1]
         if is_tsumo:
@@ -149,7 +199,7 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
             data.append({})
 
         # get final waits
-        final_waits: List[List[int]] = [[]]*num_players
+        final_waits: List[List[int]] = list(map(lambda _: [], [()]*num_players))
         final_ukeire: List[int] = [0]*num_players
         for ix in (ix for ix, flag in enumerate(flags) if flag == Flags.SOMEONE_REACHED_TENPAI):
             seat = data[ix]["seat"]
@@ -169,13 +219,28 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                     flags.append(Flags.YOU_DEALT_INTO_IPPATSU)
                     data.append({"seat": w,
                                  "score": -kyoku["result"][1][player]})
-            if kyoku["result"][1][w] >= 7700:
-                if w == player:
-                    flags.append(Flags.YOU_WON_BIG_HAND)
-                    data.append({})
-                else:
-                    flags.append(Flags.OTHER_WON_BIG_HAND)
-                    data.append({})
+
+            limit_hand_flags = [Flags.WINNER, Flags.WINNER_GOT_MANGAN,
+                                Flags.WINNER_GOT_HANEMAN, Flags.WINNER_GOT_BAIMAN,
+                                Flags.WINNER_GOT_SANBAIMAN, Flags.WINNER_GOT_YAKUMAN]
+            if kyoku["result"][2][3].startswith("満貫"):
+                limit_hand_flags = limit_hand_flags[0:1]
+            elif kyoku["result"][2][3].startswith("跳満"):
+                limit_hand_flags = limit_hand_flags[0:2]
+            elif kyoku["result"][2][3].startswith("倍满"):
+                limit_hand_flags = limit_hand_flags[0:3]
+            elif kyoku["result"][2][3].startswith("三倍满"):
+                limit_hand_flags = limit_hand_flags[0:4]
+            elif kyoku["result"][2][3].startswith("役満"):
+                pass
+            else:
+                limit_hand_flags = []
+            for flag in limit_hand_flags:
+                flags.append(flag)
+                data.append({"seat": w,
+                             "wait": final_waits[w],
+                             "ukeire": final_ukeire[w]})
+
             if final_ukeire[w] <= 4:
                 flags.append(Flags.WINNER_HAD_BAD_WAIT)
                 data.append({"seat": w,
@@ -200,21 +265,26 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                     data.append({"seat": chaser,
                                  "amount": kyoku["result"][1][chaser]})
                 player_data = data[flags.index(Flags.YOU_REACHED_TENPAI)]
-    elif kyoku["result"][0] in ["流局", "全員聴牌"] :
+    elif kyoku["result"][0] in {"流局", "全員聴牌", "流し満貫"}:
         flags.append(Flags.GAME_ENDED_WITH_RYUUKYOKU)
         data.append({})
+        for seat in (seat for seat, achieved in enumerate(nagashi) if achieved):
+            if seat == player:
+                flags.append(Flags.YOU_ACHIEVED_NAGASHI)
+                data.append({"seat": seat})
 
-    if kyoku["result"][0] in ["和了", "流局"] and len(kyoku["result"][1]) > 0:
+    if kyoku["result"][0] in {"和了", "流局"} and len(kyoku["result"][1]) > 0:
         if kyoku["result"][1][player] < 0:
             flags.append(Flags.YOU_LOST_POINTS)
             data.append({"amount": kyoku["result"][1][player]})
             if turn_number <= 6:
                 flags.append(Flags.LOST_POINTS_TO_FIRST_ROW_WIN)
-                data.append({"seat": event[0], "turn": turn_number, "amount": kyoku["result"][1][player]})
+                data.append({"seat": seat, "turn": turn_number, "amount": kyoku["result"][1][player]})
         elif kyoku["result"][1][player] > 0:
             "(1飜)"
             flags.append(Flags.YOU_GAINED_POINTS)
             data.append({"amount": kyoku["result"][1][player]})
+
 
     assert len(flags) == len(data), f"somehow got a different amount of flags ({len(flags)}) than data ({len(data)})"
     return flags, data
@@ -368,3 +438,57 @@ def someone_got_bad_wait_ippatsu_tsumo(flags: List[Flags], data: List[Dict[str, 
     ukeire = win_data["ukeire"]
     return [f"Injustice detected in {round_name(round_number, honba)}:"
             f" {relative_seat_name(player, winner)} got ippatsu tsumo with a bad wait {ph(wait)} ({ukeire} ukeire)"]
+
+# Print if you just barely failed nagashi
+@injustice(require=[Flags.LAST_DISCARD_STOPPED_NAGASHI],
+           forbid=[Flags.LAST_NAGASHI_TILE_CALLED])
+def lost_nagashi_to_draw(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+    nagashi_data = data[flags.index(Flags.LAST_DISCARD_STOPPED_NAGASHI)]
+    seat = nagashi_data["seat"]
+    tile = nagashi_data["tile"]
+    if seat == player:
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
+                f" you lost nagashi on your last discard ({pt(tile)})"]
+    else:
+        return []
+
+# Print if someone calls your last tile for nagashi (not ron)
+@injustice(require=[Flags.LAST_NAGASHI_TILE_CALLED])
+def lost_nagashi_to_call(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+    nagashi_data = data[flags.index(Flags.LAST_NAGASHI_TILE_CALLED)]
+    seat = nagashi_data["seat"]
+    tile = nagashi_data["tile"]
+    caller = nagashi_data["caller"]
+    if seat == player:
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
+                f" you lost nagashi on your last discard {pt(tile)} because {relative_seat_name(player, caller)} called it"]
+    else:
+        return []
+
+# Print if you are dealer and lost to baiman+ tsumo
+@injustice(require=[Flags.YOU_ARE_DEALER, Flags.GAME_ENDED_WITH_TSUMO, Flags.YOU_LOST_POINTS, Flags.WINNER_GOT_BAIMAN])
+def baiman_oyakaburi(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+    win_data = data[flags.index(Flags.WINNER)]
+    winner = win_data["seat"]
+    return [f"Injustice detected in {round_name(round_number, honba)}:"
+            f" you were dealer and {relative_seat_name(player, winner)} got a baiman tsumo"]
+
+# Print if your riichi tile dealt in
+@injustice(require=[Flags.RIICHI_TILE_DEALT_IN])
+def riichi_tile_dealt_in(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+    tile = data[flags.index(Flags.RIICHI_TILE_DEALT_IN)]["tile"]
+    return [f"Injustice detected in {round_name(round_number, honba)}:"
+            f" you declared riichi with {pt(tile)} and immediately dealt in"]
+
+# Print if you drew a tile that would have completed a past wait
+@injustice(require=[Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE])
+def drew_tile_completing_past_wait(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+    tile_data = data[flags.index(Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE)]
+    tile = tile_data["tile"]
+    wait = tile_data["wait"]
+    shanten = tile_data["shanten"]
+    return [f"Injustice detected in {round_name(round_number, honba)}:"
+            f" you drew a tile {pt(tile)} that would have completed your past wait on {ph(wait)}"
+            f" if you didn't change to {shanten_name(shanten)}"]
+
+# TODO: head bump, furiten

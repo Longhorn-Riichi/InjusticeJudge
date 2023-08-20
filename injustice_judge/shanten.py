@@ -1,6 +1,6 @@
 import functools
 import itertools
-from .constants import PRED, SUCC
+from .constants import PRED, SUCC, YAOCHUUHAI
 from typing import *
 from .utils import pt, ph, remove_red_fives, sorted_hand, try_remove_all_tiles
 
@@ -23,8 +23,6 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     - 1.5 chiitoitsu/1.6 kokushi iishanten: the wait (e.g. 1p14z)
     If tenpai (shanten = 0), returns the waits as the extra data.
     """
-    assert len(starting_hand) == 13, f"calculate_shanten() needs a 13-tile hand, hand passed in has {len(starting_hand)} tiles"
-
     # 1. Remove all groups
     # 2. Count floating tiles
     # 3. Calculate shanten
@@ -147,14 +145,14 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
 
         # kokushi musou shanten
         if shanten >= 4:
-            shanten = min(shanten, (12 if num_unique_pairs >= 1 else 13) - len({11,19,21,29,31,39,41,42,43,44,45,46,47}.intersection(starting_hand)))
+            shanten = min(shanten, (12 if num_unique_pairs >= 1 else 13) - len(YAOCHUUHAI.intersection(starting_hand)))
 
             # get kokushi waits (iishanten or tenpai) and label iishanten type
             if shanten <= 1:
                 if num_unique_pairs > 0:
-                    extra_data = tuple({11,19,21,29,31,39,41,42,43,44,45,46,47}.difference(starting_hand))
+                    extra_data = sorted_hand(YAOCHUUHAI.difference(starting_hand))
                 else:
-                    extra_data = (11,19,21,29,31,39,41,42,43,44,45,46,47)
+                    extra_data = sorted_hand(YAOCHUUHAI)
             if shanten == 1:
                 shanten = 1.6
     return shanten, list(extra_data)
@@ -163,7 +161,7 @@ def calculate_shanten(starting_hand: Iterable[int]) -> Tuple[float, List[int]]:
     """This just converts the input to a sorted tuple so it can be serialized as a cache key"""
     return _calculate_shanten(tuple(sorted(starting_hand)))
 
-def calculate_ukeire(hand: List[int], visible: List[int]):
+def calculate_ukeire(hand: Tuple[int, ...], visible: Iterable[int]):
     """
     Return the ukeire of the hand, or 0 if the hand is not tenpai.
     Requires passing in the visible tiles on board (not including hand).
@@ -172,5 +170,5 @@ def calculate_ukeire(hand: List[int], visible: List[int]):
     if shanten > 0:
         return 0
     relevant_tiles = set(remove_red_fives(waits))
-    visible = list(remove_red_fives(hand + visible))
+    visible = list(remove_red_fives(list(hand) + list(visible)))
     return 4 * len(relevant_tiles) - sum(visible.count(wait) for wait in relevant_tiles)
