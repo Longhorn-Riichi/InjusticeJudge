@@ -31,7 +31,7 @@ def pt_unicode(tile: int) -> str:
         return "??"
 
 def pt(tile: int) -> str:
-    if os.getenv("use_discord_tile_emotes") == "True":
+    if os.getenv("use_discord_tile_emoji") == "True":
         return DISCORD_TILES[tile]
     else:
         return pt_unicode(tile)

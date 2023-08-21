@@ -414,21 +414,31 @@ def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]],
         return [f"Injustice detected in {round_name(round_number, honba)}:"
                 f" you lost points to an early win by {relative_seat_name(player, winner)} on turn {turn}"]
 
+def tenpai_status_string(flags: List[Flags]) -> str:
+    status = ""
+    if Flags.YOU_DECLARED_RIICHI in flags:
+        status = ", while in riichi"
+        if not Flags.YOUR_TENPAI_TILE_DEALT_IN in flags:
+            status += " (goodbye riichi stick)"
+    elif Flags.YOU_REACHED_TENPAI in flags:
+        status = ", while tenpai"
+    return status
+
 # Print if you dealt into dama
 @injustice(require=[Flags.YOU_DEALT_INTO_DAMA])
 def dealt_into_dama(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
     win_data = data[flags.index(Flags.YOU_DEALT_INTO_DAMA)]
     winner = win_data["seat"]
     score = win_data["score"]
+    extra_text = ""
     if Flags.YOU_DECLARED_RIICHI in flags:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama, while in riichi (goodbye riichi stick)"]
+        extra_text = ", while in riichi"
+        if not Flags.YOUR_TENPAI_TILE_DEALT_IN in flags:
+            extra_text += " (goodbye riichi stick)"
     elif Flags.YOU_REACHED_TENPAI in flags:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama, while tenpai"]
-    else:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama"]
+        extra_text = ", while tenpai"
+    return [f"Injustice detected in {round_name(round_number, honba)}:"
+            f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama{tenpai_status_string(flags)}"]
 
 # Print if you dealt into ippatsu
 @injustice(require=[Flags.YOU_DEALT_INTO_IPPATSU])
@@ -436,15 +446,8 @@ def dealt_into_ippatsu(flags: List[Flags], data: List[Dict[str, Any]], round_num
     win_data = data[flags.index(Flags.YOU_DEALT_INTO_IPPATSU)]
     winner = win_data["seat"]
     score = win_data["score"]
-    if Flags.YOU_DECLARED_RIICHI in flags:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu, while in riichi (goodbye riichi stick)"]
-    elif Flags.YOU_REACHED_TENPAI in flags:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu, while tenpai"]
-    else:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu"]
+    return [f"Injustice detected in {round_name(round_number, honba)}:"
+            f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu{tenpai_status_string(flags)}"]
 
 # Print if someone else won with bad wait ippatsu tsumo
 @injustice(require=[Flags.WINNER_HAD_BAD_WAIT, Flags.WINNER_IPPATSU_TSUMO],
