@@ -155,23 +155,23 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
 
             if shanten == 1.2:
                 if len(complete_waits | headless_waits) > len(headless_waits):
-                    print(f"{ph(starting_hand)} is headless complete iishanten, adding extra waits {ph(complete_waits - headless_waits)}")
+                    # print(f"{ph(starting_hand)} is headless complete iishanten, adding extra waits {ph(complete_waits - headless_waits)}")
                     shanten = 1.23
                 elif len(floating_waits | headless_waits) > len(headless_waits):
-                    print(f"{ph(starting_hand)} is headless floating iishanten, adding extra waits {ph(floating_waits - headless_waits)}")
+                    # print(f"{ph(starting_hand)} is headless floating iishanten, adding extra waits {ph(floating_waits - headless_waits)}")
                     shanten = 1.24
                 else:
-                    print(f"{ph(sorted_hand(starting_hand))} is headless iishanten, with waits {ph(headless_waits)}")
+                    # print(f"{ph(sorted_hand(starting_hand))} is headless iishanten, with waits {ph(headless_waits)}")
                     pass
                 extra_data = sorted_hand(floating_waits | complete_waits | headless_waits)
             elif len(complete_iishanten_shapes) > 0:
                 shanten = 1.3
                 extra_data = sorted_hand(get_floating_waits(hands))
-                print(f"{ph(sorted_hand(starting_hand))} is complete iishanten, with complex shapes {list(map(ph, complete_iishanten_shapes))}")
+                # print(f"{ph(sorted_hand(starting_hand))} is complete iishanten, with complex shapes {list(map(ph, complete_iishanten_shapes))}")
             elif len(floating_waits) > 0:
                 shanten = 1.4
                 extra_data = sorted_hand(get_floating_waits(hands))
-                print(f"{ph(sorted_hand(starting_hand))} is floating tile iishanten, with floating tile(s) {ph(floating_iishanten_tiles)}")
+                # print(f"{ph(sorted_hand(starting_hand))} is floating tile iishanten, with floating tile(s) {ph(floating_iishanten_tiles)}")
 
         assert groups_needed in {1,2}, f"{ph(sorted_hand(starting_hand))} is somehow iishanten with {4-groups_needed} groups"
         assert shanten != 1, f"somehow failed to detect type of iishanten for iishanten hand {ph(sorted_hand(starting_hand))}"

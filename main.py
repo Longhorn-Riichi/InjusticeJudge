@@ -4,12 +4,12 @@ from injustice_judge import analyze_game
 from typing import *
 import sys
 if __name__ == "__main__":
-    # assert len(sys.argv) >= 2, "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
-    # link = sys.argv[1]
-    # player = int(sys.argv[2]) if len(sys.argv) == 3 else None
-    # assert link != "", "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
-    # assert player in {0,1,2,3,None}, "expected second argument to be 0,1,2,3"
-    # print("\n".join(asyncio.run(analyze_game(link, player))))
+    assert len(sys.argv) >= 2, "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
+    link = sys.argv[1]
+    player = int(sys.argv[2]) if len(sys.argv) == 3 else None
+    assert link != "", "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
+    assert player in {0,1,2,3,None}, "expected second argument to be 0,1,2,3"
+    print("\n".join(asyncio.run(analyze_game(link, player))))
 
     # # shanten tests
     # from injustice_judge.utils import ph
