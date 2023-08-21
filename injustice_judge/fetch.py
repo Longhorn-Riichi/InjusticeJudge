@@ -77,14 +77,12 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:
         f = open(f"cached_games/game-{identifier}.log", 'rb')
         record = proto.ResGameRecord()  # type: ignore[attr-defined]
         record.ParseFromString(f.read())
-        data = record.data
         return (record.head, record.data), next((acc.seat for acc in record.head.accounts if acc.account_id == ms_account_id), 0)
     except Exception as e:
         import os
         import dotenv
         import requests
         import uuid
-        env_path = os.path.join(os.path.dirname(__file__), "config.env")
         dotenv.load_dotenv("config.env")
         UID = os.environ.get("ms_uid")
         TOKEN = os.environ.get("ms_token")
