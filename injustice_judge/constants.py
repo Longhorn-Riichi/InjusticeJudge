@@ -138,35 +138,45 @@ DORA_INDICATOR \
 TOGGLE_RED_FIVE = {15:51,25:52,35:53,51:15,52:25,53:35}
 YAOCHUUHAI = {11,19,21,29,31,39,41,42,43,44,45,46,47}
 
-###
-### utility functions
-###
+DISCORD_TILES = {
+    11: "<:1m:1142707135021600830>",
+    12: "<:2m:1142707491713593355>",
+    13: "<:3m:1142707570251939880>",
+    14: "<:4m:1142707571120160810>",
+    15: "<:5m:1142707573192138792>",
+    16: "<:6m:1142707574119079936>",
+    17: "<:7m:1142707575108931665>",
+    18: "<:8m:1142707576740520006>",
+    19: "<:9m:1142707577357082655>",
+    51: "<:0m:1142997164679770152>",
 
-def pt(tile: int) -> str:
-    """print tile (2-char representation)"""
-    TILE_REPRS = "🀇🀈🀉🀊🀋🀌🀍🀎🀏🀙🀚🀛🀜🀝🀞🀟🀠🀡🀐🀑🀒🀓🀔🀕🀖🀗🀘🀀🀁🀂🀃🀆🀅🀄︎"
-    if tile < 20:
-        return TILE_REPRS[tile - 11] + " "
-    elif tile < 30:
-        return TILE_REPRS[tile - 21 + 9] + " "
-    elif tile < 40:
-        return TILE_REPRS[tile - 31 + 18] + " "
-    elif tile < 47:
-        return TILE_REPRS[tile - 41 + 27] + " "
-    elif tile == 47:
-        # need to specially output 🀄︎ so it's not an emoji
-        return TILE_REPRS[-2:]
-    elif tile == 51:
-        return "🀋·"
-    elif tile == 52:
-        return "🀝·"
-    elif tile == 53:
-        return "🀔·"
-    else:
-        return "??"
-ph = lambda hand: "".join(map(pt, hand)) # print hand
-remove_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else tile
-remove_red_fives = lambda hand: map(remove_red_five, hand)
-sorted_hand = lambda hand: tuple(sorted(hand, key=remove_red_five))
-round_name = lambda rnd, honba: (f"East {rnd+1}" if rnd <= 3 else f"South {rnd-3}") + ("" if honba == 0 else f"-{honba}")
-relative_seat_name = lambda you, other: {0: "self", 1: "shimocha", 2: "toimen", 3: "kamicha"}[(other-you)%4]
+    21: "<:1p:1142707873802113044>",
+    22: "<:2p:1142707875261726772>",
+    23: "<:3p:1142707876159291512>",
+    24: "<:4p:1142707877002358847>",
+    25: "<:5p:1142707923605270590>",
+    26: "<:6p:1142707925475930153>",
+    27: "<:7p:1142707927292055562>",
+    28: "<:8p:1142707928239964160>",
+    29: "<:9p:1142707928885887040>",
+    52: "<:0p:1142997170870550538>",
+
+    31: "<:1s:1142707987526459455>",
+    32: "<:2s:1142707989405519973>",
+    33: "<:3s:1142707991351672982>",
+    34: "<:4s:1142707992580603914>",
+    35: "<:5s:1142707996460335155>",
+    36: "<:6s:1142986859488751646>",
+    37: "<:7s:1142986876144340992>",
+    38: "<:8s:1142986885195640972>",
+    39: "<:9s:1142986898017636382>",
+    53: "<:0s:1142997176641929347>",
+
+    41: "<:1z:1142986930422820996>",
+    42: "<:2z:1142986936223531028>",
+    43: "<:3z:1142987133599105065>",
+    44: "<:4z:1142987139311734856>",
+    45: "<:5z:1142987150984482989>",
+    46: "<:6z:1142987158920106104>",
+    47: "<:7z:1142987164406259733>"
+}

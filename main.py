@@ -3,6 +3,10 @@ from pprint import pprint
 from injustice_judge import analyze_game
 from typing import *
 import sys
+import dotenv
+
+dotenv.load_dotenv("config.env")
+
 if __name__ == "__main__":
     assert len(sys.argv) >= 2, "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
     link = sys.argv[1]

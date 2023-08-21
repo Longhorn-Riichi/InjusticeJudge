@@ -1,12 +1,13 @@
 import functools
-from .constants import TOGGLE_RED_FIVE, SHANTEN_NAMES, SUCC, PRED
+from .constants import DISCORD_TILES, TOGGLE_RED_FIVE, SHANTEN_NAMES, SUCC, PRED
 from typing import *
+import os
 
 ###
 ### utility functions
 ###
 
-def pt(tile: int) -> str:
+def pt_unicode(tile: int) -> str:
     """print tile (2-char representation)"""
     TILE_REPRS = "🀇🀈🀉🀊🀋🀌🀍🀎🀏🀙🀚🀛🀜🀝🀞🀟🀠🀡🀐🀑🀒🀓🀔🀕🀖🀗🀘🀀🀁🀂🀃🀆🀅🀄︎"
     if tile < 20:
@@ -28,6 +29,13 @@ def pt(tile: int) -> str:
         return "🀔·"
     else:
         return "??"
+
+def pt(tile: int) -> str:
+    if os.getenv("use_discord_tile_emotes") == "True":
+        return DISCORD_TILES[tile]
+    else:
+        return pt_unicode(tile)
+
 ph = lambda hand: "".join(map(pt, hand)) # print hand
 remove_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else tile
 remove_red_fives = lambda hand: map(remove_red_five, hand)
