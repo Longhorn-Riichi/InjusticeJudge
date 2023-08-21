@@ -33,9 +33,11 @@ MajsoulLog = Tuple[Message, bytes]
 
 class MahjongSoulAPI:
     """Helper class to interface with the Mahjong Soul API"""
+    def __init__(self, endpoint):
+        self.endpoint = endpoint
     async def __aenter__(self):
         import websockets
-        self.ws = await websockets.connect("wss://mjusgs.mahjongsoul.com:9663/")
+        self.ws = await websockets.connect(self.endpoint)
         self.ix = 0
         return self
     async def __aexit__(self, err_type, err_value, traceback):
@@ -58,7 +60,7 @@ class MahjongSoulAPI:
         wrapper: Message = proto.Wrapper()  # type: ignore[attr-defined]
         wrapper.ParseFromString(rx[3:])
         res.ParseFromString(wrapper.data)
-        assert not res.error.code, f"{method.full_name} request recieved error {res.error.code}"
+        assert not res.error.code, f"{method.full_name} request received error {res.error.code}"
         return res
 
 async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:
@@ -77,40 +79,62 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:
         f = open(f"cached_games/game-{identifier}.log", 'rb')
         record = proto.ResGameRecord()  # type: ignore[attr-defined]
         record.ParseFromString(f.read())
-        data = record.data
         return (record.head, record.data), next((acc.seat for acc in record.head.accounts if acc.account_id == ms_account_id), 0)
-    except Exception as e:
+    except Exception:
         import os
         import dotenv
         import requests
         import uuid
-        env_path = os.path.join(os.path.dirname(__file__), "config.env")
+
         dotenv.load_dotenv("config.env")
-        UID = os.environ.get("ms_uid")
-        TOKEN = os.environ.get("ms_token")
-        MS_VERSION = requests.get(url="https://mahjongsoul.game.yo-star.com/version.json").json()["version"][:-2]
+        USERNAME = os.getenv("ms_username")
+        PASSWORD = os.getenv("ms_password")
+        
+        if USERNAME is not None and PASSWORD is not None:
+            import hmac
+            import hashlib
+            # login to the Chinese server with USERNAME and PASSWORD
+            MS_VERSION = requests.get(url="https://game.maj-soul.com/1/version.json").json()["version"][:-2]
 
-        async with MahjongSoulAPI() as api:
-            print("Calling heatbeat...")
-            await api.call("heatbeat")
-            print("Requesting initial access token...")
-            USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
-            access_token = requests.post(url="https://passport.mahjongsoul.com/user/login", headers={"User-Agent": USER_AGENT, "Referer": "https://mahjongsoul.game.yo-star.com/"}, data={"uid":UID,"token":TOKEN,"deviceId":f"web|{UID}"}).json()["accessToken"]
-            print("Requesting oauth access token...")
-            oauth_token = (await api.call("oauth2Auth", type=7, code=access_token, uid=UID, client_version_string=f"web-{MS_VERSION}")).access_token
-            print("Calling heatbeat...")
-            await api.call("heatbeat")
-            print("Calling oauth2Check...")
-            assert (await api.call("oauth2Check", type=7, access_token=oauth_token)).has_account, "couldn't find account with oauth2Check"
-            print("Calling oauth2Login...")
-            client_device_info = {"platform": "pc", "hardware": "pc", "os": "mac", "is_browser": True, "software": "Firefox", "sale_platform": "web"}
-            await api.call("oauth2Login", type=7, access_token=oauth_token, reconnect=False, device=client_device_info, random_key=str(uuid.uuid1()), client_version={"resource": f"{MS_VERSION}.w"}, currency_platforms=[], client_version_string=f"web-{MS_VERSION}", tag="en")
-            print("Calling fetchGameRecord...")
-            res3 = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=f"web-{MS_VERSION}")
+            async with MahjongSoulAPI("wss://gateway-hw.maj-soul.com:443/gateway") as api:
+                client_version_string = f"web-{MS_VERSION}"
+                client_device_info = {"is_browser": True}
+                print("Calling login...")
+                await api.call(
+                    "login",
+                    account=USERNAME,
+                    password=hmac.new(b"lailai", PASSWORD.encode(), hashlib.sha256).hexdigest(),
+                    device=client_device_info,
+                    random_key=str(uuid.uuid1()),
+                    client_version_string=client_version_string)
+                print("Calling fetchGameRecord...")
+                res = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=client_version_string)
+        else:
+            # login to the EN server with UID and TOKEN
+            UID = os.getenv("ms_uid")
+            TOKEN = os.getenv("ms_token")
+            MS_VERSION = requests.get(url="https://mahjongsoul.game.yo-star.com/version.json").json()["version"][:-2]
+            async with MahjongSoulAPI("wss://mjusgs.mahjongsoul.com:9663/") as api:
+                print("Calling heatbeat...")
+                await api.call("heatbeat")
+                print("Requesting initial access token...")
+                USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
+                access_token = requests.post(url="https://passport.mahjongsoul.com/user/login", headers={"User-Agent": USER_AGENT, "Referer": "https://mahjongsoul.game.yo-star.com/"}, data={"uid":UID,"token":TOKEN,"deviceId":f"web|{UID}"}).json()["accessToken"]
+                print("Requesting oauth access token...")
+                oauth_token = (await api.call("oauth2Auth", type=7, code=access_token, uid=UID, client_version_string=f"web-{MS_VERSION}")).access_token
+                print("Calling heatbeat...")
+                await api.call("heatbeat")
+                print("Calling oauth2Check...")
+                assert (await api.call("oauth2Check", type=7, access_token=oauth_token)).has_account, "couldn't find account with oauth2Check"
+                print("Calling oauth2Login...")
+                client_device_info = {"platform": "pc", "hardware": "pc", "os": "mac", "is_browser": True, "software": "Firefox", "sale_platform": "web"}
+                await api.call("oauth2Login", type=7, access_token=oauth_token, reconnect=False, device=client_device_info, random_key=str(uuid.uuid1()), client_version={"resource": f"{MS_VERSION}.w"}, currency_platforms=[], client_version_string=f"web-{MS_VERSION}", tag="en")
+                print("Calling fetchGameRecord...")
+                res = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=f"web-{MS_VERSION}")
 
-        save_cache(filename=f"game-{identifier}.log", data=res3.SerializeToString())
+        save_cache(filename=f"game-{identifier}.log", data=res.SerializeToString())
 
-        return (res3.head, res3.data), next((acc.seat for acc in res3.head.accounts if acc.account_id == ms_account_id), 0)
+        return (res.head, res.data), next((acc.seat for acc in res.head.accounts if acc.account_id == ms_account_id), 0)
 
 def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
     metadata, raw_actions = log

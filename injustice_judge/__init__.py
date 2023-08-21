@@ -16,7 +16,7 @@ async def analyze_game(link: str, specified_player = None) -> List[str]:
         kyokus = parse_majsoul(majsoul_log)
     else:
         raise Exception("expected tenhou link starting with https://tenhou.net/0/?log="
-                        "or mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu=")
+                        " or mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu=")
     if specified_player is not None:
         player = specified_player
     return [injustice for kyoku in kyokus for injustice in evaluate_injustices(kyoku, player)]
