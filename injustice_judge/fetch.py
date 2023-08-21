@@ -121,7 +121,7 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
                     random_key=str(uuid.uuid1()),
                     client_version_string=client_version_string)
                 print("Calling fetchGameRecord...")
-                res = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=client_version_string)
+                record = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=client_version_string)
         else:
             # login to the EN server with UID and TOKEN
             UID = os.getenv("ms_uid")
