@@ -239,7 +239,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 kyoku["events"].append((action.seat, "end_nagashi", last_seat, call_type, called_tile))
                 nagashi[last_seat] = False
             kyoku["calls"][action.seat].extend(call_tiles[:3]) # ignore any kan tile
-            kyoku["call_info"][action.seat].append((call_type, called_tile, call_tiles))
+            call_direction = (last_seat - action.seat) % 4
+            kyoku["call_info"][action.seat].append((call_type, called_tile, call_direction, call_tiles))
         elif name == "RecordAnGangAddGang":
             tile = convert_tile(action.tiles)
             kyoku["events"].append((action.seat, "ankan", tile))
@@ -359,7 +360,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         num_players = 4
         hand = cast(List[List[int]], [haipai0, haipai1, haipai2, haipai3])
         calls = cast(List[List[int]], [[], [], [], []])
-        call_info = cast(List[List[Tuple[str, int, List[int]]]], [[], [], [], []]) # call type, called tile, call tiles
+        call_info = cast(List[List[Tuple[str, int, int, List[int]]]], [[], [], [], []]) # call type, called tile, direction [1-3], call tiles
         draws = cast(List[List[Union[int, str]]], [draws0, draws1, draws2, draws3])
         discards = cast(List[List[Union[int, str]]], [discards0, discards1, discards2, discards3])
         dora_indicators = cast(List[int], list(map(DORA_INDICATOR.get, doras)))
@@ -402,7 +403,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             call_type = get_call_name(draw)
             # the position of the letter determines where it's called from
             # but we don't use this information, we just brute force check for calls
-            call_tiles = "".join(c for c in draw if not c.isalpha())
+            call_tiles = "".join(c for c in draw if c.isdigit())
             return [int(call_tiles[i:i+2]) for i in range(0, len(call_tiles), 2)]
 
         while gas >= 0:
@@ -437,6 +438,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 """called every time a call happens, returns the called tile"""
                 call_type = get_call_name(call)
                 call_tiles = extract_call_tiles(call)
+                call_direction = (last_turn - turn) % 4
                 called_tile = call_tiles[0]
                 events.append((turn, call_type, called_tile))
                 if call_type in {"minkan", "ankan", "kakan"}:
@@ -447,7 +449,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                     visible_tiles.append(called_tile) # account for visible kan tile
                 if call_type in {"chii", "pon", "minkan"}:
                     calls[turn].extend(call_tiles[:3]) # ignore fourth kan tile
-                    call_info[turn].append((call_type, called_tile, call_tiles))
+                    call_info[turn].append((call_type, called_tile, call_direction, call_tiles))
                     if nagashi[last_turn]:
                         events.append((turn, "end_nagashi", last_turn, call_type, called_tile))
                         nagashi[last_turn] = False
