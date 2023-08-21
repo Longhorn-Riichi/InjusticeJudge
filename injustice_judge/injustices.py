@@ -416,10 +416,8 @@ def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]],
 
 def tenpai_status_string(flags: List[Flags]) -> str:
     status = ""
-    if Flags.YOU_DECLARED_RIICHI in flags:
-        status = ", while in riichi"
-        if not Flags.YOUR_TENPAI_TILE_DEALT_IN in flags:
-            status += " (goodbye riichi stick)"
+    if Flags.YOU_DECLARED_RIICHI in flags and not Flags.YOUR_TENPAI_TILE_DEALT_IN in flags:
+        status = ", while in riichi (goodbye riichi stick)"
     elif Flags.YOU_REACHED_TENPAI in flags:
         status = ", while tenpai"
     return status
