@@ -151,6 +151,8 @@ TRANSLATE = {
     "場風 南": "nan",
     "自風 西": "shaa",
     "自風 北": "pei",
+    "役牌:自風牌": "seat wind",
+    "役牌:場風牌": "round wind",
     "断幺九": "tanyao",
     "一盃口": "iipeikou",
     "平和": "pinfu",
