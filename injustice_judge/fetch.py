@@ -257,7 +257,10 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 score_string = LIMIT_HANDS[han]
             point_string = f"{h.point_rong}点"
             if h.zimo:
-                point_string = f"{h.point_zimo_xian}-{h.point_zimo_qin}点"
+                if h.point_zimo_qin > 0:
+                    point_string = f"{h.point_zimo_xian}-{h.point_zimo_qin}点"
+                else:
+                    point_string = f"{h.point_zimo_xian}点∀"
                 kyoku["hands"][h.seat].pop() # remove that tile so we can calculate waits/ukeire
             yakus = [name for _, name in sorted((fan.id, f"{YAKU_NAMES[fan.id]}({fan.val}飜)") for fan in h.fans)]
             kyoku["result"] = ["和了", list(action.delta_scores), [h.seat, last_seat, h.seat, score_string+point_string, *yakus]]
