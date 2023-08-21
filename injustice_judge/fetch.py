@@ -2,6 +2,7 @@ import functools
 import google.protobuf as pb  # type: ignore[import]
 from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
+from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
 from .constants import Kyoku, DORA_INDICATOR, LIMIT_HANDS, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
 from .utils import ph, pt, remove_red_five, sorted_hand, try_remove_all_tiles
@@ -25,7 +26,7 @@ def save_cache(filename: str, data: bytes) -> None:
 ###
 
 TenhouLog = List[List[Any]]
-MajsoulLog = Tuple[Message, bytes]
+MajsoulLog = List[Message]
 
 ###
 ### loading and parsing mahjong soul games
@@ -63,11 +64,23 @@ class MahjongSoulAPI:
         assert not res.error.code, f"{method.full_name} request received error {res.error.code}"
         return res
 
-async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:
+@functools.cache
+def parse_wrapped_bytes(data):
+    """Used to unwrap Mahjong Soul messages"""
+    wrapper = proto.Wrapper()
+    wrapper.ParseFromString(data)
+    name = wrapper.name.strip(f'.{proto.DESCRIPTOR.package}')
+    try:
+        msg = pb.reflection.MakeClass(proto.DESCRIPTOR.message_types_by_name[name])()
+        msg.ParseFromString(wrapper.data)
+    except KeyError as e:
+        raise Exception(f"Failed to find message name {name}")
+    return name, msg
+
+async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
     """
     Fetch a raw majsoul log from a given link, returning a parsed log and the specified player's seat
     Example link: https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203
-
     """
     assert link.startswith("https://mahjongsoul.game.yo-star.com/?paipu="), "expected mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu="
     if not "_a" in link:
@@ -79,7 +92,6 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:
         f = open(f"cached_games/game-{identifier}.log", 'rb')
         record = proto.ResGameRecord()  # type: ignore[attr-defined]
         record.ParseFromString(f.read())
-        return (record.head, record.data), next((acc.seat for acc in record.head.accounts if acc.account_id == ms_account_id), 0)
     except Exception:
         import os
         import dotenv
@@ -130,14 +142,16 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, int]:
                 client_device_info = {"platform": "pc", "hardware": "pc", "os": "mac", "is_browser": True, "software": "Firefox", "sale_platform": "web"}
                 await api.call("oauth2Login", type=7, access_token=oauth_token, reconnect=False, device=client_device_info, random_key=str(uuid.uuid1()), client_version={"resource": f"{MS_VERSION}.w"}, currency_platforms=[], client_version_string=f"web-{MS_VERSION}", tag="en")
                 print("Calling fetchGameRecord...")
-                res = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=f"web-{MS_VERSION}")
+                record = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=f"web-{MS_VERSION}")
+        save_cache(filename=f"game-{identifier}.log", data=record.SerializeToString())
+    parsed = parse_wrapped_bytes(record.data)[1]
+    if parsed.actions != []:
+        actions = [parse_wrapped_bytes(action.result) for action in parsed.actions if len(action.result) > 0]
+    else:
+        actions = [parse_wrapped_bytes(record) for record in parsed.records]
+    return actions, MessageToDict(record.head), next((acc.seat for acc in record.head.accounts if acc.account_id == ms_account_id), 0)
 
-        save_cache(filename=f"game-{identifier}.log", data=res.SerializeToString())
-
-        return (res.head, res.data), next((acc.seat for acc in res.head.accounts if acc.account_id == ms_account_id), 0)
-
-def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
-    metadata, raw_actions = log
+def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> List[Kyoku]:
     kyokus: List[Kyoku] = []
     kyoku: Kyoku = {}
     visible_tiles: List[int] = []
@@ -151,22 +165,6 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
         assert len(ret) + len(kyoku["calls"][seat]) == len(kyoku["hands"][seat]), f"with hand = {ph(kyoku['hands'][seat])} and calls = {ph(kyoku['calls'][seat])}, somehow closed part is {ph(ret)}"
         return ret
 
-    @functools.cache
-    def parse_wrapped_bytes(data):
-        wrapper = proto.Wrapper()
-        wrapper.ParseFromString(data)
-        name = wrapper.name.strip(f'.{proto.DESCRIPTOR.package}')
-        try:
-            msg = pb.reflection.MakeClass(proto.DESCRIPTOR.message_types_by_name[name])()
-            msg.ParseFromString(wrapper.data)
-        except KeyError as e:
-            raise Exception(f"Failed to find message name {name}")
-        return name, msg
-    parsed = parse_wrapped_bytes(raw_actions)[1]
-    if parsed.actions != []:
-        actions = [parse_wrapped_bytes(action.result) for action in parsed.actions if len(action.result) > 0]
-    else:
-        actions = [parse_wrapped_bytes(record) for record in parsed.records]
     for name, action in actions:
         if name == "RecordNewRound":
             if "events" in kyoku:
@@ -285,7 +283,7 @@ def parse_majsoul(log: MajsoulLog) -> List[Kyoku]:
 ### loading and parsing tenhou games
 ###
 
-def fetch_tenhou(link: str) -> Tuple[TenhouLog, int]:
+def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
     """
     Fetch a raw tenhou log from a given link, returning a parsed log and the specified player's seat
     Example link: https://tenhou.net/0/?log=2023072712gm-0089-0000-eff781e1&tw=1
@@ -301,7 +299,7 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, int]:
     player = int(link[-1])
     try:
         f = open(f"cached_games/game-{identifier}.json", 'r')
-        return json.load(f)["log"], player
+        game_data = json.load(f)
     except Exception as e:
         import requests
         import os
@@ -310,11 +308,13 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, int]:
         print(f" Fetching game log at url {url}")
         r = requests.get(url=url, headers={"User-Agent": USER_AGENT})
         r.raise_for_status()
-        log = r.json()
-        save_cache(filename=f"game-{identifier}.json", data=json.dumps(log, ensure_ascii=False).encode("utf-8"))
-        return log["log"], player
+        game_data = r.json()
+        save_cache(filename=f"game-{identifier}.json", data=json.dumps(game_data, ensure_ascii=False).encode("utf-8"))
+    log = game_data["log"]
+    del game_data["log"]
+    return log, game_data, player
 
-def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
+def parse_tenhou(raw_kyoku: TenhouLog, metadata: Dict[str, Any]) -> Kyoku:
     [
         [current_round, current_honba, num_riichis],
         scores,
@@ -499,3 +499,22 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
         "final_waits": final_waits,
         "final_ukeire": final_ukeire,
     }
+
+async def parse_game_link(link: str, specified_player: int = 0) -> Tuple[List[Kyoku], int]:
+    """Given a game link, fetch and parse the game into kyokus"""
+    # print(f"Analyzing game {link}:")
+    kyokus = []
+    if link.startswith("https://tenhou.net/0/?log="):
+        tenhou_log, metadata, player = fetch_tenhou(link)
+        for raw_kyoku in tenhou_log:
+            kyoku = parse_tenhou(raw_kyoku, metadata)
+            kyokus.append(kyoku)
+    elif link.startswith("https://mahjongsoul.game.yo-star.com/?paipu="):
+        majsoul_log, metadata, player = await fetch_majsoul(link)
+        kyokus = parse_majsoul(majsoul_log, metadata)
+    else:
+        raise Exception("expected tenhou link starting with https://tenhou.net/0/?log="
+                        " or mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu=")
+    if specified_player is not None:
+        player = specified_player
+    return kyokus, player
