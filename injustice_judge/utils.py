@@ -1,5 +1,5 @@
 import functools
-from .constants import TOGGLE_RED_FIVE, SHANTEN_NAMES
+from .constants import TOGGLE_RED_FIVE, SHANTEN_NAMES, SUCC, PRED
 from typing import *
 
 ###
@@ -53,3 +53,11 @@ def shanten_name(shanten: Tuple[int, List[int]]):
         return SHANTEN_NAMES[shanten[0]]
     else:
         return SHANTEN_NAMES[shanten[0]] + " waiting on " + ph(shanten[1])
+
+def get_waits(hand: Tuple[int, ...]) -> Set[int]:
+    """Get all waits resulting from each pair of consecutive tiles, excluding pair waits"""
+    hand = sorted_hand(hand)
+    def get_taatsu_wait(taatsu: Tuple[int, int]) -> Set[int]:
+        t1, t2 = remove_red_fives(taatsu)
+        return {PRED[t1], SUCC[t2]} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
+    return set().union(*map(get_taatsu_wait, zip(hand[:-1], hand[1:]))) - {0}

@@ -15,6 +15,8 @@ SHANTEN_NAMES = {
     1: "iishanten", # unused
     1.1: "kutsuki iishanten",
     1.2: "headless iishanten",
+    1.23: "headless complete iishanten",
+    1.24: "headless floating iishanten",
     1.3: "complete iishanten",
     1.4: "floating tile iishanten",
     1.5: "chiitoitsu iishanten",
