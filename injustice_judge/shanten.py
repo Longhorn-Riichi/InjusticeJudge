@@ -9,19 +9,22 @@ from .utils import pt, ph, remove_red_fives, sorted_hand, try_remove_all_tiles
 ### ukeire and shanten calculations
 ###
 
+def get_iishanten_waits():
+
+    pass
+
 @functools.cache
 def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]]:
     """
-    Return the shanten of the hand plus some extra data.
+    Return the shanten of the hand plus its waits (if tenpai or iishanten).
     If the shanten is 2+, the extra data is just an empty list.
     If iishanten, the returned shanten is 1.1 to 1.6, based on the type of iishanten.
-    If iishanten, some extra data is returned:
-    - 1.1 kutsuki iishanten: all kutsuki tiles (e.g. 49m or 14m8s)
-    - 1.2 headless iishanten: all taatsu (e.g. 24m89p, 3467p12s)
-    - 1.3 complete iishanten: the complex group (e.g. 246m or 44688p)
-    - 1.4 floating tile iishanten: the floating tile(s) (e.g. 8s or 14m)
-    - 1.5 chiitoitsu/1.6 kokushi iishanten: the wait (e.g. 1p14z)
-    If tenpai (shanten = 0), returns the waits as the extra data.
+    - 1.1 kutsuki iishanten
+    - 1.2 headless iishanten
+    - 1.3 complete iishanten
+    - 1.4 floating tile iishanten
+    - 1.5 chiitoitsu iishanten
+    - 1.6 kokushi iishanten
     """
     # 1. Remove all groups
     # 2. Count floating tiles
@@ -30,6 +33,8 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     # 5. If iishanten, output the relevant tiles
     # 6. If tenpai, output the wait
     # 7. Do 3-6 for chiitoitsu and kokushi
+    assert len(starting_hand) in {1, 4, 7, 10, 13}, f"calculate_shanten() was passed a {len(starting_hand)} tile hand"
+
 
     # helpers for removing tiles from hand
     remove_some = lambda hands, tile_to_groups: {cast(Tuple[int, ...], ())} if hands == {()} else set(try_remove_all_tiles(hand, group) for hand in hands for tile in set(hand) for group in tile_to_groups(tile))
@@ -48,13 +53,15 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     fix = lambda f, x: next(x for _ in itertools.cycle([None]) if x == (x := f(x)))
     make_taatsus = lambda tile: ((SUCC[tile], tile), (SUCC[SUCC[tile]], tile))
     remove_some_taatsus = lambda hands: fix(lambda hs: remove_some(hs, make_taatsus), hands)
+    remove_all_taatsus = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus), hands)
     make_pairs = lambda tile: ((tile, tile),)
     remove_some_pairs = lambda hands: fix(lambda hs: remove_some(hs, make_pairs), hands)
     remove_all_pairs = lambda hands: fix(lambda hs: remove_all(hs, make_pairs), hands)
 
     # remove as many groups as possible
     hands = remove_all_groups({starting_hand})
-    num_groups = (13 - len(next(iter(hands)))) // 3
+    groups_needed = (len(next(iter(hands))) - 1) // 3
+
 
     # calculate shanten for every combination of groups removed
 
@@ -65,9 +72,9 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
         # needs_pair = 1 if the hand is missing a pair but is full of taatsus -- need to convert a taatsu to a pair
         # must_discard_taatsu = 1 if the hand is 6+ blocks -- one of the taatsu is actually 2 floating tiles
         # shanten = (3 + num_floating - num_groups) // 2, plus the above
-        needs_pair = 1 if len(floating_tiles) == len(hand) and len(floating_tiles) + num_groups <= 3 else 0
-        must_discard_taatsu = 1 if num_groups <= 1 and len(floating_tiles) <= 1 else 0
-        return needs_pair + must_discard_taatsu + (3 + len(floating_tiles) - num_groups) // 2
+        needs_pair = 1 if len(floating_tiles) == len(hand) and groups_needed > len(floating_tiles) else 0
+        must_discard_taatsu = 1 if groups_needed >= 3 and len(floating_tiles) <= 1 else 0
+        return needs_pair + must_discard_taatsu + (groups_needed + len(floating_tiles) - 1) // 2
     shanten: float = min(map(get_hand_shanten, remove_some_taatsus(hands)))
     assert shanten >= 0, f"somehow calculated negative shanten for {ph(sorted_hand(starting_hand))}"
 
@@ -78,16 +85,25 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
         headless_iishanten_tiles: Set[int] = set()
         complete_iishanten_tiles: Set[Tuple[int, ...]] = set()
         floating_iishanten_tiles: Set[int] = set()
-        for hand in remove_some_taatsus(hands):
-            pairless = next(iter(remove_all_pairs({hand})))
-            if num_groups == 3:
+        if groups_needed == 1:
+            for hand in remove_some_taatsus(hands):
+                pairless = next(iter(remove_all_pairs({hand})))
                 if len(pairless) != len(hand):
                     # print(f"{ph(starting_hand)} is kutsuki iishanten on {ph(pairless)}")
                     kutsuki_iishanten_tiles |= set(pairless)
                 else:
                     # print(f"{ph(starting_hand)} is headless iishanten on {ph(hand)}")
                     headless_iishanten_tiles |= set(hand)
-            elif num_groups == 2:
+        elif groups_needed == 2:
+            # now we just need to count the number of pairs
+            # TODO floating iishanten = 2 taatsu + 1 pair + one tile
+            # complete iishanten = 2 pair + 1 taatsu + one tile near a pair
+            #                    = 1 ryankan + 1 pair + 1 taatsu
+
+
+
+            for hand in remove_some_taatsus(hands):
+                pairless = next(iter(remove_all_pairs({hand})))
                 if len(hand) >= 3:
                     # check if the hand is a complex shape
                     to_complex_shapes = lambda t1: (t2:=SUCC[t1], t3:=SUCC[t2], t5:=SUCC[SUCC[t3]], ((t1,t1,t2),(t1,t2,t2),(t1,t1,t3),(t1,t3,t3),(t1,t3,t5)))[-1]
@@ -99,28 +115,62 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
                 if len(pairless) == 1:
                     # print(f"{ph(starting_hand)} is floating tile iishanten on {ph(hand)}")
                     floating_iishanten_tiles.add(next(iter(pairless)))
-            else:
-                assert False, f"{ph(sorted_hand(starting_hand))} is somehow iishanten with {num_groups} groups"
+        else:
+            assert False, f"{ph(sorted_hand(starting_hand))} is somehow iishanten with {4-groups_needed} groups"
+
+
+
+        def get_waits(hand: Tuple[int, ...]) -> Set[int]:
+            hand = sorted_hand(hand)
+            def get_taatsu_wait(taatsu: Tuple[int, int]) -> Set[int]:
+                t1, t2 = remove_red_fives(taatsu)
+                if SUCC[t1] == t2: # ryanmen/penchan
+                    return {PRED[t1], SUCC[t2]}
+                elif SUCC[SUCC[t1]] == t2: # kanchan
+                    return {SUCC[t1]}
+                else:
+                    return set()
+            return set().union(*map(get_taatsu_wait, zip(hand[:-1], hand[1:]))) - {0}
 
         if len(kutsuki_iishanten_tiles) > 0:
             shanten = 1.1
-            extra_data = sorted_hand(kutsuki_iishanten_tiles)
-            # print(f"{ph(starting_hand)} is kutsuki iishanten, with kutsuki tiles {ph(extra_data)}")
+            waits = set()
+            for tile in kutsuki_iishanten_tiles:
+                waits |= {PRED[PRED[tile]], PRED[tile], tile, SUCC[tile], SUCC[SUCC[tile]]} - {0}
+            extra_data = sorted_hand(tuple(waits))
+            # print(f"{ph(sorted_hand(starting_hand))} is kutsuki iishanten, with waits {ph(extra_data)}")
         elif len(headless_iishanten_tiles) > 0:
             shanten = 1.2
-            extra_data = sorted_hand(headless_iishanten_tiles)
-            # print(f"{ph(starting_hand)} is headless iishanten, with shapes {ph(extra_data)}")
-        if len(complete_iishanten_tiles) > 0:
+            extra_data = sorted_hand(get_waits(tuple(headless_iishanten_tiles)).union(headless_iishanten_tiles))
+            # print(f"{ph(sorted_hand(starting_hand))} is headless iishanten, with waits {ph(extra_data)}")
+        elif len(complete_iishanten_tiles) > 0:
             shanten = 1.3
-            intersect = lambda l1, l2: [l1.remove(x) or x for x in l2 if x in l1]
-            flatten = lambda xss: [x for xs in xss for x in xs]
-            extra_data = sorted_hand(intersect(list(starting_hand), flatten(complete_iishanten_tiles)))
-            # print(f"{ph(starting_hand)} is complete iishanten, with complex shape {ph(extra_data)}")
+            # print(f"{ph(sorted_hand(starting_hand))} is complete iishanten, with complex shapes {list(map(ph, complete_iishanten_tiles))}")
         elif len(floating_iishanten_tiles) > 0:
             shanten = 1.4
-            extra_data = sorted_hand(floating_iishanten_tiles)
-            # print(f"{ph(starting_hand)} is floating tile iishanten, with floating tiles {ph(extra_data)}")
-
+            # print(f"{ph(sorted_hand(starting_hand))} is floating tile iishanten, with floating tiles {ph(extra_data)}")
+        if shanten in {1.3, 1.4}:
+            # get the waits
+            count_floating = lambda hand: len(next(iter(remove_all_taatsus(remove_all_pairs({hand})))))
+            waits = set()
+            for hand in hands:
+                # first count the floating tiles
+                # then try removing each pair
+                # if removing the pair increases the floating count, skip this pair
+                # otherwise, get the wait for the result, and also add this pair to a list
+                # if we have 1 pair, don't do anything
+                # if we have 2+ pairs, add them all to the wait
+                num_floating = count_floating(hand)
+                pairs = set()
+                for tile in hand:
+                    nopair = try_remove_all_tiles(hand, (tile, tile))
+                    if len(nopair) < len(hand): # we removed this pair
+                        if count_floating(nopair) == num_floating: # didn't remove a taatsu
+                            waits |= get_waits(nopair)
+                            pairs.add(tile)
+                if len(pairs) >= 2:
+                    waits |= pairs
+            extra_data = tuple(waits)
     # if tenpai, get the waits
     elif shanten == 0:
         hand_copy = tuple(remove_red_fives(starting_hand))

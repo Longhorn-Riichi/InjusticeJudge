@@ -1,7 +1,7 @@
 from .constants import Kyoku, SHANTEN_NAMES
 from enum import Enum
 from typing import *
-from .utils import ph, pt, relative_seat_name, round_name, shanten_name
+from .utils import ph, pt, relative_seat_name, round_name, shanten_name, sorted_hand
 from pprint import pprint
 
 ###
@@ -110,14 +110,13 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
         if all(ix != -1 for ix in last_draw_event_ix + last_discard_event_ix):
             break
 
-
     # Next, go through the events of the game in order. This determines flags related to:
     # - starting shanten
     # - tenpais/riichis and chases/folds
     # - slow shanten changes
     for i, event in enumerate(kyoku["events"]):
         seat, event_type, *event_data = event
-        if event_type in {"draw", "minkan", "ankan", "kakan"}:
+        if event_type in {"draw", "minkan"}:
             tiles_in_wall -= 1
         if seat == player:
             if event_type == "start_shanten":
@@ -125,7 +124,7 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 player_shanten = event_data[0]
                 if player_shanten[0] >= 5:
                     flags.append(Flags.FIVE_SHANTEN_START)
-                    data.append({"shanten": player_shanten[0]})
+                    data.append({"shanten": player_shanten})
             elif event_type == "shanten_change":
                 assert starting_player_shanten is not None
                 prev_shanten = event_data[0]
@@ -147,8 +146,7 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 draws_since_shanten_change += 1
                 if player_shanten[0] > 0 and draws_since_shanten_change >= 9:
                     flags.append(Flags.NINE_DRAWS_NO_IMPROVEMENT)
-                    data.append({"shanten": player_shanten[0],
-                                 "iishanten_tiles": player_shanten[1],
+                    data.append({"shanten": player_shanten,
                                  "turns": draws_since_shanten_change})
         if event_type == "riichi":
             in_riichi[seat] = True
@@ -233,7 +231,7 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
         # check winners
         winners = [t for t in range(kyoku["num_players"]) if kyoku["result"][1][t] > 0]
         for w in winners:
-            assert len(final_waits[w]) > 0, f"seat {w} won, but has no waits saved from SOMEONE_REACHED_TENPAI"
+            assert len(final_waits[w]) > 0, f"seat {w} won with hand {ph(sorted_hand(kyoku['hands'][w]))}, but has no waits saved from SOMEONE_REACHED_TENPAI"
             if kyoku["result"][1][player] < 0 and not is_tsumo:
                 if not opened_hand[w] and not in_riichi[w]:
                     flags.append(Flags.YOU_DEALT_INTO_DAMA)
@@ -389,13 +387,8 @@ def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: i
     shanten_data = data[len(flags) - 1 - flags[::-1].index(Flags.NINE_DRAWS_NO_IMPROVEMENT)]
     turns = shanten_data["turns"]
     shanten = shanten_data["shanten"]
-    iishanten_tiles = shanten_data["iishanten_tiles"]
-    if len(iishanten_tiles) > 0:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you were stuck at {SHANTEN_NAMES[shanten]} ({ph(iishanten_tiles)}) for {turns} turns, and never reached tenpai"]
-    else:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you were stuck at {SHANTEN_NAMES[shanten]} for {turns} turns, and never reached tenpai"]
+    return [f"Injustice detected in {round_name(round_number, honba)}:"
+            f" you were stuck at {shanten_name(shanten)} for {turns} turns, and never reached tenpai"]
 
 # Print if you started with atrocious shanten and never got to tenpai
 @injustice(require=[Flags.FIVE_SHANTEN_START],
@@ -403,7 +396,7 @@ def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: i
 def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
     shanten = data[flags.index(Flags.FIVE_SHANTEN_START)]["shanten"]
     return [f"Injustice detected in {round_name(round_number, honba)}:"
-            f" you started at {SHANTEN_NAMES[shanten]}"]
+            f" you started at {shanten_name(shanten)}"]
 
 # Print if you lost points to a first row ron/tsumo
 @injustice(require=[Flags.LOST_POINTS_TO_FIRST_ROW_WIN])

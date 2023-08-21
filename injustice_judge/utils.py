@@ -51,11 +51,5 @@ def try_remove_all_tiles(hand: Tuple[int, ...], tiles: Tuple[int, ...]) -> Tuple
 def shanten_name(shanten: Tuple[int, List[int]]):
     if shanten[0] >= 2:
         return SHANTEN_NAMES[shanten[0]]
-    elif shanten[0] == 1.1:
-        return SHANTEN_NAMES[shanten[0]] + " with kutsuki tiles " + ph(shanten[1])
-    elif shanten[0] == 1.2:
-        return SHANTEN_NAMES[shanten[0]] + " on " + ph(shanten[1])
-    elif shanten[0] == 1.4:
-        return SHANTEN_NAMES[shanten[0]] + " with " + ph(shanten[1]) + " as floating tile(s)"
     else:
         return SHANTEN_NAMES[shanten[0]] + " waiting on " + ph(shanten[1])

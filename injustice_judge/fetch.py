@@ -385,21 +385,26 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
         # could be a regular draw, chii, pon, or daiminkan
         # then handle the discard
         # could be a regular discard, riichi, kakan, or ankan
+        called_kan = False
         def handle_call(call: str) -> int:
             """called every time a call happens, returns the called tile"""
             call_type = get_call_name(call)
             call_tiles = extract_call_tiles(call)
             called_tile = call_tiles[0]
             events.append((turn, call_type, called_tile))
-            nonlocal num_dora
             if call_type in {"minkan", "ankan", "kakan"}:
+                nonlocal num_dora
+                nonlocal called_kan
                 num_dora += 1
+                called_kan = True
                 visible_tiles.append(called_tile) # account for visible kan tile
             if call_type in {"chii", "pon", "minkan"}:
                 calls[turn].extend(call_tiles[:3]) # ignore fourth kan tile
                 if nagashi[last_turn]:
                     events.append((turn, "end_nagashi", last_turn, call_type, called_tile))
                     nagashi[last_turn] = False
+            if call_type == "minkan":
+                hand[turn].remove(called_tile) # remove the extra kan tile
             return called_tile
 
         draw = draws[turn][i[turn]]
@@ -428,12 +433,15 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
             hand[turn].remove(last_discard)
             visible_tiles.append(last_discard)
             events.append((turn, "discard", last_discard))
-
         new_shanten = calculate_shanten(closed_part(turn))
         if new_shanten != shanten[turn]: # compare both the shanten number and the iishanten group
             events.append((turn, "shanten_change", shanten[turn], new_shanten))
             shanten[turn] = new_shanten
 
+        assert len(hand[turn]) == 13, f"got {len(hand[turn])} tiles in hand after events:\n" + "\n".join(map(str,events[-5:]))
+        was_ankan = type(discard) is str and get_call_name(discard) == "ankan"
+        was_kakan = type(discard) is str and get_call_name(discard) == "kakan"
+        was_daiminkan = type(draws[turn][i[turn]]) is str and get_call_name(draws[turn][i[turn]]) == "minkan"
         i[turn] += 1 # done processing this draw/discard
 
         # check if the resulting hand is tenpai
@@ -443,10 +451,11 @@ def parse_tenhou(raw_kyoku: TenhouLog) -> Kyoku:
             events.append((turn, "tenpai", sorted_hand(hand[turn]), potential_waits, ukeire))
 
         # change turn to next player
-        last_turn = turn
-        turn += 1
-        if turn == num_players:
-            turn = 0
+        if not called_kan:
+            last_turn = turn
+            turn += 1
+            if turn == num_players:
+                turn = 0
     assert gas >= 0, "ran out of gas"
     assert len(dora_indicators) == num_dora, "there's a bug in counting dora"
 
