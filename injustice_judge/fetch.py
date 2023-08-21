@@ -239,11 +239,20 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 kyoku["events"].append((action.seat, "end_nagashi", last_seat, call_type, called_tile))
                 nagashi[last_seat] = False
             kyoku["calls"][action.seat].extend(call_tiles[:3]) # ignore any kan tile
-            call_direction = (last_seat - action.seat) % 4
+            call_direction = (action.seat - last_seat) % 4
             kyoku["call_info"][action.seat].append((call_type, called_tile, call_direction, call_tiles))
         elif name == "RecordAnGangAddGang":
             tile = convert_tile(action.tiles)
-            kyoku["events"].append((action.seat, "ankan", tile))
+            # if kakan, replace the old pon call with kakan
+            kakan_index = next((i for i, (call_t, t, _, _) in enumerate(kyoku["call_info"][action.seat]) if call_t == "pon" and t == tile), None)
+            if kakan_index is not None:
+                call_type = "kakan"
+                orig_direction = kyoku["call_info"][action.seat][kakan_index][2]
+                kyoku["call_info"][action.seat][kakan_index] = (call_type, tile, orig_direction, [tile]*4)
+            else:
+                call_type = "ankan"
+                kyoku["call_info"][action.seat].append((call_type, tile, 0, [tile]*4))
+            kyoku["events"].append((action.seat, call_type, tile))
             kyoku["hands"][action.seat].remove(tile)
             visible_tiles.append(tile)
             dora_indicators = [DORA_INDICATOR[convert_tile(dora)] for dora in action.doras]
@@ -438,7 +447,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 """called every time a call happens, returns the called tile"""
                 call_type = get_call_name(call)
                 call_tiles = extract_call_tiles(call)
-                call_direction = (last_turn - turn) % 4
+                call_direction = (turn - last_turn) % 4
                 called_tile = call_tiles[0]
                 events.append((turn, call_type, called_tile))
                 if call_type in {"minkan", "ankan", "kakan"}:
@@ -447,14 +456,23 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                     num_dora += 1
                     called_kan = True
                     visible_tiles.append(called_tile) # account for visible kan tile
-                if call_type in {"chii", "pon", "minkan"}:
+                # if kakan, replace the old pon call with kakan
+                if call_type == "kakan":
+                    kakan_index = next((i for i, (call_t, t, _, _) in enumerate(call_info[turn]) if call_t == "pon" and t == called_tile), None)
+                    assert kakan_index is not None, f"called kakan on {called_tile} but there was no previous pon"
+                    orig_direction = call_info[turn][kakan_index][2]
+                    call_info[turn][kakan_index] = (call_type, called_tile, orig_direction, [called_tile]*4)
+                elif call_type == "ankan":
+                    calls[turn].extend(call_tiles[:3]) # ignore fourth kan tile
+                    call_info[turn].append((call_type, called_tile, call_direction, call_tiles))
+                elif call_type in {"chii", "pon", "minkan"}:
                     calls[turn].extend(call_tiles[:3]) # ignore fourth kan tile
                     call_info[turn].append((call_type, called_tile, call_direction, call_tiles))
                     if nagashi[last_turn]:
                         events.append((turn, "end_nagashi", last_turn, call_type, called_tile))
                         nagashi[last_turn] = False
-                if call_type == "minkan":
-                    hand[turn].remove(called_tile) # remove the extra kan tile
+                    if call_type == "minkan":
+                        hand[turn].remove(called_tile) # remove the extra kan tile
                 return called_tile
 
             draw = draws[turn][i[turn]]

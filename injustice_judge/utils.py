@@ -21,6 +21,8 @@ def pt_unicode(tile: int) -> str:
     elif tile == 47:
         # need to specially output 🀄︎ so it's not an emoji
         return TILE_REPRS[-2:]
+    elif tile == 50:
+        return "🀫 "
     elif tile == 51:
         return "🀋·"
     elif tile == 52:
@@ -35,6 +37,32 @@ def pt(tile: int) -> str:
         return DISCORD_TILES[tile]
     else:
         return pt_unicode(tile)
+
+def print_call_info(call_info):
+    call_type, called_tile, call_direction, call_tiles = call_info
+    other_tiles = sorted_hand(try_remove_all_tiles(tuple(call_tiles), (called_tile,)))
+    if os.getenv("use_discord_tile_emoji") == "True":
+        sideways = DISCORD_CALLED_TILES[called_tile]
+    else:
+        sideways = f"₍{pt(called_tile)}₎"
+    if call_type == "ankan":
+        return ph((50, called_tile, called_tile, 50))
+    elif call_type == "kakan": # two consecutive sideways tiles
+        sideways = sideways*2
+        other_tiles = other_tiles[:-1]
+    if call_direction == 1: # shimocha
+        return ph(other_tiles) + sideways
+    elif call_direction == 2: # toimen
+        return pt(other_tiles[0]) + sideways + ph(other_tiles[1:])
+    elif call_direction == 3: # kamicha
+        return sideways + ph(other_tiles)
+    else:
+        assert False, f"print_call_info got invalid call direction {call_direction}"
+
+def print_full_hand(closed_part, call_info, shanten, ukeire):
+    call_string = "" if len(call_info) == 0 else " " + " ".join(map(print_call_info, reversed(call_info)))
+    wait_string = "" if len(shanten[1]) == 0 else f" waiting on {ph(sorted_hand(shanten[1]))} ({ukeire} ukeire)"
+    return f"{ph(sorted_hand(closed_part))}{call_string}{wait_string}"
 
 ph = lambda hand: "".join(map(pt, hand)) # print hand
 remove_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else tile
