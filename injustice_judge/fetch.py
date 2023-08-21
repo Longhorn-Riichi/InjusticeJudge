@@ -280,14 +280,14 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
 
     # parse metadata
     parsed_metadata: GameMetadata = {
-        "nick": [()] * num_players,
+        "name": [()] * num_players,
         "game_score": [()] * num_players,
         "final_score": [()] * num_players
     }
     acc_data = sorted((acc.get("seat", 0), acc["nickname"]) for acc in metadata["accounts"])
     result_data = sorted((res.get("seat", 0), res["partPoint1"], res["totalPoint"]) for res in metadata["result"]["players"])
     for i in range(num_players):
-        parsed_metadata["nick"][i] = acc_data[i][1]
+        parsed_metadata["name"][i] = acc_data[i][1]
         parsed_metadata["game_score"][i] = result_data[i][1]
         parsed_metadata["final_score"][i] = result_data[i][2]
 
@@ -517,7 +517,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
 
     # parse metadata
     parsed_metadata: GameMetadata = {
-        "nick": metadata["name"],
+        "name": metadata["name"],
         "game_score": metadata["sc"][::2],
         "final_score": list(map(lambda s: int(1000*s), metadata["sc"][1::2]))
     }
