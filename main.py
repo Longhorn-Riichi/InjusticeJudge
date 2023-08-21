@@ -25,7 +25,7 @@ if __name__ == "__main__":
     # assert calculate_shanten([16,18,23,24,25,31,32,33,37,38,39,39,39])[0] == 0
     # assert calculate_shanten([16,18,23,24,25,31,32,33,37,38,39,39,39])[1] == [17]
     # print("kutsuki iishanten:")
-    # assert calculate_shanten([11,11,11,12,13,21,22,23,25,26,27,28,38])[0] == 1.1 # 11123m1235678p8s  kutsuki iishanten
+    # assert calculate_shanten([11,11,11,12,13,21,22,23,25,26,27,28,38])[0] == 1.1 # 11123m1235678p8s  kuttsuki iishanten
     # assert calculate_shanten([11,12,13,23,24,25,52,33,37,38,39,42,42])[0] == 1.1
     # assert calculate_shanten([24,24,52,27,28,29,33,34,35,53,37,38,39])[0] == 1.1
     # assert calculate_shanten([24,24,52,27,28,29,33,34,35,53,37,38,39])[1] == [52,53]

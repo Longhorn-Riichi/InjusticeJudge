@@ -38,9 +38,14 @@ asyncio.run(analyze_game("tenhou link", 2)) # West player
 
 ## Setup for mahjong soul links
 
-This is only required if you want to analyze mahjong soul logs
+This is only required if you want to analyze mahjong soul logs. Create a `config.env` file and choose one option below:
 
-Create a `config.env` file containing the following:
+### Option 1: login to Chinese server with username and password
+
+    ms_username = "<your username>"
+    ms_password = "<your password>"
+
+### Option 2: login to EN server with `uid` and `token`
 
     ms_uid = "<your uid>"
     ms_token = "<your token>"
