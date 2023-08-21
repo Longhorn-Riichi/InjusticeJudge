@@ -184,6 +184,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 "result": None,
                 "hands": list(map(majsoul_hand_to_tenhou, haipais)),
                 "calls": [[] for _ in range(num_players)],
+                "call_info": [[] for _ in range(num_players)],
                 "final_waits": None,
                 "final_ukeire": None
             }
@@ -238,6 +239,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 kyoku["events"].append((action.seat, "end_nagashi", last_seat, call_type, called_tile))
                 nagashi[last_seat] = False
             kyoku["calls"][action.seat].extend(call_tiles[:3]) # ignore any kan tile
+            kyoku["call_info"][action.seat].append((call_type, called_tile, call_tiles))
         elif name == "RecordAnGangAddGang":
             tile = convert_tile(action.tiles)
             kyoku["events"].append((action.seat, "ankan", tile))
@@ -357,6 +359,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         num_players = 4
         hand = cast(List[List[int]], [haipai0, haipai1, haipai2, haipai3])
         calls = cast(List[List[int]], [[], [], [], []])
+        call_info = cast(List[List[Tuple[str, int, List[int]]]], [[], [], [], []]) # call type, called tile, call tiles
         draws = cast(List[List[Union[int, str]]], [draws0, draws1, draws2, draws3])
         discards = cast(List[List[Union[int, str]]], [discards0, discards1, discards2, discards3])
         dora_indicators = cast(List[int], list(map(DORA_INDICATOR.get, doras)))
@@ -444,6 +447,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                     visible_tiles.append(called_tile) # account for visible kan tile
                 if call_type in {"chii", "pon", "minkan"}:
                     calls[turn].extend(call_tiles[:3]) # ignore fourth kan tile
+                    call_info[turn].append((call_type, called_tile, call_tiles))
                     if nagashi[last_turn]:
                         events.append((turn, "end_nagashi", last_turn, call_type, called_tile))
                         nagashi[last_turn] = False
@@ -514,6 +518,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             "result": result,
             "hands": hand,
             "calls": calls,
+            "call_info": call_info,
             "final_waits": final_waits,
             "final_ukeire": final_ukeire,
         })
