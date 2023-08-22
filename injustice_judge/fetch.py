@@ -186,12 +186,15 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 "calls": [[] for _ in range(num_players)],
                 "call_info": [[] for _ in range(num_players)],
                 "final_waits": None,
-                "final_ukeire": None
+                "final_ukeire": None,
+                "starting_hands": list(map(majsoul_hand_to_tenhou, haipais)),
+                "starting_shanten": [() for _ in range(num_players)],
             }
             dora_indicators = [DORA_INDICATOR[convert_tile(dora)] for dora in action.doras]
             visible_tiles = []
             first_tile: int = kyoku["hands"][action.ju].pop() # dealer starts with 14, remove the last tile so we can calculate shanten
             shanten = list(map(calculate_shanten, kyoku["hands"]))
+            kyoku["starting_shanten"] = shanten
             for t in range(num_players):
                 kyoku["events"].append((t, "haipai", sorted_hand(kyoku["hands"][t])))
                 kyoku["events"].append((t, "start_shanten", shanten[t]))
@@ -390,10 +393,12 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         events: List[Any] = []
         gas = 1000
         num_dora = 1
-        shanten = list(map(calculate_shanten, hand))
+        starting_shanten = list(map(calculate_shanten, hand))
+        shanten = list(starting_shanten)
+        
         for t in range(num_players):
             events.append((t, "haipai", sorted_hand(hand[t])))
-            events.append((t, "start_shanten", shanten[t]))
+            events.append((t, "start_shanten", starting_shanten[t]))
 
         @functools.cache
         def get_call_name(draw: str) -> str:
@@ -558,6 +563,8 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             "call_info": call_info,
             "final_waits": final_waits,
             "final_ukeire": final_ukeire,
+            "starting_hands": [haipai0, haipai1, haipai2, haipai3],
+            "starting_shanten": starting_shanten,
         })
 
     # parse metadata
