@@ -92,7 +92,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
         def get_floating_waits(hands):
             count_floating = lambda hand: len(next(iter(remove_all_pairs(remove_all_taatsus({hand})))))
             waits = set()
-            for hand in hands:
+            for hand in [tuple(remove_red_fives(hand)) for hand  in hands]:
                 # first count the floating tiles
                 # then try removing each pair
                 # if removing the pair increases the floating count, skip this pair
