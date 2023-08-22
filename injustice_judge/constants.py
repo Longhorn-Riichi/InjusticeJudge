@@ -21,16 +21,16 @@ SHANTEN_NAMES = {
     1.24: "headless floating iishanten",
     1.3: "imperfect iishanten",
     1.35: "perfect iishanten",
-    1.4: "floating tile chiitoitsu iishanten",
+    1.4: "floating iishanten",
     1.5: "chiitoitsu iishanten",
-    1.6: "kutsuki chiitoitsu iishanten",
-    1.7: "headless chiitoitsu iishanten",
-    1.72: "headless chiitoitsu iishanten",
-    1.73: "headless chiitoitsu iishanten",
-    1.74: "headless chiitoitsu iishanten",
+    1.6: "kutsuki chiitoi iishanten",
+    1.7: "headless chiitoi iishanten",
+    1.72: "headless chiitoi iishanten",
+    1.73: "headless chiitoi iishanten",
+    1.74: "headless chiitoi iishanten",
     1.82: "chiitoitsu iishanten",
     1.83: "chiitoitsu iishanten",
-    1.9: "floating tile chiitoitsu iishanten",
+    1.9: "floating chiitoi iishanten",
     2: "2-shanten",
     3: "3-shanten",
     4: "4-shanten",
@@ -176,7 +176,7 @@ TRANSLATE = {
     "三暗刻": "sanankou",
     "小三元": "shousangen",
     "混老頭": "honroutou",
-    "七対子": " chiitoitsu",
+    "七対子": "chiitoitsu",
     "純全帯幺九": "junchan",
     "混一色": "honitsu",
     "二盃口": "ryanpeikou",
@@ -229,7 +229,7 @@ DORA_INDICATOR \
      = {0:0,11:19,12:11,13:12,14:13,15:14,16:15,17:16,18:17,19:18, # get dora indicator, given dora
             21:29,22:21,23:22,24:23,25:24,26:25,27:26,28:27,29:28,
             31:39,32:31,33:32,34:33,35:34,36:35,37:36,38:37,39:38,
-            41:47,42:41,43:42,44:43,45:44,46:45,47:46}
+            41:47,42:41,43:42,44:43,45:44,46:45,47:46,51:14,52:24,53:34}
 TOGGLE_RED_FIVE = {15:51,25:52,35:53,51:15,52:25,53:35}
 YAOCHUUHAI = {11,19,21,29,31,39,41,42,43,44,45,46,47}
 

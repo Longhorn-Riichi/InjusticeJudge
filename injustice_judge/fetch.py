@@ -182,19 +182,19 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 "num_players": num_players,
                 "events": [],
                 "result": None,
-                "hands": list(map(majsoul_hand_to_tenhou, haipais)),
+                "hands": [majsoul_hand_to_tenhou(h) for h in haipais],
                 "calls": [[] for _ in range(num_players)],
                 "call_info": [[] for _ in range(num_players)],
                 "final_waits": None,
                 "final_ukeire": None,
-                "starting_hands": list(map(majsoul_hand_to_tenhou, haipais)),
+                "starting_hands": [majsoul_hand_to_tenhou(h) for h in haipais],
                 "starting_shanten": [() for _ in range(num_players)],
             }
             dora_indicators = [DORA_INDICATOR[convert_tile(dora)] for dora in action.doras]
             visible_tiles = []
             first_tile: int = kyoku["hands"][action.ju].pop() # dealer starts with 14, remove the last tile so we can calculate shanten
             shanten = list(map(calculate_shanten, kyoku["hands"]))
-            kyoku["starting_shanten"] = shanten
+            kyoku["starting_shanten"] = list(shanten)
             for t in range(num_players):
                 kyoku["events"].append((t, "haipai", sorted_hand(kyoku["hands"][t])))
                 kyoku["events"].append((t, "start_shanten", shanten[t]))
@@ -260,31 +260,31 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             visible_tiles.append(tile)
             dora_indicators = [DORA_INDICATOR[convert_tile(dora)] for dora in action.doras]
         elif name == "RecordHule":
-            if len(action.hules) > 1:
-                print("don't know how tenhou represents multi ron")
-            h = action.hules[0]
-            han = sum(fan.val for fan in h.fans)
-            score_string = f"{h.fu}符{han}飜"
-            if any(fan.id in YAKUMAN.keys() for fan in h.fans):
-                score_string = "役満"
-            elif h.point_rong >= 8000:
-                assert han in LIMIT_HANDS, f"limit hand with {han} han is not in LIMIT_HANDS"
-                score_string = LIMIT_HANDS[han]
-            point_string = f"{h.point_rong}点"
-            if h.zimo:
-                if h.point_zimo_qin > 0:
-                    point_string = f"{h.point_zimo_xian}-{h.point_zimo_qin}点"
-                else:
-                    point_string = f"{h.point_zimo_xian}点∀"
-                kyoku["hands"][h.seat].pop() # remove that tile so we can calculate waits/ukeire
-            yakus = [name for _, name in sorted((fan.id, f"{YAKU_NAMES[fan.id]}({fan.val}飜)") for fan in h.fans)]
-            kyoku["result"] = ["和了", list(action.delta_scores), [h.seat, last_seat, h.seat, score_string+point_string, *yakus]]
+            kyoku["result"] = ["和了"]
+            for h in action.hules:
+                han = sum(fan.val for fan in h.fans)
+                score_string = f"{h.fu}符{han}飜"
+                if any(fan.id in YAKUMAN.keys() for fan in h.fans):
+                    score_string = "役満"
+                elif h.point_rong >= 8000:
+                    assert han in LIMIT_HANDS, f"limit hand with {han} han is not in LIMIT_HANDS"
+                    score_string = LIMIT_HANDS[han]
+                point_string = f"{h.point_rong}点"
+                if h.zimo:
+                    if h.point_zimo_qin > 0:
+                        point_string = f"{h.point_zimo_xian}-{h.point_zimo_qin}点"
+                    else:
+                        point_string = f"{h.point_zimo_xian}点∀"
+                    kyoku["hands"][h.seat].pop() # remove that tile so we can calculate waits/ukeire
+                yakus = [name for _, name in sorted((fan.id, f"{YAKU_NAMES[fan.id]}({fan.val}飜)") for fan in h.fans)]
+                kyoku["result"].append(list(action.delta_scores))
+                kyoku["result"].append([h.seat, last_seat, h.seat, score_string+point_string, *yakus])
             kyoku["final_waits"] = [w for _, w in shanten]
-            kyoku["final_ukeire"] = [calculate_ukeire(closed_part(seat), kyoku["calls"][h.seat] + visible_tiles + dora_indicators) for seat in range(num_players)]
+            kyoku["final_ukeire"] = [calculate_ukeire(closed_part(seat), kyoku["calls"][seat] + visible_tiles + dora_indicators) for seat in range(num_players)]
         elif name == "RecordNoTile":
             kyoku["result"] = ["流局", *(score_info.delta_scores for score_info in action.scores)]
             kyoku["final_waits"] = [w for _, w in shanten]
-            kyoku["final_ukeire"] = [calculate_ukeire(closed_part(seat), kyoku["calls"][h.seat] + visible_tiles + dora_indicators) for seat in range(num_players)]
+            kyoku["final_ukeire"] = [calculate_ukeire(closed_part(seat), kyoku["calls"][seat] + visible_tiles + dora_indicators) for seat in range(num_players)]
         elif name == "RecordBaBei": # kita
             hand = kyoku["hands"][action.seat]
             kyoku["events"].append((action.seat, "kita"))

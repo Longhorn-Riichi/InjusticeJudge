@@ -29,6 +29,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_ARE_DEALER"
     " YOU_DEALT_IN_BEFORE_NOTEN_PAYMENT"
     " YOU_DEALT_INTO_DAMA"
+    " YOU_DEALT_INTO_DOUBLE_RON"
     " YOU_DEALT_INTO_IPPATSU"
     " YOU_DREW_PREVIOUSLY_WAITED_TILE"
     " YOU_FOLDED_FROM_TENPAI"
@@ -115,8 +116,9 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     # - tenpais/riichis and chases/folds
     # - slow shanten changes
     for i, event in enumerate(kyoku["events"]):
+        # print(round_name(kyoku["round"], kyoku["honba"]), ":", tiles_in_wall, seat, event)
         seat, event_type, *event_data = event
-        if event_type in {"draw", "minkan"}:
+        if event_type == "draw":
             tiles_in_wall -= 1
         if seat == player:
             if event_type == "start_shanten":
@@ -229,31 +231,35 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
             final_ukeire[seat] = data[ix]["ukeire"]
 
         # check winners
-        winners = [t for t in range(kyoku["num_players"]) if kyoku["result"][1][t] > 0]
-        for w in winners:
+        wins = [kyoku["result"][i*2+1:i*2+3] for i in range(len(kyoku["result"])//2)]
+        for [score_delta, [w, win_turn, _, score_string, *yaku]] in wins:
             assert len(final_waits[w]) > 0, f"in {round_name(kyoku['round'], kyoku['honba'])}, seat {w} won with hand {ph(sorted_hand(kyoku['hands'][w]))}, but has no waits saved from SOMEONE_REACHED_TENPAI"
-            if kyoku["result"][1][player] < 0 and not is_tsumo:
+            if score_delta[player] < 0 and not is_tsumo:
                 if not opened_hand[w] and not in_riichi[w]:
                     flags.append(Flags.YOU_DEALT_INTO_DAMA)
                     data.append({"seat": w,
-                                 "score": -kyoku["result"][1][player]})
-                if "一発(1飜)" in kyoku["result"][2]:
+                                 "score": -score_delta[player]})
+                if "一発(1飜)" in yaku:
                     flags.append(Flags.YOU_DEALT_INTO_IPPATSU)
                     data.append({"seat": w,
-                                 "score": -kyoku["result"][1][player]})
+                                 "score": -score_delta[player]})
+                if len(wins) > 1:
+                    flags.append(Flags.YOU_DEALT_INTO_DOUBLE_RON)
+                    data.append({"number": len(wins)})
+
 
             limit_hand_flags = [Flags.WINNER, Flags.WINNER_GOT_MANGAN,
                                 Flags.WINNER_GOT_HANEMAN, Flags.WINNER_GOT_BAIMAN,
                                 Flags.WINNER_GOT_SANBAIMAN, Flags.WINNER_GOT_YAKUMAN]
-            if kyoku["result"][2][3].startswith("満貫"):
+            if score_string[3].startswith("満貫"):
                 limit_hand_flags = limit_hand_flags[0:1]
-            elif kyoku["result"][2][3].startswith("跳満"):
+            elif score_string[3].startswith("跳満"):
                 limit_hand_flags = limit_hand_flags[0:2]
-            elif kyoku["result"][2][3].startswith("倍満"):
+            elif score_string[3].startswith("倍満"):
                 limit_hand_flags = limit_hand_flags[0:3]
-            elif kyoku["result"][2][3].startswith("三倍満"):
+            elif score_string[3].startswith("三倍満"):
                 limit_hand_flags = limit_hand_flags[0:4]
-            elif kyoku["result"][2][3].startswith("役満"):
+            elif score_string[3].startswith("役満"):
                 pass
             else:
                 limit_hand_flags = []
@@ -278,14 +284,14 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 chaser_data = data[i]
                 chaser = chaser_data["seat"]
                 assert player != chaser, "Player should not be chaser for Flags.YOU_GOT_CHASED"
-                if kyoku["result"][1][chaser] < 0:
+                if score_delta[chaser] < 0:
                     flags.append(Flags.CHASER_LOST_POINTS)
                     data.append({"seat": chaser,
-                                 "amount": kyoku["result"][1][chaser]})
-                if kyoku["result"][1][chaser] > 0:
+                                 "amount": score_delta[chaser]})
+                if score_delta[chaser] > 0:
                     flags.append(Flags.CHASER_GAINED_POINTS)
                     data.append({"seat": chaser,
-                                 "amount": kyoku["result"][1][chaser]})
+                                 "amount": score_delta[chaser]})
                 player_data = data[flags.index(Flags.YOU_REACHED_TENPAI)]
     elif kyoku["result"][0] in {"流局", "全員聴牌", "流し満貫"}:
         assert tiles_in_wall == 0, f"somehow ryuukyoku with {tiles_in_wall} tiles left in wall"
@@ -524,5 +530,12 @@ def you_dealt_in_before_noten_payment(flags: List[Flags], data: List[Dict[str, A
     else:
         return [f"Injustice detected in {round_name(round_number, honba)}:"
                 f" you were tenpai and about to get noten payments, but then dealt in with {pt(tile)}"]
+
+# Print if you dealt in while tenpai, right before you would have received tenpai payments
+@injustice(require=[Flags.YOU_DEALT_INTO_DOUBLE_RON])
+def you_dealt_into_double_ron(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+    number = data[flags.index(Flags.YOU_DEALT_INTO_DOUBLE_RON)]["number"]
+    return [f"Injustice detected in {round_name(round_number, honba)}:"
+            f" you dealt into {'double' if number == 2 else 'triple'} ron"]
 
 # TODO: head bump, furiten

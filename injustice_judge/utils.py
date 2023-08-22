@@ -62,7 +62,7 @@ def print_call_info(call_info):
 def print_full_hand(closed_part, call_info, shanten, ukeire):
     call_string = "" if len(call_info) == 0 else "    " + " ".join(map(print_call_info, reversed(call_info)))
     if shanten[0] == 0:
-        wait_string = f" waiting on {ph(sorted_hand(shanten[1]))} ({ukeire} ukeire)"
+        wait_string = f" waits: {ph(sorted_hand(shanten[1]))} ({ukeire} ukeire)"
     else:
         wait_string = f" ({shanten_name(shanten)})"
     return f"{ph(sorted_hand(closed_part))}{call_string}{wait_string}"
@@ -72,7 +72,7 @@ remove_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else 
 remove_red_fives = lambda hand: map(remove_red_five, hand)
 sorted_hand = lambda hand: tuple(sorted(hand, key=remove_red_five))
 round_name = lambda rnd, honba: (f"East {rnd+1}" if rnd <= 3 else f"South {rnd-3}" if rnd <= 7 else f"West {rnd-7}") + ("" if honba == 0 else f"-{honba}")
-short_round_name = lambda rnd, honba: (f"E{rnd+1}" if rnd <= 3 else f"S{rnd-3}" if rnd <= 7 else f"W{rnd-7}") + ("" if honba == 0 else f"-{honba}")
+short_round_name = lambda rnd, honba: (f"E{rnd+1}" if rnd <= 3 else f"S{rnd-3}" if rnd <= 7 else f"W{rnd-7}") + f"-{honba}"
 relative_seat_name = lambda you, other: {0: "self", 1: "shimocha", 2: "toimen", 3: "kamicha"}[(other-you)%4]
 
 @functools.cache
@@ -92,7 +92,7 @@ def shanten_name(shanten: Tuple[int, List[int]]):
     if shanten[0] >= 2:
         return SHANTEN_NAMES[shanten[0]]
     else:
-        return SHANTEN_NAMES[shanten[0]] + " waiting on " + ph(shanten[1])
+        return SHANTEN_NAMES[shanten[0]] + " with waits " + ph(shanten[1])
 
 def get_waits(hand: Tuple[int, ...]) -> Set[int]:
     """Get all waits resulting from each pair of consecutive tiles, excluding pair waits"""

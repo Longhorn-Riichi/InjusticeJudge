@@ -246,11 +246,11 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
         shanten = k_shanten
         if shanten == 1:
             shanten = 1.05
-        extra_data = tuple(k_extra_data)
+        extra_data = sorted_hand(k_extra_data)
 
     # remove all ankan in hand from the waits
     ankan_tiles = {k for k, v in ctr.items() if v == 4}
-    return shanten, list(set(extra_data) - ankan_tiles)
+    return shanten, list(sorted_hand(set(extra_data) - ankan_tiles))
 
 def calculate_shanten(starting_hand: Iterable[int]) -> Tuple[float, List[int]]:
     """This just converts the input to a sorted tuple so it can be serialized as a cache key"""
