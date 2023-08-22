@@ -61,7 +61,10 @@ def print_call_info(call_info):
 
 def print_full_hand(closed_part, call_info, shanten, ukeire):
     call_string = "" if len(call_info) == 0 else " " + " ".join(map(print_call_info, reversed(call_info)))
-    wait_string = "" if len(shanten[1]) == 0 else f" waiting on {ph(sorted_hand(shanten[1]))} ({ukeire} ukeire)"
+    if shanten[0] >= 2:
+        wait_string = f" ({shanten_name(shanten)})"
+    else:
+        wait_string = f" waiting on {ph(sorted_hand(shanten[1]))} ({ukeire} ukeire)"
     return f"{ph(sorted_hand(closed_part))}{call_string}{wait_string}"
 
 ph = lambda hand: "".join(map(pt, hand)) # print hand
