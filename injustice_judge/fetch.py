@@ -437,7 +437,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 """called every time a call happens, returns the called tile"""
                 call_type = get_call_name(call)
                 call_tiles = extract_call_tiles(call)
-                call_direction = (turn - last_turn) % 4
+                call_direction = (last_turn - turn) % 4
                 called_tile = call_tiles[0]
                 events.append((turn, call_type, called_tile))
                 if call_type in {"minkan", "ankan", "kakan"}:
