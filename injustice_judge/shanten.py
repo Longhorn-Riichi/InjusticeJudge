@@ -12,26 +12,26 @@ from pprint import pprint
 def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
     # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
     shanten = 6 - len([v for v in ctr.values() if v > 1])
-    extra_data: Tuple[int, ...] = ()
+    waits: Tuple[int, ...] = ()
     if shanten <= 1:
         # since chiitoitsu can't repeat pairs, take only the single tiles in hand
-        extra_data = sorted_hand(k for k, v in ctr.items() if v == 1)
-    return shanten, list(extra_data)
+        waits = sorted_hand(k for k, v in ctr.items() if v == 1)
+    return shanten, list(waits)
 
 def calculate_kokushi_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
     # get kokushi waits (iishanten or tenpai) and label iishanten type
     has_pair = len([v for v in ctr.values() if v > 1]) >= 1
     shanten = (12 if has_pair else 13) - len(YAOCHUUHAI.intersection(starting_hand))
-    extra_data: Tuple[int, ...] = ()
+    waits: Tuple[int, ...] = ()
     if shanten <= 1:
-        extra_data = sorted_hand(YAOCHUUHAI if not has_pair else YAOCHUUHAI.difference(starting_hand))
-    return shanten, list(extra_data)
+        waits = sorted_hand(YAOCHUUHAI if not has_pair else YAOCHUUHAI.difference(starting_hand))
+    return shanten, list(waits)
 
 @functools.cache
 def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]]:
     """
     Return the shanten of the hand plus its waits (if tenpai or iishanten).
-    If the shanten is 2+, the extra data is just an empty list.
+    If the shanten is 2+, the waits returned are an empty list.
     If iishanten, the returned shanten is 1.1 to 1.6, based on the type of iishanten.
     - 1.05: "kokushi musou iishanten",
     - 1.1 kutsuki iishanten
@@ -42,7 +42,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     - 1.32 perfect iishanten
     - 1.33 imperfect iishanten
     - 1.4 floating tile iishanten
-    0.5 is added if chiitoitsu iishanten is also present in the hand.
+    +0.5 is added to all iishanten if chiitoitsu iishanten is also present in the hand.
     """
     assert len(starting_hand) in {1, 4, 7, 10, 13}, f"calculate_shanten() was passed a {len(starting_hand)} tile hand"
 
@@ -81,12 +81,6 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     groups_needed = (len(next(iter(hands))) - 1) // 3
 
     # calculate shanten for every combination of groups removed
-
-    # "semi-headless iishanten": 11233 -> 123 13 removing the group, or 11 233 removing the pair  (adds 14 acceptance)
-    # 234 45 l 99
-    # comes up when removing a group removes a pair from the hand
-    # so before removing all groups, check afterwards if the pair count has decreased
-
     @functools.cache
     def get_hand_shanten(hand: Tuple[int, ...]) -> float:
         num_pairs = len(starting_hand) - len(hand)
@@ -103,9 +97,9 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
 
     # if iishanten, get the type of iishanten based on tiles remaining after removing some number of taatsus
     # then do some ad-hoc processing to get its waits
-    extra_data: Tuple[int, ...] = ()
+    waits: Set[int] = set()
     if shanten == 1:
-        def get_floating_waits(hands):
+        def get_floating_waits(hands: Set[Tuple[int, ...]]) -> Set[int]:
             count_floating = lambda hand: len(next(iter(remove_all_pairs(remove_all_taatsus({hand})))))
             waits = set()
             for hand in [tuple(remove_red_fives(hand)) for hand  in hands]:
@@ -145,8 +139,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
                 waits = set()
                 for tile in kutsuki_iishanten_tiles:
                     waits |= {PRED[PRED[tile]], PRED[tile], remove_red_five(tile), SUCC[tile], SUCC[SUCC[tile]]} - {0}
-                extra_data = sorted_hand(tuple(waits))
-                # print(f"{ph(sorted_hand(starting_hand))} is kutsuki iishanten, with waits {ph(extra_data)}")
+                # print(f"{ph(sorted_hand(starting_hand))} is kutsuki iishanten, with waits {ph(waits)}")
             elif len(headless_iishanten_tiles) > 0:
                 shanten = 1.2
                 floating_tiles = set(next(iter(remove_all_taatsus({tuple(headless_iishanten_tiles)}))))
@@ -199,7 +192,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
                 if len(flexible_shapes & subhands) >= 2:
                     shanten = 1.22
 
-                extra_data = sorted_hand(floating_waits | complete_waits | headless_waits)
+                waits = floating_waits | complete_waits | headless_waits
             elif len(complete_iishanten_shapes) > 0:
                 # take out all ryanmen shapes (not penchan!)
                 make_ryanmen = lambda tile: ((SUCC[tile], tile),) if tile not in {11,18,21,28,31,38} else ()
@@ -210,11 +203,11 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
                     shanten = 1.35
                 else:
                     shanten = 1.3
-                extra_data = sorted_hand(get_floating_waits(hands))
+                waits = get_floating_waits(hands)
                 # print(f"{ph(sorted_hand(starting_hand))} is complete iishanten, with complex shapes {list(map(ph, complete_iishanten_shapes))}")
             elif len(floating_waits) > 0:
                 shanten = 1.4
-                extra_data = sorted_hand(get_floating_waits(hands))
+                waits = get_floating_waits(hands)
                 # print(f"{ph(sorted_hand(starting_hand))} is floating tile iishanten, with floating tile(s) {ph(floating_iishanten_tiles)}")
 
         assert groups_needed in {1,2}, f"{ph(sorted_hand(starting_hand))} is somehow iishanten with {4-groups_needed} groups"
@@ -226,13 +219,13 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
         possible_winning_tiles = {t for tile in hand_copy for t in (PRED[tile], tile, SUCC[tile])} - {0}
         is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
         makes_winning_hand = lambda tile: any(map(is_pair, remove_all_groups({(*hand_copy, tile)})))
-        extra_data = sorted_hand(filter(makes_winning_hand, possible_winning_tiles))
-        assert len(extra_data) > 0, f"tenpai hand {ph(sorted_hand(hand_copy))} has no waits?"
+        waits |= set(filter(makes_winning_hand, possible_winning_tiles))
+        assert len(waits) > 0, f"tenpai hand {ph(sorted_hand(hand_copy))} has no waits?"
 
     # compare with chiitoitsu and kokushi shanten
     ctr = Counter(remove_red_fives(starting_hand))
-    (c_shanten, c_extra_data) = calculate_chiitoitsu_shanten(starting_hand, ctr)
-    (k_shanten, k_extra_data) = calculate_kokushi_shanten(starting_hand, ctr)
+    (c_shanten, c_waits) = calculate_chiitoitsu_shanten(starting_hand, ctr)
+    (k_shanten, k_waits) = calculate_kokushi_shanten(starting_hand, ctr)
     if c_shanten <= shanten:
         # take the min, unless we're iishanten in which case we add 0.5 to the shanten
         if shanten >= 1 and shanten < 2:
@@ -241,16 +234,16 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
             shanten = min(c_shanten, shanten)
         if shanten == 1:
             shanten = 1.5
-        extra_data = sorted_hand(set(extra_data) | set(c_extra_data))
+        waits |= set(c_waits)
     if k_shanten < shanten:
         shanten = k_shanten
         if shanten == 1:
             shanten = 1.05
-        extra_data = sorted_hand(k_extra_data)
+        waits = set(k_waits)
 
     # remove all ankan in hand from the waits
     ankan_tiles = {k for k, v in ctr.items() if v == 4}
-    return shanten, list(sorted_hand(set(extra_data) - ankan_tiles))
+    return shanten, list(sorted_hand(waits - ankan_tiles))
 
 def calculate_shanten(starting_hand: Iterable[int]) -> Tuple[float, List[int]]:
     """This just converts the input to a sorted tuple so it can be serialized as a cache key"""
