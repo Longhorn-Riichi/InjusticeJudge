@@ -370,6 +370,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             result
         ] = raw_kyoku
         num_players = 4
+        starting_hand = cast(List[Tuple[int, ...]], [tuple(haipai0), tuple(haipai1), tuple(haipai2), tuple(haipai3)])
         hand = cast(List[List[int]], [haipai0, haipai1, haipai2, haipai3])
         calls = cast(List[List[int]], [[], [], [], []])
         call_info = cast(List[List[Tuple[str, int, int, List[int]]]], [[], [], [], []]) # call type, called tile, direction [1-3], call tiles
@@ -563,7 +564,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             "call_info": call_info,
             "final_waits": final_waits,
             "final_ukeire": final_ukeire,
-            "starting_hands": [haipai0, haipai1, haipai2, haipai3],
+            "starting_hands": starting_hand,
             "starting_shanten": starting_shanten,
         })
 
