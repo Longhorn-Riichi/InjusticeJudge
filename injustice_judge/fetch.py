@@ -5,7 +5,7 @@ from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
 from .constants import Kyoku, DORA_INDICATOR, LIMIT_HANDS, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
-from .utils import ph, pt, remove_red_five, sorted_hand, try_remove_all_tiles
+from .utils import ph, pt, remove_red_five, round_name, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten, calculate_ukeire
 from pprint import pprint
 
@@ -414,29 +414,13 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             # but we don't use this information, we just brute force check for calls
             call_tiles = "".join(c for c in draw if c.isdigit())
             return [int(call_tiles[i:i+2]) for i in range(0, len(call_tiles), 2)]
-
+        # print("===", round_name(current_round, current_honba), "===")
         while gas >= 0:
             gas -= 1
-            if i[turn] >= len(discards[turn]):
+            # print(last_turn, "=>", turn)
+            if i[turn] >= len(draws[turn]):
+                assert all(i[turn] >= len(draws[turn]) for turn in range(num_players)), f"game ended prematurely in {round_name(current_round, current_honba)} on {turn}'s turn; i = {i}, max i = {list(map(len, draws))}"
                 break
-
-            # pon / kan handling
-            # we have to look at the next draw of every player first
-            # if any of them pons or kans the previously discarded tile, control goes to them
-            turn_changed = False
-            if last_discard != 0:
-                for t in range(num_players):
-                    if turn != t and i[t] < len(draws[t]):
-                        draw = draws[t][i[t]]
-                        if type(draw) is str:
-                            called_tile = extract_call_tiles(draw)[0]
-                            if remove_red_five(called_tile) == remove_red_five(last_discard):
-                                turn = t
-                                turn_changed = True
-                                break
-            if turn_changed:
-                last_discard = 0
-                continue
 
             # first handle the draw
             # could be a regular draw, chii, pon, or daiminkan
@@ -481,8 +465,13 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 draw = hand[turn][-1]
             else:
                 assert type(draw) == int, f"failed to handle unknown draw type: {draw}"
+                # print(turn, i[turn], "drew", draw)
                 hand[turn].append(draw)
                 events.append((turn, "draw", draw))
+
+            if i[turn] >= len(discards[turn]): # tsumo after draw means no discard after this
+                hand[turn].remove(draw) # so we can calculate final shanten/wait
+                break
 
             discard = discards[turn][i[turn]]
             if type(discard) is str:
@@ -495,6 +484,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             else:
                 assert type(discard) == int, f"failed to handle unknown discard type: {discard}"
                 last_discard = discard if discard != 60 else draw # 60 = tsumogiri
+                # print(turn, i[turn], "discarded", last_discard)
                 if last_discard not in YAOCHUUHAI and nagashi[turn]:
                     events.append((turn, "end_nagashi", turn, "discard", last_discard))
                     nagashi[turn] = False
@@ -518,8 +508,35 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 potential_waits = new_shanten[1]
                 events.append((turn, "tenpai", sorted_hand(hand[turn]), potential_waits, ukeire))
 
+            # pon / kan handling
+            # we have to look at the next draw of every player before changing the turn
+            # if any of them pons or kans the previously discarded tile, control goes to them
+            called = False
+            for t in range(num_players):
+                if turn == t or i[t] >= len(draws[t]):
+                    continue
+                draw = draws[t][i[t]]
+                if type(draw) is not str:
+                    continue
+                call_type = get_call_name(draw)
+                called_tile = extract_call_tiles(draw)[0]
+                # make sure it's the same tile as last discarded
+                if remove_red_five(called_tile) != remove_red_five(last_discard):
+                    continue
+                # make sure it's coming from the right direction
+                same_dir = (draw[0].isalpha() and turn == (t-1)%4) \
+                        or (draw[2].isalpha() and turn == (t-2)%4) \
+                        or (draw[4].isalpha() and turn == (t-3)%4)
+                if not same_dir:
+                    continue
+                last_turn = turn
+                turn = t
+                last_discard = 0
+                called = True
+                break
+
             # change turn to next player
-            if not called_kan:
+            if not called and not called_kan:
                 last_turn = turn
                 turn += 1
                 if turn == num_players:

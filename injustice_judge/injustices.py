@@ -231,7 +231,7 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
         # check winners
         winners = [t for t in range(kyoku["num_players"]) if kyoku["result"][1][t] > 0]
         for w in winners:
-            assert len(final_waits[w]) > 0, f"seat {w} won with hand {ph(sorted_hand(kyoku['hands'][w]))}, but has no waits saved from SOMEONE_REACHED_TENPAI"
+            assert len(final_waits[w]) > 0, f"in {round_name(kyoku['round'], kyoku['honba'])}, seat {w} won with hand {ph(sorted_hand(kyoku['hands'][w]))}, but has no waits saved from SOMEONE_REACHED_TENPAI"
             if kyoku["result"][1][player] < 0 and not is_tsumo:
                 if not opened_hand[w] and not in_riichi[w]:
                     flags.append(Flags.YOU_DEALT_INTO_DAMA)
