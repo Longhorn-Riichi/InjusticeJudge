@@ -161,6 +161,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     convert_tile = lambda tile: {"m": 51, "p": 52, "s": 53}[tile[1]] if tile[0] == "0" else {"m": 10, "p": 20, "s": 30, "z": 40}[tile[1]] + int(tile[0])
     majsoul_hand_to_tenhou = lambda hand: list(sorted_hand(map(convert_tile, hand)))
     last_seat = 0
+
     def closed_part(seat: int) -> Tuple[int, ...]:
         ret = try_remove_all_tiles(tuple(kyoku["hands"][seat]), tuple(kyoku["calls"][seat]))
         assert len(ret) + len(kyoku["calls"][seat]) == len(kyoku["hands"][seat]), f"with hand = {ph(kyoku['hands'][seat])} and calls = {ph(kyoku['calls'][seat])}, somehow closed part is {ph(ret)}"
@@ -185,6 +186,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 "hands": [majsoul_hand_to_tenhou(h) for h in haipais],
                 "calls": [[] for _ in range(num_players)],
                 "call_info": [[] for _ in range(num_players)],
+                "pond": [[] for _ in range(num_players)],
+                "furiten": [False for _ in range(num_players)],
                 "final_waits": None,
                 "final_ukeire": None,
                 "starting_hands": [majsoul_hand_to_tenhou(h) for h in haipais],
@@ -215,16 +218,23 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 kyoku["events"].append((action.seat, "riichi", tile))
             hand.remove(tile)
             visible_tiles.append(tile)
+            kyoku["pond"][action.seat].append(tile)
             dora_indicators = [DORA_INDICATOR[convert_tile(dora)] for dora in action.doras]
             new_shanten = calculate_shanten(closed_part(action.seat))
             if new_shanten != shanten[action.seat]:
                 kyoku["events"].append((action.seat, "shanten_change", shanten[action.seat], new_shanten))
                 shanten[action.seat] = new_shanten
-            # check if the resulting hand is tenpai
-            if new_shanten[0] == 0:
-                ukeire = calculate_ukeire(closed_part(action.seat), kyoku["calls"][action.seat] + visible_tiles + dora_indicators)
-                potential_waits = new_shanten[1]
-                kyoku["events"].append((action.seat, "tenpai", sorted_hand(hand), potential_waits, ukeire))
+                # check if the resulting hand is tenpai
+                if new_shanten[0] == 0:
+                    ukeire = calculate_ukeire(closed_part(action.seat), kyoku["calls"][action.seat] + visible_tiles + dora_indicators)
+                    potential_waits = new_shanten[1]
+                    kyoku["events"].append((action.seat, "tenpai", sorted_hand(hand), potential_waits, ukeire))
+                    # check for furiten
+                    if any(w in kyoku["pond"][action.seat] for w in potential_waits):
+                        kyoku["events"].append((action.seat, "furiten"))
+                        kyoku["furiten"][action.seat] = True
+                    else:
+                        kyoku["furiten"][action.seat] = False
             if tile not in YAOCHUUHAI and nagashi[action.seat]:
                 kyoku["events"].append((action.seat, "end_nagashi", action.seat, "discard", tile))
                 nagashi[action.seat] = False
@@ -295,6 +305,14 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             kyoku["events"].append((action.seat, "kita"))
             kyoku["hands"][action.seat].remove(44)
             visible_tiles.append(44)
+        elif name == "RecordLiuJu": # abortive draw
+            if action.type == 1:
+                kyoku["events"].append((action.seat, "terminal_draw"))
+                kyoku["result"] = ["九種九牌", [0]*num_players]
+                kyoku["final_waits"] = [w for _, w in shanten]
+                kyoku["final_ukeire"] = [0]*num_players
+            else:
+                print(f"unhandled type {action.type} abortive draw:", action)
         else:
             print("unhandled action:", name, action)
         if hasattr(action, "seat"):
@@ -332,9 +350,11 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
         link = link.split("&ts=")[0]
     if not link[:-1].endswith("&tw="):
         print("Assuming you're the first east player, since tenhou link did not end with ?tw=<number>")
+        player = 0
+    else:
+        player = int(link[-1])
 
     identifier = link.split("https://tenhou.net/0/?log=")[1].split("&")[0]
-    player = int(link[-1])
     try:
         f = open(f"cached_games/game-{identifier}.json", 'r')
         game_data = json.load(f)
@@ -381,6 +401,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         call_info = cast(List[List[Tuple[str, int, int, List[int]]]], [[], [], [], []]) # call type, called tile, direction [1-3], call tiles
         draws = cast(List[List[Union[int, str]]], [draws0, draws1, draws2, draws3])
         discards = cast(List[List[Union[int, str]]], [discards0, discards1, discards2, discards3])
+        pond = cast(List[List[int]], [[], [], [], []])
         dora_indicators = cast(List[int], list(map(DORA_INDICATOR.get, doras)))
         def closed_part(seat: int) -> Tuple[int, ...]:
             ret = try_remove_all_tiles(tuple(hand[seat]), tuple(calls[seat]))
@@ -395,6 +416,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         last_discard: int = 0
         i = [0] * num_players
         nagashi = [True] * num_players
+        furiten = [False] * num_players
         visible_tiles = []
         events: List[Any] = []
         gas = 1000
@@ -493,6 +515,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 last_discard = last_discard if last_discard != 60 else draw # 60 = tsumogiri
                 hand[turn].remove(last_discard)
                 visible_tiles.append(last_discard)
+                pond[turn].append(last_discard)
             elif discard == 0: # the draw earlier was daiminkan, so no discard happened
                 pass
             else:
@@ -504,23 +527,29 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                     nagashi[turn] = False
                 hand[turn].remove(last_discard)
                 visible_tiles.append(last_discard)
+                pond[turn].append(last_discard)
                 events.append((turn, "discard", last_discard))
             new_shanten = calculate_shanten(closed_part(turn))
             if new_shanten != shanten[turn]: # compare both the shanten number and the iishanten group
                 events.append((turn, "shanten_change", shanten[turn], new_shanten))
                 shanten[turn] = new_shanten
+                # check if the resulting hand is tenpai
+                if new_shanten[0] == 0:
+                    ukeire = calculate_ukeire(closed_part(turn), calls[turn] + visible_tiles + dora_indicators[:num_dora])
+                    potential_waits = new_shanten[1]
+                    events.append((turn, "tenpai", sorted_hand(hand[turn]), potential_waits, ukeire))
+                    # check for furiten
+                    if any(w in pond[turn] for w in potential_waits):
+                        events.append((turn, "furiten"))
+                        furiten[turn] = True
+                    else:
+                        furiten[turn] = False
 
             assert len(hand[turn]) == 13, f"got {len(hand[turn])} tiles in hand after events:\n" + "\n".join(map(str,events[-5:]))
             was_ankan = type(discard) is str and get_call_name(discard) == "ankan"
             was_kakan = type(discard) is str and get_call_name(discard) == "kakan"
             was_daiminkan = type(draws[turn][i[turn]]) is str and get_call_name(draws[turn][i[turn]]) == "minkan"
             i[turn] += 1 # done processing this draw/discard
-
-            # check if the resulting hand is tenpai
-            if new_shanten[0] == 0:
-                ukeire = calculate_ukeire(closed_part(turn), calls[turn] + visible_tiles + dora_indicators[:num_dora])
-                potential_waits = new_shanten[1]
-                events.append((turn, "tenpai", sorted_hand(hand[turn]), potential_waits, ukeire))
 
             # pon / kan handling
             # we have to look at the next draw of every player before changing the turn
@@ -570,6 +599,8 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             "hands": hand,
             "calls": calls,
             "call_info": call_info,
+            "pond": pond,
+            "furiten": furiten,
             "final_waits": final_waits,
             "final_ukeire": final_ukeire,
             "starting_hands": starting_hand,

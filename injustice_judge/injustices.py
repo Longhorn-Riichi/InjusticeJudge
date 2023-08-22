@@ -24,6 +24,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " WINNER_GOT_MANGAN"
     " WINNER_GOT_SANBAIMAN"
     " WINNER_GOT_YAKUMAN"
+    " WINNER_GOT_URA_3"
     " WINNER_HAD_BAD_WAIT"
     " WINNER_IPPATSU_TSUMO"
     " YOU_ARE_DEALER"
@@ -83,6 +84,7 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     last_discard_event_ix: List[int] = [-1]*num_players
     tiles_in_wall = 70 if num_players == 4 else 55
     assert num_players in {3,4}, f"somehow we have {num_players} players"
+    assert player in {0,1,2,3}, f"player passed in is {player}, expected 0-3"
 
     # First, get some basic data about the game.
     # - whether you're dealer
@@ -221,6 +223,8 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     # - deal-ins
     # - chases
     # - scoring
+    result_type, *scoring = kyoku["result"]
+    wins = [scoring[i*2:i*2+2] for i in range(len(scoring)//2)]
     if kyoku["result"][0] == "和了":
         # get final waits
         final_waits: List[List[int]] = list(map(lambda _: [], [()]*num_players))
@@ -231,7 +235,6 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
             final_ukeire[seat] = data[ix]["ukeire"]
 
         # check winners
-        wins = [kyoku["result"][i*2+1:i*2+3] for i in range(len(kyoku["result"])//2)]
         for [score_delta, [w, win_turn, _, score_string, *yaku]] in wins:
             assert len(final_waits[w]) > 0, f"in {round_name(kyoku['round'], kyoku['honba'])}, seat {w} won with hand {ph(sorted_hand(kyoku['hands'][w]))}, but has no waits saved from SOMEONE_REACHED_TENPAI"
             if score_delta[player] < 0 and not is_tsumo:
@@ -274,9 +277,16 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 data.append({"seat": w,
                              "wait": final_waits[w],
                              "ukeire": final_ukeire[w]})
-            if "一発(1飜)" in kyoku["result"][2] and is_tsumo:
-                flags.append(Flags.WINNER_IPPATSU_TSUMO)
-                data.append({"seat": w})
+            # go through yaku
+            for y in yaku:
+                if y == "一発(1飜)" and is_tsumo:
+                    flags.append(Flags.WINNER_IPPATSU_TSUMO)
+                    data.append({"seat": w})
+                elif y.startswith("裏ドラ"):
+                    value = int(y.split("(")[1].split("飜")[0])
+                    if value >= 3:
+                        flags.append(Flags.WINNER_GOT_URA_3)
+                        data.append({"seat": w, "value": value})
         if Flags.YOU_GOT_CHASED in flags:
             assert Flags.YOU_REACHED_TENPAI in flags, "somehow got YOU_GOT_CHASED without YOU_REACHED_TENPAI"
             for i in [i for i, f in enumerate(flags) if f == Flags.YOU_GOT_CHASED]:
@@ -302,17 +312,16 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 flags.append(Flags.YOU_ACHIEVED_NAGASHI)
                 data.append({"seat": seat})
 
-    if kyoku["result"][0] in {"和了", "流局"} and len(kyoku["result"][1]) > 0:
-        if kyoku["result"][1][player] < 0:
+    for score_delta, _ in wins:
+        if score_delta[player] < 0:
             flags.append(Flags.YOU_LOST_POINTS)
-            data.append({"amount": kyoku["result"][1][player]})
+            data.append({"amount": score_delta[player]})
             if turn_number <= 6:
                 flags.append(Flags.LOST_POINTS_TO_FIRST_ROW_WIN)
-                data.append({"seat": seat, "turn": turn_number, "amount": kyoku["result"][1][player]})
-        elif kyoku["result"][1][player] > 0:
-            "(1飜)"
+                data.append({"seat": seat, "turn": turn_number, "amount": score_delta[player]})
+        elif score_delta[player] > 0:
             flags.append(Flags.YOU_GAINED_POINTS)
-            data.append({"amount": kyoku["result"][1][player]})
+            data.append({"amount": score_delta[player]})
 
 
     assert len(flags) == len(data), f"somehow got a different amount of flags ({len(flags)}) than data ({len(data)})"
@@ -537,5 +546,16 @@ def you_dealt_into_double_ron(flags: List[Flags], data: List[Dict[str, Any]], ro
     number = data[flags.index(Flags.YOU_DEALT_INTO_DOUBLE_RON)]["number"]
     return [f"Injustice detected in {round_name(round_number, honba)}:"
             f" you dealt into {'double' if number == 2 else 'triple'} ron"]
+
+# Print if you dealt into ura 3 OR if someone else tsumoed and got ura 3
+@injustice(require=[Flags.WINNER_GOT_URA_3, Flags.YOU_LOST_POINTS])
+def lost_points_to_ura_3(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+    value = data[flags.index(Flags.WINNER_GOT_URA_3)]["value"]
+    if Flags.GAME_ENDED_WITH_RON in flags:
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
+                f" you dealt into a hand with ura {value}"]
+    else:
+        return [f"Injustice detected in {round_name(round_number, honba)}:"
+                f" someone tsumoed and got ura {value}"]
 
 # TODO: head bump, furiten

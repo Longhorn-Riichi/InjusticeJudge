@@ -59,10 +59,10 @@ def print_call_info(call_info):
     else:
         assert False, f"print_call_info got invalid call direction {call_direction}"
 
-def print_full_hand(closed_part, call_info, shanten, ukeire, final_tile = None):
+def print_full_hand(closed_part, call_info, shanten, ukeire, final_tile = None, furiten = False):
     call_string = "" if len(call_info) == 0 else "⠀" + "⠀".join(map(print_call_info, reversed(call_info)))
     if shanten[0] == 0:
-        wait_string = f"⠀waits: {ph(sorted_hand(shanten[1]))} ({ukeire} outs)"
+        wait_string = f"{' (furiten) ' if furiten else ' '}waits: {ph(sorted_hand(shanten[1]))} ({ukeire} outs)"
         win_string = "⠀" + pt(final_tile)
     else:
         wait_string = f" ({shanten_name(shanten)})"
@@ -94,7 +94,7 @@ def shanten_name(shanten: Tuple[int, List[int]]):
     if shanten[0] >= 2:
         return SHANTEN_NAMES[shanten[0]]
     else:
-        return SHANTEN_NAMES[shanten[0]] + " with waits " + ph(shanten[1])
+        return SHANTEN_NAMES[shanten[0]] + " accepting " + ph(shanten[1])
 
 def get_waits(hand: Tuple[int, ...]) -> Set[int]:
     """Get all waits resulting from each pair of consecutive tiles, excluding pair waits"""
