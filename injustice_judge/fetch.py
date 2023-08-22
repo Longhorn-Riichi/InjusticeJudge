@@ -242,7 +242,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 kyoku["events"].append((action.seat, "end_nagashi", last_seat, call_type, called_tile))
                 nagashi[last_seat] = False
             kyoku["calls"][action.seat].extend(call_tiles[:3]) # ignore any kan tile
-            call_direction = (action.seat - last_seat) % 4
+            call_direction = (last_seat - action.seat) % 4
             kyoku["call_info"][action.seat].append((call_type, called_tile, call_direction, call_tiles))
         elif name == "RecordAnGangAddGang":
             tile = convert_tile(action.tiles)
