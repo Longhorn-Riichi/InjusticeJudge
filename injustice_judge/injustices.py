@@ -1,4 +1,5 @@
-from .constants import Kyoku, SHANTEN_NAMES
+from .constants import Kyoku, SHANTEN_NAMES, TRANSLATE
+from dataclasses import dataclass
 from enum import Enum
 from typing import *
 from .utils import ph, pt, relative_seat_name, round_name, shanten_name, sorted_hand
@@ -13,8 +14,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " FIVE_SHANTEN_START"
     " GAME_ENDED_WITH_RON"
     " GAME_ENDED_WITH_RYUUKYOKU"
-    " LAST_DISCARD_STOPPED_NAGASHI"
-    " LAST_NAGASHI_TILE_CALLED"
+    " YOUR_LAST_DISCARD_ENDED_NAGASHI"
     " LOST_POINTS_TO_FIRST_ROW_WIN"
     " NINE_DRAWS_NO_IMPROVEMENT"
     " SOMEONE_REACHED_TENPAI"
@@ -25,8 +25,10 @@ Flags = Enum("Flags", "_SENTINEL"
     " WINNER_GOT_SANBAIMAN"
     " WINNER_GOT_YAKUMAN"
     " WINNER_GOT_URA_3"
+    " WINNER_GOT_HAITEI"
     " WINNER_HAD_BAD_WAIT"
     " WINNER_IPPATSU_TSUMO"
+    " WINNER_WAS_FURITEN"
     " YOU_ARE_DEALER"
     " YOU_DEALT_IN_BEFORE_NOTEN_PAYMENT"
     " YOU_DEALT_INTO_DAMA"
@@ -39,6 +41,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_LOST_POINTS"
     " YOU_REACHED_TENPAI"
     " YOU_TENPAI_FIRST"
+    " YOUR_LAST_NAGASHI_TILE_CALLED"
     " YOUR_TENPAI_TILE_DEALT_IN"
 
 
@@ -151,7 +154,7 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 if player_shanten[0] > 0 and draws_since_shanten_change >= 9:
                     flags.append(Flags.NINE_DRAWS_NO_IMPROVEMENT)
                     data.append({"shanten": player_shanten,
-                                 "turns": draws_since_shanten_change})
+                                 "draws": draws_since_shanten_change})
         if event_type == "riichi":
             in_riichi[seat] = True
             if seat == player:
@@ -176,7 +179,8 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
             data.append({"seat": seat,
                          "hand": event_data[0],
                          "wait": event_data[1],
-                         "ukeire": event_data[2]})
+                         "ukeire": event_data[2],
+                         "furiten": kyoku["furiten"][seat]})
             if seat == player:
                 if Flags.YOU_FOLDED_FROM_TENPAI in flags: # folded no longer
                     ix = flags.index(Flags.YOU_FOLDED_FROM_TENPAI)
@@ -186,7 +190,8 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 data.append({"seat": seat,
                              "hand": event_data[0],
                              "wait": event_data[1],
-                             "ukeire": event_data[2]})
+                             "ukeire": event_data[2],
+                             "furiten": kyoku["furiten"][seat]})
                 if not someone_is_tenpai:
                     flags.append(Flags.YOU_TENPAI_FIRST)
                     data.append({})
@@ -197,10 +202,12 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                              "hand": event_data[0],
                              "wait": event_data[1],
                              "ukeire": event_data[2],
+                             "furiten": kyoku["furiten"][seat],
                              "your_seat": player_data["seat"],
                              "your_hand": player_data["hand"],
                              "your_wait": player_data["wait"],
-                             "your_ukeire": player_data["ukeire"]})
+                             "your_ukeire": player_data["ukeire"],
+                             "furiten": player_data["furiten"]})
             if turn_number <= 6:
                 flags.append(Flags.FIRST_ROW_TENPAI)
                 data.append({"seat": seat, "turn": turn_number})
@@ -210,12 +217,12 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
             tile = event_data[2]
             # if the game ended in ryuukyoku, mark if this happened after our final draw
             if kyoku["result"][0] == "流局" and i > last_draw_event_ix[seat]:
-                if event_data[1] == "discard":
-                    flags.append(Flags.LAST_DISCARD_STOPPED_NAGASHI)
-                    data.append({"seat": seat, "tile": tile})
-                elif event_data[1] in {"minkan", "pon", "chii"}:
-                    flags.append(Flags.LAST_NAGASHI_TILE_CALLED)
-                    data.append({"seat": event_data[0], "tile": tile, "caller": seat})
+                if seat == player and event_data[1] == "discard":
+                    flags.append(Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI)
+                    data.append({"tile": tile})
+                elif event_data[0] == player and event_data[1] in {"minkan", "pon", "chii"}:
+                    flags.append(Flags.YOUR_LAST_NAGASHI_TILE_CALLED)
+                    data.append({"tile": tile, "caller": seat})
         if seat == kyoku["round"] % kyoku["num_players"]: # dealer turn
             turn_number += 1
 
@@ -277,6 +284,12 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 data.append({"seat": w,
                              "wait": final_waits[w],
                              "ukeire": final_ukeire[w]})
+            if is_tsumo and kyoku["furiten"][w]:
+                flags.append(Flags.WINNER_WAS_FURITEN)
+                data.append({"seat": w,
+                             "wait": final_waits[w],
+                             "ukeire": final_ukeire[w]})
+
             # go through yaku
             for y in yaku:
                 if y == "一発(1飜)" and is_tsumo:
@@ -287,6 +300,9 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                     if value >= 3:
                         flags.append(Flags.WINNER_GOT_URA_3)
                         data.append({"seat": w, "value": value})
+                elif y in {"海底摸月", "河底撈魚"}:
+                    flags.append(Flags.WINNER_GOT_HAITEI)
+                    data.append({"seat": w, "yaku": y})
         if Flags.YOU_GOT_CHASED in flags:
             assert Flags.YOU_REACHED_TENPAI in flags, "somehow got YOU_GOT_CHASED without YOU_REACHED_TENPAI"
             for i in [i for i, f in enumerate(flags) if f == Flags.YOU_GOT_CHASED]:
@@ -312,13 +328,13 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 flags.append(Flags.YOU_ACHIEVED_NAGASHI)
                 data.append({"seat": seat})
 
-    for score_delta, _ in wins:
+    for score_delta, [winner, *_] in wins:
         if score_delta[player] < 0:
             flags.append(Flags.YOU_LOST_POINTS)
-            data.append({"amount": score_delta[player]})
+            data.append({"to": winner, "amount": score_delta[player]})
             if turn_number <= 6:
                 flags.append(Flags.LOST_POINTS_TO_FIRST_ROW_WIN)
-                data.append({"seat": seat, "turn": turn_number, "amount": score_delta[player]})
+                data.append({"seat": winner, "turn": turn_number, "amount": score_delta[player]})
         elif score_delta[player] > 0:
             flags.append(Flags.YOU_GAINED_POINTS)
             data.append({"amount": score_delta[player]})
@@ -326,6 +342,13 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
 
     assert len(flags) == len(data), f"somehow got a different amount of flags ({len(flags)}) than data ({len(data)})"
     return flags, data
+
+@dataclass(frozen=True)
+class Injustice:
+    round: int
+    honba: int
+    name: str = "Injustice"
+    desc: str = ""
 
 def evaluate_injustices(kyoku: Kyoku, player: int) -> List[str]:
     """
@@ -335,12 +358,20 @@ def evaluate_injustices(kyoku: Kyoku, player: int) -> List[str]:
     """
     global injustices
     flags, data = determine_flags(kyoku, player)
-    ret = []
+    all_results: List[Injustice] = []
     for i in injustices:
         if all(flag in flags for flag in i["required_flags"]) and all(flag not in flags for flag in i["forbidden_flags"]):
-            if "" != (strs := i["callback"](flags, data, kyoku['round'], kyoku['honba'], player)):
-                ret.extend(strs)
-    return ret
+            if "" != (results := i["callback"](flags, data, kyoku['round'], kyoku['honba'], player)):
+                all_results.extend(results)
+
+    # output a header for each kyoku, then its list of injustices
+    if len(all_results) > 0:
+        longest_name_length = max([len(r.name) for r in all_results])
+        longest_name = next(r.name for r in all_results if len(r.name) == longest_name_length)
+        header = f"- {longest_name} detected in **{round_name(all_results[0].round, all_results[0].honba)}**:"
+        return [f"{header}{', and'.join([r.desc for r in all_results])}"]
+    else:
+        return []
 
 ###
 ### injustice definitions
@@ -348,10 +379,10 @@ def evaluate_injustices(kyoku: Kyoku, player: int) -> List[str]:
 
 # each injustice function takes two lists of flags: `require` and `forbid`
 # the main `evaluate_injustices` function above calls an injustice function
-#   only if all require flags exist and no forbid flags exist
+#   only if all `require` flags exist and no `forbid` flags exist, for each kyoku
 
 injustices: List[Dict[str, Any]] = []
-InjusticeFunc = Callable[[List[Flags], List[Dict[str, Any]], int, int, int], List[str]]
+InjusticeFunc = Callable[[List[Flags], List[Dict[str, Any]], int, int, int], List[Injustice]]
 def injustice(require: List[Flags] = [], forbid: List[Flags] = []) -> Callable[[InjusticeFunc], InjusticeFunc] :
     """Decorator for DIY injustices, see below for usage"""
     global injustices
@@ -360,12 +391,13 @@ def injustice(require: List[Flags] = [], forbid: List[Flags] = []) -> Callable[[
         return lambda f: f
     return decorator
 
+
 # Print if your tenpai got chased by a worse wait, and they won
 @injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.YOU_TENPAI_FIRST,
                     Flags.YOU_GOT_CHASED, Flags.CHASER_GAINED_POINTS],
             forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.GAME_ENDED_WITH_RYUUKYOKU,
                     Flags.YOU_GAINED_POINTS])
-def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     chasers = {}
     for i in [i for i, f in enumerate(flags) if f == Flags.YOU_GOT_CHASED]:
         chase_data = data[i]
@@ -384,50 +416,34 @@ def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], r
             continue
         if chaser_seat == winner_seat and chaser_ukeire < your_ukeire:
             if Flags.YOU_LOST_POINTS in flags and Flags.GAME_ENDED_WITH_RON in flags:
-                ret.append(f"Major injustice detected in {round_name(round_number, honba)}:"
-                           f" your wait {ph(your_wait)} ({your_ukeire} ukeire)"
+                ret.append(Injustice(round_number, honba, "Major injustice",
+                           f" your wait {ph(your_wait)} ({your_ukeire} outs)"
                            f" was chased by {relative_seat_name(your_seat, chaser_seat)}"
-                           f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} ukeire), and you dealt into it")
+                           f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} outs), and you dealt into it"))
             else:
-                ret.append(f"Injustice detected in {round_name(round_number, honba)}:"
-                           f" your wait {ph(your_wait)} ({your_ukeire} ukeire)"
+                ret.append(Injustice(round_number, honba, "Injustice",
+                           f" your wait {ph(your_wait)} ({your_ukeire} outs)"
                            f" was chased by {relative_seat_name(your_seat, chaser_seat)}"
-                           f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} ukeire), and they won")
+                           f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} outs), and they won"))
     return ret
 
 # Print if you failed to improve your shanten for at least nine consecutive draws
 @injustice(require=[Flags.NINE_DRAWS_NO_IMPROVEMENT],
             forbid=[Flags.YOU_REACHED_TENPAI])
-def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     shanten_data = data[len(flags) - 1 - flags[::-1].index(Flags.NINE_DRAWS_NO_IMPROVEMENT)]
-    turns = shanten_data["turns"]
+    draws = shanten_data["draws"]
     shanten = shanten_data["shanten"]
-    return [f"Injustice detected in {round_name(round_number, honba)}:"
-            f" you were stuck at {shanten_name(shanten)} for {turns} turns, and never reached tenpai"]
+    return [Injustice(round_number, honba, "Injustice",
+            f" you were stuck at {shanten_name(shanten)} for {draws} draws, and never reached tenpai")]
 
 # Print if you started with atrocious shanten and never got to tenpai
 @injustice(require=[Flags.FIVE_SHANTEN_START],
             forbid=[Flags.YOU_REACHED_TENPAI])
-def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     shanten = data[flags.index(Flags.FIVE_SHANTEN_START)]["shanten"]
-    return [f"Injustice detected in {round_name(round_number, honba)}:"
-            f" you started at {shanten_name(shanten)}"]
-
-# Print if you lost points to a first row ron/tsumo
-@injustice(require=[Flags.LOST_POINTS_TO_FIRST_ROW_WIN])
-def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
-    win_data = data[flags.index(Flags.LOST_POINTS_TO_FIRST_ROW_WIN)]
-    winner = win_data["seat"]
-    turn = win_data["turn"]
-    if Flags.YOU_DECLARED_RIICHI in flags:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you lost points to an early win by {relative_seat_name(player, winner)} on turn {turn}, while in riichi (goodbye riichi stick)"]
-    elif Flags.YOU_REACHED_TENPAI in flags:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you lost points to an early win by {relative_seat_name(player, winner)} on turn {turn}, while tenpai"]
-    else:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you lost points to an early win by {relative_seat_name(player, winner)} on turn {turn}"]
+    return [Injustice(round_number, honba, "Injustice",
+            f" you started at {shanten_name(shanten)} and never reached tenpai")]
 
 def tenpai_status_string(flags: List[Flags]) -> str:
     status = ""
@@ -437,125 +453,130 @@ def tenpai_status_string(flags: List[Flags]) -> str:
         status = ", while tenpai"
     return status
 
+# Print if you lost points to a first row ron/tsumo
+@injustice(require=[Flags.LOST_POINTS_TO_FIRST_ROW_WIN])
+def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    win_data = data[flags.index(Flags.LOST_POINTS_TO_FIRST_ROW_WIN)]
+    winner = win_data["seat"]
+    turn = win_data["turn"]
+    return [Injustice(round_number, honba, "Injustice",
+            f" you lost points to an early win by {relative_seat_name(player, winner)} on turn {turn}{tenpai_status_string(flags)}")]
+
 # Print if you dealt into dama
 @injustice(require=[Flags.YOU_DEALT_INTO_DAMA])
-def dealt_into_dama(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+def dealt_into_dama(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     win_data = data[flags.index(Flags.YOU_DEALT_INTO_DAMA)]
     winner = win_data["seat"]
     score = win_data["score"]
-    extra_text = ""
-    if Flags.YOU_DECLARED_RIICHI in flags:
-        extra_text = ", while in riichi"
-        if not Flags.YOUR_TENPAI_TILE_DEALT_IN in flags:
-            extra_text += " (goodbye riichi stick)"
-    elif Flags.YOU_REACHED_TENPAI in flags:
-        extra_text = ", while tenpai"
-    return [f"Injustice detected in {round_name(round_number, honba)}:"
-            f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama{tenpai_status_string(flags)}"]
+    return [Injustice(round_number, honba, "Injustice",
+            f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama{tenpai_status_string(flags)}")]
 
 # Print if you dealt into ippatsu
 @injustice(require=[Flags.YOU_DEALT_INTO_IPPATSU])
-def dealt_into_ippatsu(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+def dealt_into_ippatsu(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     win_data = data[flags.index(Flags.YOU_DEALT_INTO_IPPATSU)]
     winner = win_data["seat"]
     score = win_data["score"]
-    return [f"Injustice detected in {round_name(round_number, honba)}:"
-            f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu{tenpai_status_string(flags)}"]
+    return [Injustice(round_number, honba, "Injustice",
+            f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu{tenpai_status_string(flags)}")]
 
 # Print if someone else won with bad wait ippatsu tsumo
 @injustice(require=[Flags.WINNER_HAD_BAD_WAIT, Flags.WINNER_IPPATSU_TSUMO],
            forbid=[Flags.YOU_GAINED_POINTS])
-def someone_got_bad_wait_ippatsu_tsumo(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+def someone_got_bad_wait_ippatsu_tsumo(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     win_data = data[flags.index(Flags.WINNER_HAD_BAD_WAIT)]
     winner = win_data["seat"]
     wait = win_data["wait"]
     ukeire = win_data["ukeire"]
-    return [f"Injustice detected in {round_name(round_number, honba)}:"
-            f" {relative_seat_name(player, winner)} got ippatsu tsumo with a bad wait {ph(wait)} ({ukeire} ukeire)"]
+    return [Injustice(round_number, honba, "Injustice",
+            f" {relative_seat_name(player, winner)} got ippatsu tsumo with a bad wait {ph(wait)} ({ukeire} ukeire)")]
 
 # Print if you just barely failed nagashi
-@injustice(require=[Flags.LAST_DISCARD_STOPPED_NAGASHI],
-           forbid=[Flags.LAST_NAGASHI_TILE_CALLED])
-def lost_nagashi_to_draw(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
-    nagashi_data = data[flags.index(Flags.LAST_DISCARD_STOPPED_NAGASHI)]
-    seat = nagashi_data["seat"]
-    tile = nagashi_data["tile"]
-    if seat == player:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you lost nagashi on your last discard ({pt(tile)})"]
-    else:
-        return []
+@injustice(require=[Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI],
+           forbid=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
+def lost_nagashi_to_draw(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    tile = data[flags.index(Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI)]["tile"]
+    return [Injustice(round_number, honba, "Injustice",
+            f" you lost nagashi on your last discard ({pt(tile)})")]
 
 # Print if someone calls your last tile for nagashi (not ron)
-@injustice(require=[Flags.LAST_NAGASHI_TILE_CALLED])
-def lost_nagashi_to_call(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
-    nagashi_data = data[flags.index(Flags.LAST_NAGASHI_TILE_CALLED)]
-    seat = nagashi_data["seat"]
+@injustice(require=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
+def lost_nagashi_to_call(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    nagashi_data = data[flags.index(Flags.YOUR_LAST_NAGASHI_TILE_CALLED)]
     tile = nagashi_data["tile"]
     caller = nagashi_data["caller"]
-    if seat == player:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you lost nagashi on your last discard {pt(tile)} because {relative_seat_name(player, caller)} called it"]
-    else:
-        return []
+    return [Injustice(round_number, honba, "Injustice",
+            f" you lost nagashi on your last discard {pt(tile)} because {relative_seat_name(player, caller)} called it")]
 
 # Print if you are dealer and lost to baiman+ tsumo
 @injustice(require=[Flags.YOU_ARE_DEALER, Flags.GAME_ENDED_WITH_TSUMO, Flags.YOU_LOST_POINTS, Flags.WINNER_GOT_BAIMAN])
-def baiman_oyakaburi(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+def baiman_oyakaburi(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     win_data = data[flags.index(Flags.WINNER)]
     winner = win_data["seat"]
-    return [f"Injustice detected in {round_name(round_number, honba)}:"
-            f" you were dealer and {relative_seat_name(player, winner)} got a baiman tsumo"]
+    furiten_string = ", while in furiten" if Flags.WINNER_WAS_FURITEN else ""
+    return [Injustice(round_number, honba, "Injustice",
+            f" you were dealer and {relative_seat_name(player, winner)} got a baiman tsumo{furiten_string}")]
 
 # Print if your riichi/tenpai tile dealt in
 @injustice(require=[Flags.YOUR_TENPAI_TILE_DEALT_IN])
-def your_tenpai_tile_dealt_in(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+def your_tenpai_tile_dealt_in(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     tile = data[flags.index(Flags.YOUR_TENPAI_TILE_DEALT_IN)]["tile"]
-    if Flags.YOU_DECLARED_RIICHI in flags:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you declared riichi with {pt(tile)} and immediately dealt in"]
-    else:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you reached tenpai by discarding {pt(tile)} and immediately dealt in"]
+    tenpai_string = "declared riichi with" if Flags.YOU_DECLARED_RIICHI in flags else "reached tenpai by discarding"
+    return [Injustice(round_number, honba, "Injustice",
+            f" you {tenpai_string} {pt(tile)} and immediately dealt in")]
 
 # Print if you drew a tile that would have completed a past wait
 @injustice(require=[Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE])
-def drew_tile_completing_past_wait(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+def drew_tile_completing_past_wait(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     tile_data = data[flags.index(Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE)]
     tile = tile_data["tile"]
     wait = tile_data["wait"]
     shanten = tile_data["shanten"]
-    return [f"Injustice detected in {round_name(round_number, honba)}:"
+    return [Injustice(round_number, honba, "Injustice",
             f" you drew a tile {pt(tile)} that would have completed your past wait on {ph(wait)}"
-            f" if you didn't change to {shanten_name(shanten)}"]
+            f" if you didn't change to {shanten_name(shanten)}")]
 
 # Print if you dealt in while tenpai, right before you would have received tenpai payments
 @injustice(require=[Flags.YOU_DEALT_IN_BEFORE_NOTEN_PAYMENT])
-def you_dealt_in_before_noten_payment(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+def you_dealt_in_before_noten_payment(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     tile = data[flags.index(Flags.YOU_DEALT_IN_BEFORE_NOTEN_PAYMENT)]["tile"]
-    if Flags.YOU_DECLARED_RIICHI in flags:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you were in riichi and about to get noten payments, but then dealt in with {pt(tile)}"]
-    else:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you were tenpai and about to get noten payments, but then dealt in with {pt(tile)}"]
+    tenpai_string = "in riichi" if Flags.YOU_DECLARED_RIICHI in flags else "tenpai"
+    return [Injustice(round_number, honba, "Injustice",
+            f" you were {tenpai_string} and about to get noten payments, but then dealt in with {pt(tile)}")]
 
 # Print if you dealt in while tenpai, right before you would have received tenpai payments
 @injustice(require=[Flags.YOU_DEALT_INTO_DOUBLE_RON])
-def you_dealt_into_double_ron(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+def you_dealt_into_double_ron(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     number = data[flags.index(Flags.YOU_DEALT_INTO_DOUBLE_RON)]["number"]
-    return [f"Injustice detected in {round_name(round_number, honba)}:"
-            f" you dealt into {'double' if number == 2 else 'triple'} ron"]
+    return [Injustice(round_number, honba, "Injustice",
+            f" you dealt into {'double' if number == 2 else 'triple'} ron")]
 
 # Print if you dealt into ura 3 OR if someone else tsumoed and got ura 3
 @injustice(require=[Flags.WINNER_GOT_URA_3, Flags.YOU_LOST_POINTS])
-def lost_points_to_ura_3(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[str]:
+def lost_points_to_ura_3(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     value = data[flags.index(Flags.WINNER_GOT_URA_3)]["value"]
     if Flags.GAME_ENDED_WITH_RON in flags:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" you dealt into a hand with ura {value}"]
+        return [Injustice(round_number, honba, "Injustice",
+                f" you dealt into a hand with ura {value}{tenpai_status_string(flags)}")]
     else:
-        return [f"Injustice detected in {round_name(round_number, honba)}:"
-                f" someone tsumoed and got ura {value}"]
+        return [Injustice(round_number, honba, "Injustice",
+                f" someone tsumoed and got ura {value}")]
 
-# TODO: head bump, furiten
+# Print if you dealt into haitei
+@injustice(require=[Flags.WINNER_GOT_HAITEI, Flags.GAME_ENDED_WITH_RON, Flags.YOU_LOST_POINTS])
+def dealt_into_haitei(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    seat = data[flags.index(Flags.WINNER_GOT_HAITEI)]["seat"]
+    return [Injustice(round_number, honba, "Injustice",
+            f" you dealt into {relative_seat_name(player, seat)}'s houtei{tenpai_status_string(flags)}")]
+
+# Print if winner drew haitei or got houtei, while you were in tenpai
+@injustice(require=[Flags.WINNER_GOT_HAITEI, Flags.YOU_REACHED_TENPAI])
+def winner_haitei_while_tenpai(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    haitei_data = data[flags.index(Flags.WINNER_GOT_HAITEI)]
+    seat = haitei_data["seat"]
+    name = TRANSLATE[haitei_data["yaku"]]
+    dealer_string = " as dealer" if Flags.YOU_ARE_DEALER in flags else ""
+    return [Injustice(round_number, honba, "Injustice",
+            f" {relative_seat_name(player, seat)} got {name} while you were tenpai{dealer_string}")]
+
+# TODO: head bump
