@@ -73,7 +73,6 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     other_hand = None
     other_wait = None
     other_ukeire = None
-    draws_since_shanten_change = 0
     starting_player_shanten = None
     player_shanten: Tuple[float, List[int]] = (99, [])
     player_past_waits = []
@@ -85,6 +84,7 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     nagashi: List[bool] = [True]*num_players
     last_draw_event_ix: List[int] = [-1]*num_players
     last_discard_event_ix: List[int] = [-1]*num_players
+    draws_since_shanten_change: List[int] = [0]*num_players
     tiles_in_wall = 70 if num_players == 4 else 55
     assert num_players in {3,4}, f"somehow we have {num_players} players"
     assert player in {0,1,2,3}, f"player passed in is {player}, expected 0-3"
@@ -136,7 +136,7 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 assert starting_player_shanten is not None
                 prev_shanten = event_data[0]
                 new_shanten = event_data[1]
-                draws_since_shanten_change = 0
+                draws_since_shanten_change[seat] = 0
                 if prev_shanten[0] == 0:
                     player_past_waits.append(prev_shanten[1])
                     if new_shanten[0] > 0:
@@ -150,11 +150,11 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                         if event_data[0] in wait:
                             flags.append(Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE)
                             data.append({"tile": event_data[0], "wait": wait, "shanten": player_shanten})
-                draws_since_shanten_change += 1
-                if player_shanten[0] > 0 and draws_since_shanten_change >= 9:
+                if player_shanten[0] > 0 and draws_since_shanten_change[seat] >= 9:
                     flags.append(Flags.NINE_DRAWS_NO_IMPROVEMENT)
                     data.append({"shanten": player_shanten,
-                                 "draws": draws_since_shanten_change})
+                                 "draws": draws_since_shanten_change[seat]})
+                draws_since_shanten_change[seat] += 1
         if event_type == "riichi":
             in_riichi[seat] = True
             if seat == player:
