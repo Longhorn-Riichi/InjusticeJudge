@@ -228,13 +228,14 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     (k_shanten, k_waits) = calculate_kokushi_shanten(starting_hand, ctr)
     if c_shanten <= shanten:
         # take the min, unless we're iishanten in which case we add 0.5 to the shanten
-        if shanten >= 1 and shanten < 2:
+        if c_shanten == 1 and shanten >= 1 and shanten < 2:
             shanten += 0.5
-        else:
-            shanten = min(c_shanten, shanten)
+            waits |= set(c_waits)
+        elif c_shanten < shanten:
+            shanten = c_shanten
+            waits = set(c_waits)
         if shanten == 1:
             shanten = 1.5
-        waits |= set(c_waits)
     if k_shanten < shanten:
         shanten = k_shanten
         if shanten == 1:
