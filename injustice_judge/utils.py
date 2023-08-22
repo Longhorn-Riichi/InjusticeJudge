@@ -1,5 +1,5 @@
 import functools
-from .constants import DISCORD_TILES, TOGGLE_RED_FIVE, SHANTEN_NAMES, SUCC, PRED
+from .constants import DISCORD_TILES, DISCORD_CALLED_TILES, TOGGLE_RED_FIVE, SHANTEN_NAMES, SUCC, PRED
 from typing import *
 import os
 
