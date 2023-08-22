@@ -9,9 +9,23 @@ from pprint import pprint
 ### ukeire and shanten calculations
 ###
 
-def get_iishanten_waits():
+def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
+    # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
+    shanten = 6 - len([v for v in ctr.values() if v > 1])
+    extra_data: Tuple[int, ...] = ()
+    if shanten <= 1:
+        # since chiitoitsu can't repeat pairs, take only the single tiles in hand
+        extra_data = sorted_hand(k for k, v in ctr.items() if v == 1)
+    return shanten, list(extra_data)
 
-    pass
+def calculate_kokushi_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
+    # get kokushi waits (iishanten or tenpai) and label iishanten type
+    has_pair = len([v for v in ctr.values() if v > 1]) >= 1
+    shanten = (12 if has_pair else 13) - len(YAOCHUUHAI.intersection(starting_hand))
+    extra_data: Tuple[int, ...] = ()
+    if shanten <= 1:
+        extra_data = sorted_hand(YAOCHUUHAI if not has_pair else YAOCHUUHAI.difference(starting_hand))
+    return shanten, list(extra_data)
 
 @functools.cache
 def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]]:
@@ -19,14 +33,16 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     Return the shanten of the hand plus its waits (if tenpai or iishanten).
     If the shanten is 2+, the extra data is just an empty list.
     If iishanten, the returned shanten is 1.1 to 1.6, based on the type of iishanten.
+    - 1.05: "kokushi musou iishanten",
     - 1.1 kutsuki iishanten
     - 1.2 headless iishanten
-    - 1.23 headless complete iishanten
+    - 1.23 headless perfect iishanten
+    - 1.23 headless (imperfect) iishanten
     - 1.24 headless floating iishanten
-    - 1.3 complete iishanten
+    - 1.32 perfect iishanten
+    - 1.33 imperfect iishanten
     - 1.4 floating tile iishanten
-    - 1.5 chiitoitsu iishanten
-    - 1.6 kokushi iishanten
+    0.5 is added if chiitoitsu iishanten is also present in the hand.
     """
     assert len(starting_hand) in {1, 4, 7, 10, 13}, f"calculate_shanten() was passed a {len(starting_hand)} tile hand"
 
@@ -119,10 +135,10 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
             for hand in remove_some_taatsus(hands):
                 pairless = next(iter(remove_all_pairs({hand})))
                 if len(pairless) != len(hand):
-                    # print(f"{ph(starting_hand)} is kutsuki iishanten on {ph(pairless)}")
+                    # print(f"{ph(sorted_hand(starting_hand))} is kutsuki iishanten on {ph(pairless)}")
                     kutsuki_iishanten_tiles |= set(pairless)
                 else:
-                    # print(f"{ph(starting_hand)} is headless iishanten on {ph(hand)}")
+                    # print(f"{ph(sorted_hand(starting_hand))} is headless iishanten on {ph(hand)}")
                     headless_iishanten_tiles |= set(hand)
             if len(kutsuki_iishanten_tiles) > 0:
                 shanten = 1.1
@@ -152,20 +168,48 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
             to_complex_shapes = lambda t1: (t2:=SUCC[t1], t3:=SUCC[t2], t5:=SUCC[SUCC[t3]], ((t1,t1,t2),(t1,t2,t2),(t1,t1,t3),(t1,t3,t3),(t1,t3,t5)))[-1]
             complete_iishanten_shapes = subhands & {shape for hand in subhands for shape in to_complex_shapes(hand[0])}
             complete_waits = set().union(*map(get_waits, complete_iishanten_shapes))
-
             if shanten == 1.2:
                 if len(complete_waits | headless_waits) > len(headless_waits):
-                    # print(f"{ph(starting_hand)} is headless complete iishanten, adding extra waits {ph(complete_waits - headless_waits)}")
+                    # print(f"{ph(sorted_hand(starting_hand))} is headless iishanten, adding extra waits {ph(complete_waits - headless_waits)}")
                     shanten = 1.23
                 elif len(floating_waits | headless_waits) > len(headless_waits):
-                    # print(f"{ph(starting_hand)} is headless floating iishanten, adding extra waits {ph(floating_waits - headless_waits)}")
+                    # print(f"{ph(sorted_hand(starting_hand))} is headless floating iishanten, adding extra waits {ph(floating_waits - headless_waits)}")
                     shanten = 1.24
                 else:
-                    # print(f"{ph(sorted_hand(starting_hand))} is headless iishanten, with waits {ph(headless_waits)}")
-                    pass
+                    # print(f"{ph(sorted_hand(starting_hand))} is headless iishanten, with waits {ph(headless_waits)")
+                    shanten = 1.23
+
+                # check for headless perfect iishanten
+                #   which is only true if both shapes are ryanmen and overlap with a group
+                #   such that a pair+ryanmen can be formed by dropping one side of the ryanmen
+                # e.g. 234 34 -> drop 3 -> 2344
+                # e.g. 234 45 -> drop 5 -> 2344
+                # e.g. 34 444 -> drop 4 -> 3444
+                # e.g. 34 555 -> drop 3 -> 4555 
+                # there are 8 possible shapes (the above 4 plus their reverse versions)
+                # exclude shapes that result in penchan!
+                # these are: 12233, 12222, 11112, 77889, 88889, 89999
+                penchan_shapes = {(11,12,12,13,13),(11,12,12,12,12),(11,11,11,11,12),(17,17,18,18,19),(18,18,18,18,19),(18,19,19,19,19),
+                                  (21,22,22,23,23),(21,22,22,22,22),(21,21,21,21,22),(27,27,28,28,29),(28,28,28,28,29),(28,29,29,29,29),
+                                  (31,32,32,33,33),(31,32,32,32,32),(31,31,31,31,32),(37,37,38,38,39),(38,38,38,38,39),(38,39,39,39,39)}
+                to_flexible_shapes = lambda t1: (t2:=SUCC[t1], t3:=SUCC[t2], t4:=SUCC[t3],
+                   tuple({(t1,t2,t2,t3,t4), (t2,t2,t3,t3,t4), (t1,t2,t2,t3,t3), (t1,t2,t3,t3,t4),
+                          (t1,t2,t3,t3,t3), (t1,t2,t2,t2,t2), (t1,t1,t1,t1,t2), (t1,t1,t1,t2,t3)} - penchan_shapes))[-1]
+                flexible_shapes = set().union(*map(to_flexible_shapes, sorted_hand(starting_hand)))
+                if len(flexible_shapes & subhands) >= 2:
+                    shanten = 1.22
+
                 extra_data = sorted_hand(floating_waits | complete_waits | headless_waits)
             elif len(complete_iishanten_shapes) > 0:
-                shanten = 1.3
+                # take out all ryanmen shapes (not penchan!)
+                make_ryanmen = lambda tile: ((SUCC[tile], tile),) if tile not in {11,18,21,28,31,38} else ()
+                remove_all_ryanmen = lambda hands: fix(lambda hs: remove_all(hs, make_ryanmen), hands)
+                # if the resulting length is 3 then it's a perfect iishanten
+                # otherwise, it's imperfect iishanten
+                if len(next(iter(remove_all_ryanmen(hands)))) == 3:
+                    shanten = 1.35
+                else:
+                    shanten = 1.3
                 extra_data = sorted_hand(get_floating_waits(hands))
                 # print(f"{ph(sorted_hand(starting_hand))} is complete iishanten, with complex shapes {list(map(ph, complete_iishanten_shapes))}")
             elif len(floating_waits) > 0:
@@ -185,32 +229,28 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
         extra_data = sorted_hand(filter(makes_winning_hand, possible_winning_tiles))
         assert len(extra_data) > 0, f"tenpai hand {ph(sorted_hand(hand_copy))} has no waits?"
 
-    # otherwise, check for chiitoitsu and kokushi musou
-    else:
-        # chiitoitsu shanten
-        count_unique_pairs = lambda hand: len(list(filter(lambda ct: ct > 1, Counter(remove_red_fives(hand)).values())))
-        num_unique_pairs = count_unique_pairs(starting_hand)
-        shanten = min(shanten, 6 - num_unique_pairs)
-
-        # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
-        if shanten <= 1:
-            extra_data = sorted_hand(functools.reduce(lambda hand, tile: try_remove_all_tiles(hand, (tile, tile)), set(starting_hand), tuple(starting_hand)))
+    # compare with chiitoitsu and kokushi shanten
+    ctr = Counter(remove_red_fives(starting_hand))
+    (c_shanten, c_extra_data) = calculate_chiitoitsu_shanten(starting_hand, ctr)
+    (k_shanten, k_extra_data) = calculate_kokushi_shanten(starting_hand, ctr)
+    if c_shanten <= shanten:
+        # take the min, unless we're iishanten in which case we add 0.5 to the shanten
+        if shanten >= 1 and shanten < 2:
+            shanten += 0.5
+        else:
+            shanten = min(c_shanten, shanten)
         if shanten == 1:
             shanten = 1.5
+        extra_data = sorted_hand(set(extra_data) | set(c_extra_data))
+    if k_shanten < shanten:
+        shanten = k_shanten
+        if shanten == 1:
+            shanten = 1.05
+        extra_data = tuple(k_extra_data)
 
-        # kokushi musou shanten
-        if shanten >= 4:
-            shanten = min(shanten, (12 if num_unique_pairs >= 1 else 13) - len(YAOCHUUHAI.intersection(starting_hand)))
-
-            # get kokushi waits (iishanten or tenpai) and label iishanten type
-            if shanten <= 1:
-                if num_unique_pairs > 0:
-                    extra_data = sorted_hand(YAOCHUUHAI.difference(starting_hand))
-                else:
-                    extra_data = sorted_hand(YAOCHUUHAI)
-            if shanten == 1:
-                shanten = 1.6
-    return shanten, list(extra_data)
+    # remove all ankan in hand from the waits
+    ankan_tiles = {k for k, v in ctr.items() if v == 4}
+    return shanten, list(set(extra_data) - ankan_tiles)
 
 def calculate_shanten(starting_hand: Iterable[int]) -> Tuple[float, List[int]]:
     """This just converts the input to a sorted tuple so it can be serialized as a cache key"""
