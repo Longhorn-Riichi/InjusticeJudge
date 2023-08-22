@@ -249,9 +249,9 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 limit_hand_flags = limit_hand_flags[0:1]
             elif kyoku["result"][2][3].startswith("跳満"):
                 limit_hand_flags = limit_hand_flags[0:2]
-            elif kyoku["result"][2][3].startswith("倍满"):
+            elif kyoku["result"][2][3].startswith("倍満"):
                 limit_hand_flags = limit_hand_flags[0:3]
-            elif kyoku["result"][2][3].startswith("三倍满"):
+            elif kyoku["result"][2][3].startswith("三倍満"):
                 limit_hand_flags = limit_hand_flags[0:4]
             elif kyoku["result"][2][3].startswith("役満"):
                 pass

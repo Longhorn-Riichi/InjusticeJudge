@@ -60,7 +60,7 @@ def print_call_info(call_info):
         assert False, f"print_call_info got invalid call direction {call_direction}"
 
 def print_full_hand(closed_part, call_info, shanten, ukeire):
-    call_string = "" if len(call_info) == 0 else " " + " ".join(map(print_call_info, reversed(call_info)))
+    call_string = "" if len(call_info) == 0 else "    " + " ".join(map(print_call_info, reversed(call_info)))
     if shanten[0] >= 2:
         wait_string = f" ({shanten_name(shanten)})"
     else:
