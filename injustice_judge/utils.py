@@ -59,13 +59,15 @@ def print_call_info(call_info):
     else:
         assert False, f"print_call_info got invalid call direction {call_direction}"
 
-def print_full_hand(closed_part, call_info, shanten, ukeire):
-    call_string = "" if len(call_info) == 0 else "    " + " ".join(map(print_call_info, reversed(call_info)))
+def print_full_hand(closed_part, call_info, shanten, ukeire, final_tile = None):
+    call_string = "" if len(call_info) == 0 else "⠀" + "⠀".join(map(print_call_info, reversed(call_info)))
     if shanten[0] == 0:
-        wait_string = f" waits: {ph(sorted_hand(shanten[1]))} ({ukeire} ukeire)"
+        wait_string = f"⠀waits: {ph(sorted_hand(shanten[1]))} ({ukeire} outs)"
+        win_string = "⠀" + pt(final_tile)
     else:
         wait_string = f" ({shanten_name(shanten)})"
-    return f"{ph(sorted_hand(closed_part))}{call_string}{wait_string}"
+        win_string = ""
+    return f"{ph(sorted_hand(closed_part))}{call_string}{win_string}{wait_string}"
 
 ph = lambda hand: "".join(map(pt, hand)) # print hand
 remove_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else tile

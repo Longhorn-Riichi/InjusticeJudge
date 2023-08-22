@@ -189,10 +189,12 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 "final_ukeire": None,
                 "starting_hands": [majsoul_hand_to_tenhou(h) for h in haipais],
                 "starting_shanten": [() for _ in range(num_players)],
+                "final_tile": None,
             }
             dora_indicators = [DORA_INDICATOR[convert_tile(dora)] for dora in action.doras]
             visible_tiles = []
             first_tile: int = kyoku["hands"][action.ju].pop() # dealer starts with 14, remove the last tile so we can calculate shanten
+            kyoku["starting_hands"][action.ju].pop() # also pop for the starting_hand
             shanten = list(map(calculate_shanten, kyoku["hands"]))
             kyoku["starting_shanten"] = list(shanten)
             for t in range(num_players):
@@ -226,6 +228,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             if tile not in YAOCHUUHAI and nagashi[action.seat]:
                 kyoku["events"].append((action.seat, "end_nagashi", action.seat, "discard", tile))
                 nagashi[action.seat] = False
+            kyoku["final_tile"] = tile
         elif name == "RecordChiPengGang":
             call_tiles = list(map(convert_tile, action.tiles))
             called_tile = call_tiles[-1]
@@ -259,6 +262,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             kyoku["hands"][action.seat].remove(tile)
             visible_tiles.append(tile)
             dora_indicators = [DORA_INDICATOR[convert_tile(dora)] for dora in action.doras]
+            kyoku["final_tile"] = tile
         elif name == "RecordHule":
             kyoku["result"] = ["和了"]
             for h in action.hules:
@@ -279,6 +283,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 yakus = [name for _, name in sorted((fan.id, f"{YAKU_NAMES[fan.id]}({fan.val}飜)") for fan in h.fans)]
                 kyoku["result"].append(list(action.delta_scores))
                 kyoku["result"].append([h.seat, last_seat, h.seat, score_string+point_string, *yakus])
+                kyoku["final_tile"] = convert_tile(h.hu_tile)
             kyoku["final_waits"] = [w for _, w in shanten]
             kyoku["final_ukeire"] = [calculate_ukeire(closed_part(seat), kyoku["calls"][seat] + visible_tiles + dora_indicators) for seat in range(num_players)]
         elif name == "RecordNoTile":
@@ -396,6 +401,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         num_dora = 1
         starting_shanten = list(map(calculate_shanten, hand))
         shanten = list(starting_shanten)
+        final_tile = None
         
         for t in range(num_players):
             events.append((t, "haipai", sorted_hand(hand[t])))
@@ -426,6 +432,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             # print(last_turn, "=>", turn)
             if i[turn] >= len(draws[turn]):
                 assert all(i[turn] >= len(draws[turn]) for turn in range(num_players)), f"game ended prematurely in {round_name(current_round, current_honba)} on {turn}'s turn; i = {i}, max i = {list(map(len, draws))}"
+                final_tile = last_discard
                 break
 
             # first handle the draw
@@ -477,6 +484,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
 
             if i[turn] >= len(discards[turn]): # tsumo after draw means no discard after this
                 hand[turn].remove(draw) # so we can calculate final shanten/wait
+                final_tile = draw
                 break
 
             discard = discards[turn][i[turn]]
@@ -566,6 +574,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             "final_ukeire": final_ukeire,
             "starting_hands": starting_hand,
             "starting_shanten": starting_shanten,
+            "final_tile": final_tile
         })
 
     # parse metadata

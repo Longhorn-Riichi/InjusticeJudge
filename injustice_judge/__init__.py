@@ -15,6 +15,7 @@ async def analyze_game(link: str, specified_player = None) -> List[str]:
     #         final_waits = kyoku["final_waits"][winner]
     #         final_ukeire = kyoku["final_ukeire"][winner]
     #         final_call_info = kyoku["call_info"][winner]
-    #         print(round_name(kyoku["round"], kyoku["honba"]), print_full_hand(final_closed_hand, final_call_info, (0, final_waits), final_ukeire))
+    #         final_tile = kyoku["final_tile"]
+    #         print(round_name(kyoku["round"], kyoku["honba"]), print_full_hand(final_closed_hand, final_call_info, (0, final_waits), final_ukeire, final_tile), final_tile)
 
     return [injustice for kyoku in kyokus for injustice in evaluate_injustices(kyoku, player)]
