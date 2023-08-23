@@ -1,4 +1,3 @@
-
 # InjusticeJudge
 
 Analyzes your tenhou.net game to find instances of mahjong injustice. Currently, it checks for:
