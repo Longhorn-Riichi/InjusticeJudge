@@ -6,7 +6,7 @@ from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
-from .constants import CallInfo, Kyoku, Game, GameMetadata, DORA, DORA_INDICATOR, LIMIT_HANDS, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
+from .constants import CallInfo, Kyoku, GameMetadata, DORA, DORA_INDICATOR, LIMIT_HANDS, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
 from .utils import ph, pt, closed_part, remove_red_five, round_name, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten, calculate_ukeire
 from pprint import pprint
@@ -35,8 +35,13 @@ Event = Tuple[Any, ...]
 ### postprocess events obtained from parsing
 ###
 
-def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) -> Game:
-    game = []
+def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) -> List[Kyoku]:
+    """
+    Go through a game (represented as a list of events) and add more events to it
+    e.g. shanten changes, tenpai, ending nagashi discards
+    Return a list of kyoku, which contains the new event list plus all data about the round
+    """
+    kyokus: List[Kyoku] = []
     for events in all_events:
         assert len(events) > 0, "somehow got an empty events list"
         kyoku: Kyoku = Kyoku()
@@ -129,9 +134,9 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
             # increment doras for kans
             if event_type in {"minkan", "ankan", "kakan"}:
                 num_doras += 1
-        assert len(kyoku.hands) > 0, f"somehow we never initialized the kyoku at index {len(game)}"
-        game.append(kyoku)
-    return game
+        assert len(kyoku.hands) > 0, f"somehow we never initialized the kyoku at index {len(kyokus)}"
+        kyokus.append(kyoku)
+    return kyokus
 
 ###
 ### loading and parsing mahjong soul games
@@ -365,8 +370,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                                    name = [acc_data[i][1] for i in range(num_players)],
                                    game_score = [result_data[i][1] for i in range(num_players)],
                                    final_score = [result_data[i][2] for i in range(num_players)])
-    game = postprocess_events(all_events, parsed_metadata)
-    return game, dataclasses.asdict(parsed_metadata)
+    return postprocess_events(all_events, parsed_metadata), dataclasses.asdict(parsed_metadata)
 
 ###
 ### loading and parsing tenhou games
@@ -410,7 +414,7 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
     del game_data["log"]
     return log, game_data, player
 
-def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[Game, Dict[str, Any]]:
+def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], Dict[str, Any]]:
     all_events: List[List[Event]] = []
     num_players: int = 4
     @functools.cache
@@ -521,8 +525,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[Game,
                                    game_score = metadata["sc"][::2],
                                    final_score = list(map(lambda s: int(1000*s), metadata["sc"][1::2])))
 
-    game = postprocess_events(all_events, parsed_metadata)
-    return game, dataclasses.asdict(parsed_metadata)
+    return postprocess_events(all_events, parsed_metadata), dataclasses.asdict(parsed_metadata)
 
 async def parse_game_link(link: str, specified_player: int = 0) -> Tuple[List[Kyoku], Dict[str, Any], int]:
     """Given a game link, fetch and parse the game into kyokus"""

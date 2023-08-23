@@ -45,8 +45,6 @@ class GameMetadata:
     game_score: List[int]
     final_score: List[int]
 
-Game = List[Kyoku]
-
 ###
 ### lookup tables
 ###
