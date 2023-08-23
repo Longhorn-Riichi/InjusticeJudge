@@ -195,7 +195,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
                 waits = floating_waits | complete_waits | headless_waits
             elif len(complete_iishanten_shapes) > 0:
                 # take out all ryanmen shapes (not penchan!)
-                make_ryanmen = lambda tile: ((SUCC[tile], tile),) if tile not in {11,18,21,28,31,38} else ()
+                make_ryanmen = lambda tile: ((SUCC[tile], tile),) if tile not in {11,18,21,28,31,38} else {()}
                 remove_all_ryanmen = lambda hands: fix(lambda hs: remove_all(hs, make_ryanmen), hands)
                 # if the resulting length is 3 then it's a perfect iishanten
                 # otherwise, it's imperfect iishanten
