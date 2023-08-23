@@ -103,3 +103,8 @@ def get_waits(hand: Tuple[int, ...]) -> Set[int]:
         t1, t2 = remove_red_fives(taatsu)
         return {PRED[t1], SUCC[t2]} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
     return set().union(*map(get_taatsu_wait, zip(hand[:-1], hand[1:]))) - {0}
+
+def closed_part(hand: Tuple[int, ...], calls: Tuple[int, ...]) -> Tuple[int, ...]:
+    ret = try_remove_all_tiles(tuple(hand), tuple(calls))
+    assert len(ret) + len(calls) == len(hand), f"with hand = {ph(hand)} and calls = {ph(calls)}, somehow closed part is {ph(ret)}"
+    return ret

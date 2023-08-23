@@ -2,7 +2,7 @@ from .constants import Kyoku, SHANTEN_NAMES, TRANSLATE
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
-from .utils import ph, pt, relative_seat_name, round_name, shanten_name, sorted_hand
+from .utils import ph, pt, closed_part, relative_seat_name, round_name, shanten_name, sorted_hand, try_remove_all_tiles
 from pprint import pprint
 
 ###
@@ -24,6 +24,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " WINNER_GOT_MANGAN"
     " WINNER_GOT_SANBAIMAN"
     " WINNER_GOT_YAKUMAN"
+    " WINNER_GOT_DORA_BOMB"
     " WINNER_GOT_URA_3"
     " WINNER_GOT_HAITEI"
     " WINNER_HAD_BAD_WAIT"
@@ -295,6 +296,15 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                 if y == "一発(1飜)" and is_tsumo:
                     flags.append(Flags.WINNER_IPPATSU_TSUMO)
                     data.append({"seat": w})
+                elif y.startswith("ドラ"):
+                    value = int(y.split("(")[1].split("飜")[0])
+                    if value >= 3:
+                        # count number of dora in closed part of hand
+                        closed_hand = closed_part(tuple(kyoku["hands"][w]), tuple(kyoku["calls"][w]))
+                        dora_in_hand = sum((Counter(closed_hand) & Counter(kyoku["dora"]*4)).values())
+                        if dora_in_hand >= 3:
+                            flags.append(Flags.WINNER_GOT_DORA_BOMB)
+                            data.append({"seat": w, "value": dora_in_hand})
                 elif y.startswith("裏ドラ"):
                     value = int(y.split("(")[1].split("飜")[0])
                     if value >= 3:
@@ -578,5 +588,13 @@ def winner_haitei_while_tenpai(flags: List[Flags], data: List[Dict[str, Any]], r
     dealer_string = " as dealer" if Flags.YOU_ARE_DEALER in flags else ""
     return [Injustice(round_number, honba, "Injustice",
             f" {relative_seat_name(player, seat)} got {name} while you were tenpai{dealer_string}")]
+
+# Print if winner had 3+ dora in closed part of hand
+@injustice(require=[Flags.WINNER_GOT_DORA_BOMB], forbid=[Flags.YOU_GAINED_POINTS])
+def dora_bomb(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    seat = data[flags.index(Flags.WINNER_GOT_DORA_BOMB)]["seat"]
+    value = data[flags.index(Flags.WINNER_GOT_DORA_BOMB)]["value"]
+    return [Injustice(round_number, honba, "Injustice",
+            f" {relative_seat_name(player, seat)} had closed dora {value}")]
 
 # TODO: head bump
