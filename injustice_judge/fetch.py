@@ -84,11 +84,12 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
     Fetch a raw majsoul log from a given link, returning a parsed log and the specified player's seat
     Example link: https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203
     """
-    assert link.startswith("https://mahjongsoul.game.yo-star.com/?paipu="), "expected mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu="
+    assert link.startswith(("https://mahjongsoul.game.yo-star.com/?paipu=",
+                            "http://mahjongsoul.game.yo-star.com/?paipu=")), "expected mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu="
     if not "_a" in link:
         print("Assuming you're the first east player, since mahjong soul link did not end with _a<number>")
 
-    identifier, *player_string = link.split("https://mahjongsoul.game.yo-star.com/?paipu=")[1].split("_a")
+    identifier, *player_string = link.split("?paipu=")[1].split("_a")
     ms_account_id = None if len(player_string) == 0 else int((((int(player_string[0])-1358437)^86216345)-1117113)/7)
     try:
         f = open(f"cached_games/game-{identifier}.log", 'rb')
@@ -347,7 +348,12 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
     Example link: https://tenhou.net/0/?log=2023072712gm-0089-0000-eff781e1&tw=1
     """
     import json
-    assert link.startswith("https://tenhou.net/0/?log="), "expected tenhou link starting with https://tenhou.net/0/?log="
+    assert link.startswith(("https://tenhou.net/0/?log=",
+                            "http://tenhou.net/0/?log=",
+                            "https://tenhou.net/3/?log=",
+                            "http://tenhou.net/3/?log=",
+                            "https://tenhou.net/4/?log=",
+                            "http://tenhou.net/4/?log=")), "expected tenhou link starting with https://tenhou.net/0/?log="
     if link[:-1].endswith("&ts="): # round number (1-8) to start on; we ignore this
         link = link.split("&ts=")[0]
     if not link[:-1].endswith("&tw="):
@@ -356,7 +362,7 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
     else:
         player = int(link[-1])
 
-    identifier = link.split("https://tenhou.net/0/?log=")[1].split("&")[0]
+    identifier = link.split("?log=")[1].split("&")[0]
     try:
         f = open(f"cached_games/game-{identifier}.json", 'r')
         game_data = json.load(f)
@@ -619,10 +625,10 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
 async def parse_game_link(link: str, specified_player: int = 0) -> Tuple[List[Dict[str, Any]], GameMetadata, int]:
     """Given a game link, fetch and parse the game into kyokus"""
     # print(f"Analyzing game {link}:")
-    if link.startswith("https://tenhou.net/0/?log="):
+    if "tenhou.net" in link:
         tenhou_log, metadata, player = fetch_tenhou(link)
         kyokus, parsed_metadata = parse_tenhou(tenhou_log, metadata)
-    elif link.startswith("https://mahjongsoul.game.yo-star.com/?paipu="):
+    elif "mahjongsoul.game.yo-star.com" in link:
         majsoul_log, metadata, player = await fetch_majsoul(link)
         kyokus, parsed_metadata = parse_majsoul(majsoul_log, metadata)
     else:
