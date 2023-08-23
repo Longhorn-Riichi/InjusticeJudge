@@ -17,9 +17,9 @@ Analyzes your tenhou.net game to find instances of mahjong injustice. Currently,
 __Note__: This program was explicitly written to
 
 1) be funny
-2) demonstrate how common some of these injustices are.
+2) demonstrate how common some of these perceived injustices are.
 
-Remember, Mahjong is a luck-based game. Not all plays can be explained by efficiency! (e.g. number of outs)
+What appears as an injustice to you may be well justified from another player's perspective!
 
 ## Usage (standalone)
 
