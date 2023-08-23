@@ -1,10 +1,41 @@
+from dataclasses import dataclass
 from typing import *
 
 ###
 ### types
 ###
 
-Kyoku = Dict[str, Any]
+# Kyoku = Dict[str, Any]
+
+@dataclass(frozen=True)
+class CallInfo:
+    type: str
+    tile: int
+    dir: int
+    tiles: List[int]
+
+@dataclass
+class Kyoku:
+    round: int
+    honba: int
+    num_players: int
+    final_tile: int
+    dora: List[int]
+    events: List[Tuple[Any, ...]]
+    result: List[Any]
+    hands: List[List[int]]
+    calls: List[List[int]]
+    call_info: List[List[CallInfo]]
+    pond: List[List[int]]
+    furiten: List[bool]
+    final_waits: List[List[int]]
+    final_ukeire: List[int]
+    starting_hands: List[Tuple[int, ...]]
+    starting_shanten: List[Tuple[float, List[int]]]
+
+    # def __post_init__(self):
+    #     pass
+
 
 ###
 ### lookup tables
