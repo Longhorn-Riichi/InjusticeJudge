@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import *
 
 ###
@@ -16,26 +16,36 @@ class CallInfo:
 
 @dataclass
 class Kyoku:
-    round: int
-    honba: int
-    num_players: int
-    final_tile: int
-    dora: List[int]
-    events: List[Tuple[Any, ...]]
-    result: List[Any]
-    hands: List[List[int]]
-    calls: List[List[int]]
-    call_info: List[List[CallInfo]]
-    pond: List[List[int]]
-    furiten: List[bool]
-    final_waits: List[List[int]]
-    final_ukeire: List[int]
-    starting_hands: List[Tuple[int, ...]]
-    starting_shanten: List[Tuple[float, List[int]]]
+    round: int                                    = 0
+    honba: int                                    = 0
+    num_players: int                              = 0
+    final_tile: int                               = 0
+    doras: List[int]                              = field(default_factory=list)
+    uras: List[int]                               = field(default_factory=list)
+    events: List[Tuple[Any, ...]]                 = field(default_factory=list)
+    result: List[Any]                             = field(default_factory=list)
+    hands: List[List[int]]                        = field(default_factory=list)
+    calls: List[List[int]]                        = field(default_factory=list)
+    shanten: List[Tuple[float, List[int]]]        = field(default_factory=list)
+    call_info: List[List[CallInfo]]               = field(default_factory=list)
+    pond: List[List[int]]                         = field(default_factory=list)
+    furiten: List[bool]                           = field(default_factory=list)
+    final_waits: List[List[int]]                  = field(default_factory=list)
+    final_ukeire: List[int]                       = field(default_factory=list)
+    haipai: List[Tuple[int, ...]]                 = field(default_factory=list)
+    haipai_shanten: List[Tuple[float, List[int]]] = field(default_factory=list)
 
     # def __post_init__(self):
     #     pass
 
+@dataclass
+class GameMetadata:
+    num_players: int
+    name: List[str]
+    game_score: List[int]
+    final_score: List[int]
+
+Game = List[Kyoku]
 
 ###
 ### lookup tables
