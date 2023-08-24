@@ -50,6 +50,7 @@ class Tsumo:
 @dataclass(frozen = True)
 class Ryuukyoku:
     score_delta: List[int]
+    name: str
 
 @dataclass
 class Kyoku:
@@ -71,6 +72,7 @@ class Kyoku:
     final_ukeire: List[int]                       = field(default_factory=list)
     haipai: List[Tuple[int, ...]]                 = field(default_factory=list)
     haipai_shanten: List[Tuple[float, List[int]]] = field(default_factory=list)
+    haipai_ukeire: List[int]                      = field(default_factory=list)
     # def __post_init__(self):
     #     pass
 
@@ -80,6 +82,8 @@ class GameMetadata:
     name: List[str]
     game_score: List[int]
     final_score: List[int]
+    dora_indicators: List[List[int]]
+    ura_indicators: List[List[int]]
 
 ###
 ### lookup tables

@@ -41,12 +41,10 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
     Return a list of kyoku, which contains the new event list plus all data about the round
     """
     kyokus: List[Kyoku] = []
-    for events in all_events:
+    for events, dora_indicators, ura_indicators in zip(all_events, metadata.dora_indicators, metadata.ura_indicators):
         assert len(events) > 0, "somehow got an empty events list"
         kyoku: Kyoku = Kyoku()
         nagashi_eligible: List[int] = [True] * metadata.num_players
-        dora_indicators: List[int] = []
-        ura_indicators: List[int] = []
         visible_tiles: List[int] = []
         num_doras = 1
         for i, (seat, event_type, *event_data) in enumerate(events):
@@ -68,6 +66,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.uras = [DORA[d] for d in ura_indicators]
                 kyoku.shanten = [calculate_shanten(h) for h in kyoku.hands]
                 kyoku.haipai_shanten = list(kyoku.shanten)
+                kyoku.haipai_ukeire = [calculate_ukeire(tuple(hand), dora_indicators[:num_doras]) for hand in kyoku.hands]
                 kyoku.events.extend((t, "haipai_shanten", s) for t, s in enumerate(kyoku.shanten))
             elif event_type == "draw":
                 tile = event_data[0]
@@ -107,8 +106,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                     kyoku.hands[seat].append(called_tile)
                     assert len(kyoku.hands[seat]) == 14
                 kyoku.calls[seat].extend(call_tiles[:3]) # ignore any kan tile
-                call_direction = (call_from - seat) % 4
-                kyoku.call_info[seat].append(CallInfo(event_type, called_tile, call_direction, call_tiles))
+                kyoku.call_info[seat].append(CallInfo(event_type, called_tile, call_from, call_tiles))
                 # check for nagashi
                 if nagashi_eligible[call_from]:
                     kyoku.events.append((seat, "end_nagashi", call_from, event_type, called_tile))
@@ -135,7 +133,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                         ukeire = calculate_ukeire(hidden, kyoku.calls[seat] + visible_tiles + dora_indicators[:num_doras])
                     kyoku.final_waits.append(kyoku.shanten[seat][1])
                     kyoku.final_ukeire.append(ukeire)
-                unparsed_result, dora_indicators, ura_indicators = event_data
+                unparsed_result = event_data[0]
                 kyoku.result = parse_result(unparsed_result)
                 # TODO make a result dataclass
             # increment doras for kans
@@ -220,8 +218,10 @@ def parse_result(result: List[Any]) -> Tuple[Any, ...]:
                                 score = score,
                                 yaku = process_yaku(yaku)))
         return ("ron", *rons)
-    elif result_type in {"流局", "全員聴牌", "流し満貫"}:
-        return ("ryuukyoku", Ryuukyoku(score_delta = scores[0][0] if len(scores) > 0 else [0]*num_players))
+    elif result_type in {"流局", "全員聴牌", "流し満貫"} | {"九種九牌", "四家立直", "三家和了", "四槓散了", "四風連打"}:
+        # TODO use different name for draws, instead of lumping it in with ryuukyoku
+        return ("ryuukyoku", Ryuukyoku(score_delta = scores[0][0] if len(scores) > 0 else [0]*num_players,
+                                       name = TRANSLATE[result_type]))
     else:
         assert False, f"unhandled result type {result_type}"
 
@@ -353,6 +353,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     """
     Parse a Mahjong Soul log fetched with `fetch_majsoul`.
     """
+    all_dora_indicators: List[List[int]] = []
+    all_ura_indicators: List[List[int]] = []
     dora_indicators: List[int] = []
     ura_indicators: List[int] = []
     convert_tile = lambda tile: {"m": 51, "p": 52, "s": 53}[tile[1]] if tile[0] == "0" else {"m": 10, "p": 20, "s": 30, "z": 40}[tile[1]] + int(tile[0])
@@ -365,15 +367,18 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     def end_round(result):
         nonlocal events
         nonlocal all_events
-        events.append((t, "end_game", result, dora_indicators, ura_indicators))
+        nonlocal dora_indicators
+        nonlocal ura_indicators
+        events.append((t, "end_game", result))
         all_events.append(events)
+        all_dora_indicators.append(dora_indicators)
+        all_ura_indicators.append(ura_indicators)
         events = []
 
     for name, action in actions:
         if name == "RecordNewRound":
             haipai = [sorted_hand(majsoul_hand_to_tenhou(h)) for h in [action.tiles0, action.tiles1, action.tiles2, action.tiles3] if len(h) > 0]
             num_players = len(haipai)
-            dora_indicators = [convert_tile(dora) for dora in action.doras]
             # dealer starts with 14, remove one tile and turn it into a draw
             *haipai[action.ju], first_tile = haipai[action.ju]
             for t in range(num_players):
@@ -383,12 +388,14 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             events.append((t, "start_game", round, honba))
             # pretend we drew the first tile
             events.append((action.ju, "draw", first_tile))
+            dora_indicators = [convert_tile(dora) for dora in action.doras]
         elif name == "RecordDealTile":
             events.append((action.seat, "draw", convert_tile(action.tile)))
+            dora_indicators.extend(convert_tile(dora) for dora in action.doras)
         elif name == "RecordDiscardTile":
             tile = convert_tile(action.tile)
             events.append((action.seat, "riichi" if action.is_liqi else "discard", tile))
-            dora_indicators = [convert_tile(dora) for dora in action.doras]
+            # dora_indicators += [convert_tile(dora) for dora in action.doras]
         elif name == "RecordChiPengGang":
             call_tiles = list(map(convert_tile, action.tiles))
             called_tile = call_tiles[-1]
@@ -409,7 +416,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             else:
                 raise Exception(f"unhandled RecordAnGangAddGang of type {action.type}: {action}")
             events.append((action.seat, call_type, tile, [tile], 0))
-            dora_indicators = [convert_tile(dora) for dora in action.doras]
+            dora_indicators.extend(convert_tile(dora) for dora in action.doras)
         elif name == "RecordHule":
             # construct a tenhou game result array
             result: List[Any] = ["和了"]
@@ -431,7 +438,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 result.append(list(action.delta_scores))
                 result.append([h.seat, last_seat, h.seat, score_string+point_string, *yakus])
                 dora_indicators = majsoul_hand_to_tenhou(h.doras)
-                ura_indicators = majsoul_hand_to_tenhou(h.li_doras) or ura_indicators
+                ura_indicators = majsoul_hand_to_tenhou(h.li_doras)
             end_round(result)
         elif name == "RecordNoTile":
             if len(action.scores[0].delta_scores) == 0: # everybody/nobody is tenpai, so no score change
@@ -457,7 +464,10 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     parsed_metadata = GameMetadata(num_players = num_players,
                                    name = [acc_data[i][1] for i in range(num_players)],
                                    game_score = [result_data[i][1] for i in range(num_players)],
-                                   final_score = [result_data[i][2] for i in range(num_players)])
+                                   final_score = [result_data[i][2] for i in range(num_players)],
+                                   dora_indicators = all_dora_indicators,
+                                   ura_indicators = all_ura_indicators)
+    assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
     return postprocess_events(all_events, parsed_metadata), dataclasses.asdict(parsed_metadata)
 
 ###
@@ -504,6 +514,8 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
 
 def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], Dict[str, Any]]:
     all_events: List[List[Event]] = []
+    all_dora_indicators: List[List[int]] = []
+    all_ura_indicators: List[List[int]] = []
     num_players: int = 4
     @functools.cache
     def get_call_direction(call: str):
@@ -531,6 +543,8 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         haipai   = [haipai0,   haipai1,   haipai2,   haipai3]
         draws    = [draws0,    draws1,    draws2,    draws3]
         discards = [discards0, discards1, discards2, discards3]
+        all_dora_indicators.append(dora_indicators)
+        all_ura_indicators.append(ura_indicators)
 
         for t in range(num_players):
             events.append((t, "haipai", sorted_hand(haipai[t])))
@@ -604,14 +618,16 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             turn = turn if keep_turn else (turn+1) % num_players
 
         assert all(i[turn] >= len(draws[turn]) for turn in range(num_players)), f"game ended prematurely in {round_name(round, honba)} on {turn}'s turn; i = {i}, max i = {list(map(len, draws))}"
-        events.append((t, "end_game", result, dora_indicators, ura_indicators))
+        events.append((t, "end_game", result))
         all_events.append(events)
 
     # parse metadata
     parsed_metadata = GameMetadata(num_players = num_players,
                                    name = metadata["name"],
                                    game_score = metadata["sc"][::2],
-                                   final_score = list(map(lambda s: int(1000*s), metadata["sc"][1::2])))
+                                   final_score = list(map(lambda s: int(1000*s), metadata["sc"][1::2])),
+                                   dora_indicators = all_dora_indicators,
+                                   ura_indicators = all_ura_indicators)
 
     return postprocess_events(all_events, parsed_metadata), dataclasses.asdict(parsed_metadata)
 

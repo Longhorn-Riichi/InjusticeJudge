@@ -62,8 +62,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOUR_HAND_RUINED_BY_TANYAO"
     )
 
-# def determine_flags(kyoku, player: int) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]]]:
-def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any]]]:
+def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]]]:
     """
     Analyze a parsed kyoku by spitting out an ordered list of all interesting facts about it (flags)
     Returns a pair of lists `(flags, data)`, where the nth entry in `data` is the data for the nth flag in `flags`
@@ -74,7 +73,6 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     global_flags: List[Flags] = []
     global_data: List[Any] = []
     assert num_players in {3,4}, f"somehow we have {num_players} players"
-    assert player in {0,1,2,3}, f"player passed in is {player}, expected 0-3"
     def add_flag(p, f, d = None):
         nonlocal flags
         nonlocal data
@@ -128,24 +126,8 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     for i, event in enumerate(kyoku.events):
         # print(round_name(kyoku.round, kyoku.honba), ":", tiles_in_wall, seat, event)
         seat, event_type, *event_data = event
-        if event_type == "draw":
+        if event_type in {"draw", "minkan"}:
             tiles_in_wall -= 1
-        elif event_type == "haipai_shanten":
-            shanten[seat] = event_data[0]
-            if shanten[seat][0] >= 5:
-                add_flag(seat, Flags.FIVE_SHANTEN_START, {"shanten": shanten[seat]})
-        elif event_type == "shanten_change":
-            prev_shanten, new_shanten = event_data
-            assert shanten[seat][0] != 99, f"missing haipai_shanten event before a shanten_change event"
-            assert prev_shanten == shanten[seat], f"somehow shanten changed from {shanten[seat]} to {prev_shanten} outside a shanten_change event"
-            shanten[seat] = new_shanten
-            draws_since_shanten_change[seat] = 0
-            # record past waits if we've changed from tenpai
-            if prev_shanten[0] == 0:
-                past_waits[seat].append(prev_shanten[1])
-                if new_shanten[0] > 0:
-                    add_flag(seat, Flags.YOU_FOLDED_FROM_TENPAI)
-        elif event_type in {"draw", "minkan"}:
             tile = event_data[0]
             # check if draw would have completed a past wait
             for wait in past_waits[seat]:
@@ -222,6 +204,21 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                     add_flag(who, Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI, {"tile": tile})
                 elif reason in {"minkan", "pon", "chii"}:
                     add_flag(who, Flags.YOUR_LAST_NAGASHI_TILE_CALLED, {"tile": tile, "caller": seat})
+        elif event_type == "haipai_shanten":
+            shanten[seat] = event_data[0]
+            if shanten[seat][0] >= 5:
+                add_flag(seat, Flags.FIVE_SHANTEN_START, {"shanten": shanten[seat]})
+        elif event_type == "shanten_change":
+            prev_shanten, new_shanten = event_data
+            assert shanten[seat][0] != 99, f"missing haipai_shanten event before a shanten_change event"
+            assert prev_shanten == shanten[seat], f"somehow shanten changed from {shanten[seat]} to {prev_shanten} outside a shanten_change event"
+            shanten[seat] = new_shanten
+            draws_since_shanten_change[seat] = 0
+            # record past waits if we've changed from tenpai
+            if prev_shanten[0] == 0:
+                past_waits[seat].append(prev_shanten[1])
+                if new_shanten[0] > 0:
+                    add_flag(seat, Flags.YOU_FOLDED_FROM_TENPAI)
 
     # Finally, look at kyoku.result. This determines flags related to:
     # - deal-ins
@@ -232,10 +229,10 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
     for result in results:
         for seat in range(num_players):
             # check for points won or lost
-            if result.score_delta[player] > 0:
-                add_flag(seat, Flags.YOU_GAINED_POINTS, {"amount": result.score_delta[player]})
+            if result.score_delta[seat] > 0:
+                add_flag(seat, Flags.YOU_GAINED_POINTS, {"amount": result.score_delta[seat]})
             elif result.score_delta[seat] < 0:
-                add_flag(seat, Flags.YOU_LOST_POINTS, {"amount": -result.score_delta[player]})
+                add_flag(seat, Flags.YOU_LOST_POINTS, {"amount": -result.score_delta[seat]})
                 # check for first row win
                 if result_type in {"ron", "tsumo"}:
                     num_winner_discards = len(kyoku.pond[result.winner])
@@ -264,8 +261,8 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
                                  "ukeire": kyoku.final_ukeire[result.winner]})
             # check for 3+ hidden dora
             if result.yaku.dora >= 3:
-                closed_hand = hidden_part(tuple(kyoku.hands[result.winner]), tuple(kyoku.calls[result.winner]))
-                hidden_dora = sum((Counter(closed_hand) & Counter(kyoku.doras*4)).values())
+                hidden_hand = hidden_part(tuple(kyoku.hands[result.winner]), tuple(kyoku.calls[result.winner]))
+                hidden_dora = sum((Counter(hidden_hand) & Counter(kyoku.doras*4)).values())
                 if hidden_dora >= 3:
                     add_global_flag(Flags.WINNER_GOT_DORA_BOMB, {"seat": result.winner, "value": result.yaku.dora})
             # check for 3+ ura
@@ -288,9 +285,9 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
             for seat in range(num_players):
                 if ron.score_delta[seat] < 0:
                     if not opened_hand[ron.winner] and not in_riichi[ron.winner]:
-                        add_flag(seat, Flags.YOU_DEALT_INTO_DAMA, {"seat": ron.winner, "score": -ron.score_delta[player]})
+                        add_flag(seat, Flags.YOU_DEALT_INTO_DAMA, {"seat": ron.winner, "score": -ron.score_delta[seat]})
                     if ron.yaku.ippatsu:
-                        add_flag(seat, Flags.YOU_DEALT_INTO_IPPATSU, {"seat": ron.winner, "score": -ron.score_delta[player]})
+                        add_flag(seat, Flags.YOU_DEALT_INTO_IPPATSU, {"seat": ron.winner, "score": -ron.score_delta[seat]})
                     if len(results) > 1:
                         add_flag(seat, Flags.YOU_DEALT_INTO_DOUBLE_RON, {"number": len(results)})
         if Flags.YOU_GOT_CHASED in flags[ron.won_from]:
@@ -313,8 +310,12 @@ def determine_flags(kyoku, player: int) -> Tuple[List[Flags], List[Dict[str, Any
         for seat in (seat for seat, achieved in enumerate(nagashi) if achieved):
             add_flag(seat, Flags.YOU_ACHIEVED_NAGASHI, {"seat": seat})
 
-    assert len(flags) == len(data), f"somehow got a different amount of flags ({len(flags)}) than data ({len(data)})"
-    return global_flags + flags[player], global_data + data[player]
+    assert len(global_flags) == len(global_data), f"somehow got a different amount of global flags ({len(global_flags)}) than data ({len(global_data)})"
+    for seat in range(num_players):
+        assert len(flags[seat]) == len(data[seat]), f"somehow got a different amount of flags ({len(flags[seat])}) than data ({len(data[seat])})"
+        flags[seat] = global_flags + flags[seat]
+        data[seat] = global_data + data[seat]
+    return flags, data
 
 @dataclass(frozen=True)
 class Injustice:
@@ -326,23 +327,32 @@ class Injustice:
 def evaluate_injustices(kyoku: Kyoku, player: int) -> List[str]:
     """
     Run each injustice function (defined below this function) against a parsed kyoku
-    Relevant injustice functions should return a list of strings each
-    Returns the full list of injustices (a list of strings)
+    Relevant injustice functions should return a list of Injustice objects each
+    Returns the full formatted list of injustices (a list of strings)
     """
     global injustices
-    flags, data = determine_flags(kyoku, player)
+    flags, data = determine_flags(kyoku)
     all_results: List[Injustice] = []
     for i in injustices:
-        if all(flag in flags for flag in i["required_flags"]) and all(flag not in flags for flag in i["forbidden_flags"]):
-            if "" != (results := i["callback"](flags, data, kyoku.round, kyoku.honba, player)):
-                all_results.extend(results)
+        if     all(flag in flags[player]     for flag in i["required_flags"]) \
+           and all(flag not in flags[player] for flag in i["forbidden_flags"]):
+            result = i["callback"](flags[player], data[player], kyoku.round, kyoku.honba, player)
+            all_results.extend(result)
 
-    # output a header for each kyoku, then its list of injustices
+    # `all_results` contains a list of injustices for this kyoku,
+    #   but we need to group them up before we printing.
+    # This outputs a header like "- Injustice detected in **East 1**:"
+    #   followed by `injustice.desc` joined by ", and"
+    #   for every injustice in all_results
     if len(all_results) > 0:
-        longest_name_length = max([len(r.name) for r in all_results])
+        # get the name of the longest name out of all the injustices
+        longest_name_length = max(len(r.name) for r in all_results)
         longest_name = next(r.name for r in all_results if len(r.name) == longest_name_length)
+        # assemble the header
         header = f"- {longest_name} detected in **{round_name(all_results[0].round, all_results[0].honba)}**:"
-        return [f"{header}{', and'.join([r.desc for r in all_results])}"]
+        # return a list containing a single string:
+        #   the header + each injustice separated by ", and"
+        return [header + ", and".join(r.desc for r in all_results)]
     else:
         return []
 
@@ -431,8 +441,9 @@ def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]],
     win_data = data[flags.index(Flags.LOST_POINTS_TO_FIRST_ROW_WIN)]
     winner = win_data["seat"]
     turn = win_data["turn"]
+    prefix = f"you dealt into an early ron" if Flags.GAME_ENDED_WITH_RON in flags else "you got hit by an early tsumo"
     return [Injustice(round_number, honba, "Injustice",
-            f" you lost points to an early win by {relative_seat_name(player, winner)} on turn {turn}{tenpai_status_string(flags)}")]
+            f" {prefix} by {relative_seat_name(player, winner)} on turn {turn}{tenpai_status_string(flags)}")]
 
 # Print if you dealt into dama
 @injustice(require=[Flags.YOU_DEALT_INTO_DAMA])
@@ -557,6 +568,6 @@ def dora_bomb(flags: List[Flags], data: List[Dict[str, Any]], round_number: int,
     seat = data[flags.index(Flags.WINNER_GOT_DORA_BOMB)]["seat"]
     value = data[flags.index(Flags.WINNER_GOT_DORA_BOMB)]["value"]
     return [Injustice(round_number, honba, "Injustice",
-            f" {relative_seat_name(player, seat)} had closed dora {value}")]
+            f" {relative_seat_name(player, seat)} won with dora {value} hidden in hand")]
 
 # TODO: head bump
