@@ -57,11 +57,14 @@ class Kyoku:
     round: int                                    = 0
     honba: int                                    = 0
     num_players: int                              = 0
-    final_tile: int                               = 0
+    final_draw: int                               = 0
+    final_discard: int                            = 0
+    final_draw_event_index: List[int]             = field(default_factory=list)
+    final_discard_event_index: List[int]          = field(default_factory=list)
     doras: List[int]                              = field(default_factory=list)
     uras: List[int]                               = field(default_factory=list)
     events: List[Event]                           = field(default_factory=list)
-    result: Tuple[Any, ...]                       = field(default_factory=list)
+    result: Tuple[Any, ...]                       = field(default_factory=tuple)
     hands: List[List[int]]                        = field(default_factory=list)
     calls: List[List[int]]                        = field(default_factory=list)
     shanten: List[Tuple[float, List[int]]]        = field(default_factory=list)

@@ -97,19 +97,6 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
     elif kyoku.result[0] == "ryuukyoku":
         add_global_flag(Flags.GAME_ENDED_WITH_RYUUKYOKU) # TODO abortive draws
 
-    # Figure out the index of each player's last draw/discard events by going through the events backwards
-    # (-1 if the player never got to draw)
-    last_draw_event_ix: List[int] = [-1]*num_players
-    last_discard_event_ix: List[int] = [-1]*num_players
-    for i, event in enumerate(kyoku.events[::-1]):
-        seat, event_type, *event_data = event
-        if last_draw_event_ix[seat] == -1 and event_type in {"draw", "minkan"}:
-            last_draw_event_ix[seat] = len(kyoku.events) - 1 - i
-        elif last_discard_event_ix[seat] == -1 and event_type == "discard":
-            last_discard_event_ix[seat] = len(kyoku.events) - 1 - i
-        if all(ix != -1 for ix in last_draw_event_ix + last_discard_event_ix):
-            break
-
     # Next, go through kyoku.events. This determines flags related to:
     # - starting shanten
     # - tenpais/riichis and chases/folds
@@ -144,7 +131,7 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
             opened_hand[seat] = True
         elif event_type == "discard":
             num_discards[seat] += 1
-            is_last_discard_of_the_game = i == max(last_discard_event_ix)
+            is_last_discard_of_the_game = i == max(kyoku.final_discard_event_index)
             # check if this is the deal-in tile
             if is_last_discard_of_the_game and kyoku.result[0] == "ron":
                 # check if we just reached tenpai
@@ -199,7 +186,7 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
             who, reason, tile = event_data
             nagashi[who] = False
             # check if this happened after our final draw (if the game ended in ryuukyoku)
-            if kyoku.result[0] == "ryuukyoku" and i > last_draw_event_ix[seat]:
+            if kyoku.result[0] == "ryuukyoku" and i > kyoku.final_draw_event_index[seat]:
                 if reason == "discard":
                     add_flag(who, Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI, {"tile": tile})
                 elif reason in {"minkan", "pon", "chii"}:

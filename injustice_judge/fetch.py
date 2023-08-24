@@ -59,6 +59,8 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.pond.append([])
                 kyoku.furiten.append(False)
                 kyoku.haipai.append(sorted_hand(hand))
+                kyoku.final_draw_event_index.append(-1)
+                kyoku.final_discard_event_index.append(-1)
             elif event_type == "start_game":
                 kyoku.round, kyoku.honba = event_data
                 kyoku.num_players = metadata.num_players
@@ -71,10 +73,14 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
             elif event_type == "draw":
                 tile = event_data[0]
                 kyoku.hands[seat].append(tile)
+                kyoku.final_draw = tile
+                kyoku.final_draw_event_index[seat] = i
                 assert len(kyoku.hands[seat]) == 14
             elif event_type in {"discard", "riichi"}: # discards
                 tile, *_ = event_data
                 kyoku.hands[seat].remove(tile)
+                kyoku.final_discard = tile
+                kyoku.final_discard_event_index[seat] = i
                 assert len(kyoku.hands[seat]) == 13
                 visible_tiles.append(tile)
                 kyoku.pond[seat].append(tile)
@@ -99,7 +105,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 if nagashi_eligible[seat] and tile not in YAOCHUUHAI:
                     kyoku.events.append((seat, "end_nagashi", seat, "discard", tile))
                     nagashi_eligible[seat] = False
-                kyoku.final_tile = tile
             elif event_type in {"chii", "pon", "minkan"}: # calls
                 called_tile, call_tiles, call_from = event_data
                 if event_type != "minkan":
@@ -124,9 +129,10 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 if event_type == "ankan":
                     kyoku.calls[seat].extend(call_tiles[:3]) # ignore any kan tile
                 kyoku.hands[seat].remove(called_tile)
+                kyoku.final_discard = called_tile
+                kyoku.final_discard_event_index[seat] = i
                 assert len(kyoku.hands[seat]) == 13
                 visible_tiles.append(called_tile)
-                kyoku.final_tile = called_tile
             elif event_type == "end_game":
                 for seat in range(kyoku.num_players):
                     ukeire = 0
@@ -557,7 +563,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             def handle_call(call: str) -> int:
                 """Called every time a call happens. Returns the called tile"""
                 call_tiles = extract_call_tiles(call)
-                call_from = (turn+get_call_direction(call))%4
+                call_from = get_call_direction(call)
                 called_tile = call_tiles[0]
 
                 # TODO: handle kita?
@@ -572,6 +578,8 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 nonlocal keep_turn
                 if call_type in {"minkan", "ankan", "kakan"}:
                     keep_turn = True # we get another turn after any kan
+                if call_type in {"chii", "pon", "minkan"}:
+                    assert call_from != 0, f"somehow called {call_type} on ourselves"
                 return called_tile
 
             # first handle the draw
