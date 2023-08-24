@@ -562,12 +562,13 @@ def you_dealt_into_double_ron(flags: List[Flags], data: List[Dict[str, Any]], ro
 @injustice(require=[Flags.WINNER_GOT_URA_3, Flags.YOU_LOST_POINTS])
 def lost_points_to_ura_3(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     value = data[flags.index(Flags.WINNER_GOT_URA_3)]["value"]
+    seat = data[flags.index(Flags.WINNER_GOT_URA_3)]["seat"]
     if Flags.GAME_ENDED_WITH_RON in flags:
         return [Injustice(round_number, honba, "Injustice",
-                f" you dealt into a hand with ura {value}{tenpai_status_string(flags)}")]
+                f" you dealt into {relative_seat_name(player, seat)}'s hand with ura {value}{tenpai_status_string(flags)}")]
     else:
         return [Injustice(round_number, honba, "Injustice",
-                f" someone tsumoed and got ura {value}")]
+                f" you paid {relative_seat_name(player, seat)}'s tsumo with ura {value}")]
 
 # Print if you dealt into haitei
 @injustice(require=[Flags.WINNER_GOT_HAITEI, Flags.GAME_ENDED_WITH_RON, Flags.YOU_LOST_POINTS])
@@ -594,10 +595,10 @@ def lost_points_to_hidden_dora_3(flags: List[Flags], data: List[Dict[str, Any]],
 
     if Flags.GAME_ENDED_WITH_RON in flags:
         return [Injustice(round_number, honba, "Injustice",
-            f" you dealt into {relative_seat_name(player, seat)}'s hand with {value} hidden dora")]
+            f" you dealt into {relative_seat_name(player, seat)}'s hand with {value} hidden dora{tenpai_status_string(flags)}")]
     else:
         return [Injustice(round_number, honba, "Injustice",
-            f" {relative_seat_name(player, seat)} tsumoed with {value} hidden dora")]
+            f" you paid {relative_seat_name(player, seat)}'s tsumo with {value} hidden dora")]
 
 # Print if an early abortive draw happened with an iishanten haipai
 @injustice(require=[Flags.IISHANTEN_HAIPAI_ABORTED])
