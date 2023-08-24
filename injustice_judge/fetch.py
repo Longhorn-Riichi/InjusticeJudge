@@ -356,7 +356,7 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
         actions = [parse_wrapped_bytes(record) for record in parsed.records]
     return actions, MessageToDict(record.head), next((acc.seat for acc in record.head.accounts if acc.account_id == ms_account_id), 0)
 
-def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], Dict[str, Any]]:
+def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
     """
     Parse a Mahjong Soul log fetched with `fetch_majsoul`.
     """
@@ -475,7 +475,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                                    dora_indicators = all_dora_indicators,
                                    ura_indicators = all_ura_indicators)
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
-    return postprocess_events(all_events, parsed_metadata), dataclasses.asdict(parsed_metadata)
+    return postprocess_events(all_events, parsed_metadata), parsed_metadata
 
 ###
 ### loading and parsing tenhou games
@@ -519,7 +519,7 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
     del game_data["log"]
     return log, game_data, player
 
-def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], Dict[str, Any]]:
+def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
     all_events: List[List[Event]] = []
     all_dora_indicators: List[List[int]] = []
     all_ura_indicators: List[List[int]] = []
@@ -641,9 +641,10 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                                    dora_indicators = all_dora_indicators,
                                    ura_indicators = all_ura_indicators)
 
-    return postprocess_events(all_events, parsed_metadata), dataclasses.asdict(parsed_metadata)
+    assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
+    return postprocess_events(all_events, parsed_metadata), parsed_metadata
 
-async def parse_game_link(link: str, specified_player: int = 0) -> Tuple[List[Kyoku], Dict[str, Any], int]:
+async def parse_game_link(link: str, specified_player: int = 0) -> Tuple[List[Kyoku], GameMetadata, int]:
     """Given a game link, fetch and parse the game into kyokus"""
     # print(f"Analyzing game {link}:")
     if "tenhou.net" in link:
