@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import dataclasses
 import functools
 import re
@@ -6,8 +7,8 @@ from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
-from .constants import CallInfo, Kyoku, DORA, DORA_INDICATOR, LIMIT_HANDS, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
-from .utils import ph, pt, closed_part, remove_red_five, round_name, sorted_hand, try_remove_all_tiles
+from .constants import CallInfo, Draw, Event, Kyoku, Ron, Tsumo, YakuList, GameMetadata, DORA, DORA_INDICATOR, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
+from .utils import ph, pt, hidden_part, remove_red_five, round_name, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten, calculate_ukeire
 from pprint import pprint
 
@@ -29,7 +30,208 @@ def save_cache(filename: str, data: bytes) -> None:
 
 TenhouLog = List[List[List[Any]]]
 MajsoulLog = List[Message]
-GameMetadata = Dict[str, List[Any]]
+
+###
+### postprocess events obtained from parsing
+###
+
+def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) -> List[Kyoku]:
+    """
+    Go through a game (represented as a list of events) and add more events to it
+    e.g. shanten changes, tenpai, ending nagashi discards
+    Return a list of kyoku, which contains the new event list plus all data about the round
+    """
+    kyokus: List[Kyoku] = []
+    for events, dora_indicators, ura_indicators in zip(all_events, metadata.dora_indicators, metadata.ura_indicators):
+        assert len(events) > 0, "somehow got an empty events list"
+        kyoku: Kyoku = Kyoku()
+        nagashi_eligible: List[int] = [True] * metadata.num_players
+        visible_tiles: List[int] = []
+        num_doras = 1
+        for i, (seat, event_type, *event_data) in enumerate(events):
+            kyoku.events.append(events[i]) # copy every event we process
+            # if len(kyoku.hands) == 4:
+            #     print(seat, event_type, ph(kyoku.hands[seat]), event_data)
+            if event_type == "haipai":
+                hand = event_data[0]
+                kyoku.hands.append(list(hand))
+                kyoku.calls.append([])
+                kyoku.call_info.append([])
+                kyoku.pond.append([])
+                kyoku.furiten.append(False)
+                kyoku.haipai.append(sorted_hand(hand))
+                kyoku.final_draw_event_index.append(-1)
+                kyoku.final_discard_event_index.append(-1)
+            elif event_type == "start_game":
+                kyoku.round, kyoku.honba = event_data
+                kyoku.num_players = metadata.num_players
+                kyoku.doras = [DORA[d] for d in dora_indicators]
+                kyoku.uras = [DORA[d] for d in ura_indicators]
+                kyoku.shanten = [calculate_shanten(h) for h in kyoku.hands]
+                kyoku.haipai_shanten = list(kyoku.shanten)
+                kyoku.haipai_ukeire = [calculate_ukeire(tuple(hand), dora_indicators[:num_doras]) for hand in kyoku.hands]
+                kyoku.events.extend((t, "haipai_shanten", s) for t, s in enumerate(kyoku.shanten))
+            elif event_type == "draw":
+                tile = event_data[0]
+                kyoku.hands[seat].append(tile)
+                kyoku.final_draw = tile
+                kyoku.final_draw_event_index[seat] = i
+                assert len(kyoku.hands[seat]) == 14
+            elif event_type in {"discard", "riichi"}: # discards
+                tile, *_ = event_data
+                kyoku.hands[seat].remove(tile)
+                kyoku.final_discard = tile
+                kyoku.final_discard_event_index[seat] = i
+                assert len(kyoku.hands[seat]) == 13
+                visible_tiles.append(tile)
+                kyoku.pond[seat].append(tile)
+                # calculate shanten
+                hidden = hidden_part(tuple(kyoku.hands[seat]), tuple(kyoku.calls[seat]))
+                new_shanten = calculate_shanten(hidden)
+                if new_shanten != kyoku.shanten[seat]:
+                    kyoku.events.append((seat, "shanten_change", kyoku.shanten[seat], new_shanten))
+                    kyoku.shanten[seat] = new_shanten
+                    # calculate ukeire if tenpai
+                    if new_shanten[0] == 0:
+                        ukeire = calculate_ukeire(hidden, kyoku.calls[seat] + visible_tiles + dora_indicators[:num_doras])
+                        waits = new_shanten[1]
+                        kyoku.events.append((seat, "tenpai", sorted_hand(kyoku.hands[seat]), waits, ukeire))
+                        # check for furiten
+                        if any(w in kyoku.pond[seat] for w in waits):
+                            kyoku.events.append((seat, "furiten"))
+                            kyoku.furiten[seat] = True
+                        else:
+                            kyoku.furiten[seat] = False
+                # check for nagashi
+                if nagashi_eligible[seat] and tile not in YAOCHUUHAI:
+                    kyoku.events.append((seat, "end_nagashi", seat, "discard", tile))
+                    nagashi_eligible[seat] = False
+            elif event_type in {"chii", "pon", "minkan"}: # calls
+                called_tile, call_tiles, call_from = event_data
+                if event_type != "minkan":
+                    kyoku.hands[seat].append(called_tile)
+                    assert len(kyoku.hands[seat]) == 14
+                kyoku.calls[seat].extend(call_tiles[:3]) # ignore any kan tile
+                kyoku.call_info[seat].append(CallInfo(event_type, called_tile, call_from, call_tiles))
+                # check for nagashi
+                if nagashi_eligible[call_from]:
+                    kyoku.events.append((seat, "end_nagashi", call_from, event_type, called_tile))
+                    nagashi_eligible[call_from] = False
+            elif event_type in {"ankan", "kakan", "kita"}: # special discards
+                called_tile, call_tiles, call_from = event_data
+                # if kakan, replace the old pon call with kakan
+                if event_type == "kakan":
+                    pon_index = next((i for i, call_info in enumerate(kyoku.call_info[seat]) if call_info.type == "pon" and call_info.tile == tile), None)
+                    assert pon_index is not None
+                    orig_direction = kyoku.call_info[seat][pon_index].dir
+                    kyoku.call_info[seat][pon_index] = CallInfo(event_type, called_tile, orig_direction, call_tiles)
+                else:
+                    kyoku.call_info[seat].append(CallInfo(event_type, called_tile, 0, [called_tile]*4))
+                if event_type == "ankan":
+                    kyoku.calls[seat].extend([called_tile]*3) # ignore any kan tile
+                kyoku.hands[seat].remove(called_tile)
+                kyoku.final_discard = called_tile
+                kyoku.final_discard_event_index[seat] = i
+                assert len(kyoku.hands[seat]) == 13
+                visible_tiles.append(called_tile)
+            elif event_type == "end_game":
+                for seat in range(kyoku.num_players):
+                    ukeire = 0
+                    if kyoku.shanten[seat][0] <= 1:
+                        hidden = hidden_part(tuple(kyoku.hands[seat][:13]), tuple(kyoku.calls[seat]))
+                        ukeire = calculate_ukeire(hidden, kyoku.calls[seat] + visible_tiles + dora_indicators[:num_doras])
+                    kyoku.final_waits.append(kyoku.shanten[seat][1])
+                    kyoku.final_ukeire.append(ukeire)
+                unparsed_result = event_data[0]
+                kyoku.result = parse_result(unparsed_result, metadata.num_players)
+                # TODO make a result dataclass
+            # increment doras for kans
+            if event_type in {"minkan", "ankan", "kakan"}:
+                num_doras += 1
+        assert len(kyoku.hands) > 0, f"somehow we never initialized the kyoku at index {len(kyokus)}"
+        if len(kyokus) == 0:
+            assert (kyoku.round, kyoku.honba) == (0, 0), f"kyoku numbering didn't start with East 1: instead it's {round_name(kyoku.round, kyoku.honba)}"
+        else:
+            assert (kyoku.round, kyoku.honba) != (kyokus[-1].round, kyokus[-1].honba), f"duplicate kyoku entered: {round_name(kyoku.round, kyoku.honba)}"
+        kyokus.append(kyoku)
+    return kyokus
+
+def parse_result(result: List[Any], num_players: int) -> Tuple[Any, ...]:
+    """Given a tenhou game result list, parse it into a list of WinData objects"""
+    result_type, *scoring = result
+    ret: List[Tuple[str, Any]] = []
+    scores = [scoring[i*2:i*2+2] for i in range((len(scoring)+1)//2)]
+    def process_yaku(yaku: List[str]) -> YakuList:
+        ret = YakuList(yaku_strs = yaku)
+        for y in yaku:
+            name = TRANSLATE[y.split("(")[0]]
+            value = int(y.split("(")[1].split("飜")[0])
+            if name == "riichi":
+                ret.riichi = True
+            elif name == "ippatsu":
+                ret.ippatsu = True
+            elif name in {"dora", "aka"}:
+                ret.dora += value
+            elif name == "ura":
+                ret.ura = value
+            elif name in {"haitei", "houtei"}:
+                ret.haitei = True
+        return ret
+    if result_type == "和了":
+        rons: List[Ron] = []
+        for [score_delta, [w, won_from, _, score_string, *yaku]] in scores:
+            below_mangan = "符" in score_string
+            if below_mangan: # e.g. "30符1飜1000点", "50符3飜1600-3200点"
+                [fu, rest] = score_string.split("符")
+                [han, rest] = rest.split("飜")
+                pts = "".join(rest.split("点"))
+                fu = int(fu)
+                han = int(han)
+                limit_name = "" # not a limit hand
+            else: # e.g. "倍満16000点", "満貫4000点∀"
+                pts = "".join(c for c in score_string if c in "0123456789-∀")
+                limit_name = score_string.split(pts[0])[0]
+                han = 0
+                for y in yaku:
+                    han += int(y.split("(")[1].split("飜")[0])
+            assert han > 0, f"somehow got a {han} han win"
+            if w == won_from: # tsumo
+                if "-" in pts:
+                    score_ko, score_oya = map(int, pts.split("-"))
+                    score_total = score_oya + (num_players-2)*score_ko
+                elif "∀" in pts:
+                    score_ko = score_oya = int(pts.split("∀")[0])
+                    score_total = score_oya + (num_players-2)*score_ko
+                else:
+                    assert False, f"unable to parse tsumo score {pts} from score string {score_string}"
+                return ("tsumo", Tsumo(score_delta = score_delta,
+                                       winner = w,
+                                       han = han,
+                                       fu = fu if below_mangan else 0,
+                                       limit_name = limit_name,
+                                       score_string = score_string,
+                                       score = score_total,
+                                       score_oya = score_oya,
+                                       score_ko = score_ko,
+                                       yaku = process_yaku(yaku)))
+            else:
+                score = int(pts)
+                rons.append(Ron(score_delta = score_delta,
+                                winner = w,
+                                won_from = won_from,
+                                han = han,
+                                fu = fu if below_mangan else 0,
+                                limit_name = limit_name,
+                                score_string = score_string,
+                                score = score,
+                                yaku = process_yaku(yaku)))
+        return ("ron", *rons)
+    elif result_type in ({"流局", "全員聴牌", "流し満貫"} # exhaustive draws
+                       | {"九種九牌", "四家立直", "三家和了", "四槓散了", "四風連打"}): # abortive draws
+        return ("draw", Draw(score_delta = scores[0][0] if len(scores) > 0 else [0]*num_players,
+                                  name = TRANSLATE[result_type]))
+    else:
+        assert False, f"unhandled result type {result_type}"
 
 ###
 ### loading and parsing mahjong soul games
@@ -162,127 +364,77 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
         actions = [parse_wrapped_bytes(record) for record in parsed.records]
     return actions, MessageToDict(record.head), next((acc.seat for acc in record.head.accounts if acc.account_id == ms_account_id), 0)
 
-def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], GameMetadata]:
+def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
     """
     Parse a Mahjong Soul log fetched with `fetch_majsoul`.
     """
-    kyokus: List[Kyoku] = []
-    visible_tiles: List[int] = []
+    all_dora_indicators: List[List[int]] = []
+    all_ura_indicators: List[List[int]] = []
     dora_indicators: List[int] = []
-    shanten: List[Tuple[float, List[int]]] = []
+    ura_indicators: List[int] = []
     convert_tile = lambda tile: {"m": 51, "p": 52, "s": 53}[tile[1]] if tile[0] == "0" else {"m": 10, "p": 20, "s": 30, "z": 40}[tile[1]] + int(tile[0])
     majsoul_hand_to_tenhou = lambda hand: list(sorted_hand(map(convert_tile, hand)))
     last_seat = 0
+    all_events: List[List[Event]] = []
+    events: List[Event] = []
+    num_players: int = 4
+    
+    def end_round(result):
+        nonlocal events
+        nonlocal all_events
+        nonlocal dora_indicators
+        nonlocal ura_indicators
+        events.append((t, "end_game", result))
+        all_events.append(events)
+        all_dora_indicators.append(dora_indicators)
+        all_ura_indicators.append(ura_indicators)
+        events = []
+
     for name, action in actions:
         if name == "RecordNewRound":
-            if "kyoku" in locals():
-                kyokus.append(kyoku)  # type: ignore[has-type]
-            haipais = [action.tiles0, action.tiles1, action.tiles2]
-            num_players = 3
-            if len(action.tiles3) > 0:
-                haipais.append(action.tiles3)
-                num_players = 4
-            nagashi: List[int] = [True] * num_players
-            kyoku = Kyoku(
-                round = action.chang*4 + action.ju,
-                honba = action.ben,
-                num_players = num_players,
-                final_tile = 0,
-                dora = [DORA[convert_tile(dora)] for dora in action.doras],
-                events = [],
-                result = [],
-                hands = [majsoul_hand_to_tenhou(h) for h in haipais],
-                calls = [[] for _ in range(num_players)],
-                call_info = [[] for _ in range(num_players)],
-                pond = [[] for _ in range(num_players)],
-                furiten = [False for _ in range(num_players)],
-                final_waits = [],
-                final_ukeire = [],
-                starting_hands = [sorted_hand(majsoul_hand_to_tenhou(h)) for h in haipais],
-                starting_shanten = []
-                )
-            dora_indicators = [convert_tile(dora) for dora in action.doras]
-            visible_tiles = []
-            first_tile: int = kyoku.hands[action.ju].pop() # dealer starts with 14, remove the last tile so we can calculate shanten
-            kyoku.starting_hands[action.ju] = kyoku.starting_hands[action.ju][:-1] # also pop for the starting_hand
-            shanten = list(map(calculate_shanten, kyoku.hands))
-            kyoku.starting_shanten = list(shanten)
+            haipai = [sorted_hand(majsoul_hand_to_tenhou(h)) for h in [action.tiles0, action.tiles1, action.tiles2, action.tiles3] if len(h) > 0]
+            num_players = len(haipai)
+            # dealer starts with 14, remove one tile and turn it into a draw
+            *haipai[action.ju], first_tile = haipai[action.ju]
             for t in range(num_players):
-                kyoku.events.append((t, "haipai", sorted_hand(kyoku.hands[t])))
-                kyoku.events.append((t, "start_shanten", shanten[t]))
+                events.append((t, "haipai", haipai[t]))
+            round = action.chang*4 + action.ju
+            honba = action.ben
+            events.append((t, "start_game", round, honba))
             # pretend we drew the first tile
-            kyoku.events.append((action.ju, "draw", first_tile))
-            kyoku.hands[action.ju].append(first_tile)
+            events.append((action.ju, "draw", first_tile))
+            dora_indicators = [convert_tile(dora) for dora in action.doras]
         elif name == "RecordDealTile":
-            tile = convert_tile(action.tile)
-            kyoku.events.append((action.seat, "draw", tile))
-            kyoku.hands[action.seat].append(tile)
+            events.append((action.seat, "draw", convert_tile(action.tile)))
+            dora_indicators.extend(convert_tile(dora) for dora in action.doras)
         elif name == "RecordDiscardTile":
             tile = convert_tile(action.tile)
-            hand = kyoku.hands[action.seat]
-            kyoku.events.append((action.seat, "discard", tile))
-            if action.is_liqi:
-                kyoku.events.append((action.seat, "riichi", tile))
-            hand.remove(tile)
-            visible_tiles.append(tile)
-            kyoku.pond[action.seat].append(tile)
-            dora_indicators = [DORA_INDICATOR[convert_tile(dora)] for dora in action.doras]
-            closed_hand = closed_part(tuple(kyoku.hands[action.seat]), tuple(kyoku.calls[action.seat]))
-            new_shanten = calculate_shanten(closed_hand)
-            if new_shanten != shanten[action.seat]:
-                kyoku.events.append((action.seat, "shanten_change", shanten[action.seat], new_shanten))
-                shanten[action.seat] = new_shanten
-                # check if the resulting hand is tenpai
-                if new_shanten[0] == 0:
-                    ukeire = calculate_ukeire(closed_hand, kyoku.calls[action.seat] + visible_tiles + dora_indicators)
-                    potential_waits = new_shanten[1]
-                    kyoku.events.append((action.seat, "tenpai", sorted_hand(hand), potential_waits, ukeire))
-                    # check for furiten
-                    if any(w in kyoku.pond[action.seat] for w in potential_waits):
-                        kyoku.events.append((action.seat, "furiten"))
-                        kyoku.furiten[action.seat] = True
-                    else:
-                        kyoku.furiten[action.seat] = False
-            if tile not in YAOCHUUHAI and nagashi[action.seat]:
-                kyoku.events.append((action.seat, "end_nagashi", action.seat, "discard", tile))
-                nagashi[action.seat] = False
-            kyoku.final_tile = tile
+            events.append((action.seat, "riichi" if action.is_liqi else "discard", tile))
+            # dora_indicators += [convert_tile(dora) for dora in action.doras]
         elif name == "RecordChiPengGang":
             call_tiles = list(map(convert_tile, action.tiles))
             called_tile = call_tiles[-1]
             if len(action.tiles) == 4:
                 call_type = "minkan"
-                kyoku.hands[action.seat].remove(called_tile) # remove the extra tile from hand
             elif action.tiles[0] == action.tiles[1]:
                 call_type = "pon"
             else:
                 call_type = "chii"
-            kyoku.events.append((action.seat, call_type, called_tile))
-            kyoku.hands[action.seat].append(called_tile)
-            if nagashi[last_seat]:
-                kyoku.events.append((action.seat, "end_nagashi", last_seat, call_type, called_tile))
-                nagashi[last_seat] = False
-            kyoku.calls[action.seat].extend(call_tiles[:3]) # ignore any kan tile
-            call_direction = (last_seat - action.seat) % 4
-            kyoku.call_info[action.seat].append((call_type, called_tile, call_direction, call_tiles))
+            call_from = (last_seat - action.seat) % 4
+            events.append((action.seat, call_type, called_tile, call_tiles, call_from))
         elif name == "RecordAnGangAddGang":
             tile = convert_tile(action.tiles)
-            # if kakan, replace the old pon call with kakan
-            kakan_index = next((i for i, (call_t, t, _, _) in enumerate(kyoku.call_info[action.seat]) if call_t == "pon" and t == tile), None)
-            if kakan_index is not None:
+            if action.type == 2:
                 call_type = "kakan"
-                orig_direction = kyoku.call_info[action.seat][kakan_index][2]
-                kyoku.call_info[action.seat][kakan_index] = (call_type, tile, orig_direction, [tile]*4)
-            else:
+            elif action.type == 3:
                 call_type = "ankan"
-                kyoku.call_info[action.seat].append((call_type, tile, 0, [tile]*4))
-            kyoku.events.append((action.seat, call_type, tile))
-            kyoku.hands[action.seat].remove(tile)
-            visible_tiles.append(tile)
-            dora_indicators = [DORA_INDICATOR[convert_tile(dora)] for dora in action.doras]
-            kyoku.final_tile = tile
+            else:
+                raise Exception(f"unhandled RecordAnGangAddGang of type {action.type}: {action}")
+            events.append((action.seat, call_type, tile, [tile], 0))
+            dora_indicators.extend(convert_tile(dora) for dora in action.doras)
         elif name == "RecordHule":
-            kyoku.result = ["和了"]
+            # construct a tenhou game result array
+            result: List[Any] = ["和了"]
             for h in action.hules:
                 han = sum(fan.val for fan in h.fans)
                 score_string = f"{h.fu}符{han}飜"
@@ -297,54 +449,41 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[D
                         point_string = f"{h.point_zimo_xian}-{h.point_zimo_qin}点"
                     else:
                         point_string = f"{h.point_zimo_xian}点∀"
-                    kyoku.hands[h.seat].pop() # remove that tile so we can calculate waits/ukeire
                 yakus = [name for _, name in sorted((fan.id, f"{YAKU_NAMES[fan.id]}({fan.val}飜)") for fan in h.fans)]
-                kyoku.result.append(list(action.delta_scores))
-                kyoku.result.append([h.seat, last_seat, h.seat, score_string+point_string, *yakus])
-                kyoku.final_tile = convert_tile(h.hu_tile)
-            kyoku.final_waits = [w for _, w in shanten]
-            get_closed_part = lambda seat: closed_part(tuple(kyoku.hands[seat]), tuple(kyoku.calls[seat]))
-            kyoku.final_ukeire = [calculate_ukeire(get_closed_part(seat), kyoku.calls[seat] + visible_tiles + dora_indicators) for seat in range(num_players)]
+                result.append(list(action.delta_scores))
+                result.append([h.seat, last_seat, h.seat, score_string+point_string, *yakus])
+                dora_indicators = majsoul_hand_to_tenhou(h.doras)
+                ura_indicators = majsoul_hand_to_tenhou(h.li_doras)
+            end_round(result)
         elif name == "RecordNoTile":
-            kyoku.result = ["流局", *(score_info.delta_scores for score_info in action.scores)]
-            kyoku.final_waits = [w for _, w in shanten]
-            get_closed_part = lambda seat: closed_part(tuple(kyoku.hands[seat]), tuple(kyoku.calls[seat]))
-            kyoku.final_ukeire = [calculate_ukeire(get_closed_part(seat), kyoku.calls[seat] + visible_tiles + dora_indicators) for seat in range(num_players)]
+            if len(action.scores[0].delta_scores) == 0: # everybody/nobody is tenpai, so no score change
+                end_round(["流局", [0]*num_players])
+            else:
+                end_round(["流局", *(score_info.delta_scores for score_info in action.scores)])
         elif name == "RecordBaBei": # kita
-            hand = kyoku.hands[action.seat]
-            kyoku.events.append((action.seat, "kita"))
-            kyoku.hands[action.seat].remove(44)
-            visible_tiles.append(44)
+            events.append((action.seat, "kita", 44, [44], 0))
         elif name == "RecordLiuJu": # abortive draw
             if action.type == 1:
-                kyoku.events.append((action.seat, "terminal_draw"))
-                kyoku.result = ["九種九牌", [0]*num_players]
-                kyoku.final_waits = [w for _, w in shanten]
-                kyoku.final_ukeire = [0]*num_players
+                end_round(["九種九牌", [0]*num_players])
             else:
-                print(f"unhandled type {action.type} abortive draw:", action)
+                raise Exception(f"unhandled RecordLiuJu of type {action.type}: {action}")
         else:
-            print("unhandled action:", name, action)
+            raise Exception(f"unhandled action {name}: {action}")
         if hasattr(action, "seat"):
             last_seat = action.seat
+    assert len(all_events) > 0, "unable to read any kyoku"
 
     # parse metadata
-    parsed_metadata: GameMetadata = {
-        "name": [()] * num_players,
-        "game_score": [()] * num_players,
-        "final_score": [()] * num_players
-    }
     acc_data = sorted((acc.get("seat", 0), acc["nickname"]) for acc in metadata["accounts"])
     result_data = sorted((res.get("seat", 0), res["partPoint1"], res["totalPoint"]) for res in metadata["result"]["players"])
-    for i in range(num_players):
-        parsed_metadata["name"][i] = acc_data[i][1]
-        parsed_metadata["game_score"][i] = result_data[i][1]
-        parsed_metadata["final_score"][i] = result_data[i][2]
-
-    assert "kyoku" in locals(), "unable to read any kyoku"
-    kyokus.append(kyoku)
-    temp_dict_kyokus = list(map(dataclasses.asdict, kyokus))
-    return list(map(dataclasses.asdict, kyokus)), parsed_metadata
+    parsed_metadata = GameMetadata(num_players = num_players,
+                                   name = [acc_data[i][1] for i in range(num_players)],
+                                   game_score = [result_data[i][1] for i in range(num_players)],
+                                   final_score = [result_data[i][2] for i in range(num_players)],
+                                   dora_indicators = all_dora_indicators,
+                                   ura_indicators = all_ura_indicators)
+    assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
+    return postprocess_events(all_events, parsed_metadata), parsed_metadata
 
 ###
 ### loading and parsing tenhou games
@@ -386,249 +525,132 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
     del game_data["log"]
     return log, game_data, player
 
-def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], GameMetadata]:
-    kyokus = []
-    for raw_kyoku in raw_kyokus:
-        [
-            [current_round, current_honba, num_riichis],
-            scores,
-            doras,
-            uras,
-            haipai0,
-            draws0,
-            discards0,
-            haipai1,
-            draws1,
-            discards1,
-            haipai2,
-            draws2,
-            discards2,
-            haipai3,
-            draws3,
-            discards3,
-            result
-        ] = raw_kyoku
-        num_players = 4
-        starting_hand = cast(List[Tuple[int, ...]], [tuple(haipai0), tuple(haipai1), tuple(haipai2), tuple(haipai3)])
-        hand = cast(List[List[int]], [haipai0, haipai1, haipai2, haipai3])
-        calls = cast(List[List[int]], [[], [], [], []])
-        call_info = cast(List[List[CallInfo]], [[], [], [], []]) # call type, called tile, direction [1-3], call tiles
-        draws = cast(List[List[Union[int, str]]], [draws0, draws1, draws2, draws3])
-        discards = cast(List[List[Union[int, str]]], [discards0, discards1, discards2, discards3])
-        pond = cast(List[List[int]], [[], [], [], []])
-        dora_indicators = cast(List[int], list(map(DORA_INDICATOR.get, doras)))
+def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
+    all_events: List[List[Event]] = []
+    all_dora_indicators: List[List[int]] = []
+    all_ura_indicators: List[List[int]] = []
+    num_players: int = 4
+    @functools.cache
+    def get_call_direction(call: str):
+        ret = 3 if call[0].isalpha() else \
+              2 if call[2].isalpha() else \
+              1 if call[4].isalpha() else \
+              1 if call[6].isalpha() else "" # call[6] is for kans from shimocha
+        assert ret != "", f"couldn't figure out direction of {draw}"
+        return ret
+    @functools.cache
+    def extract_call_tiles(call: str) -> List[int]:
+        call_tiles = "".join(c for c in call if c.isdigit())
+        return [int(call_tiles[i:i+2]) for i in range(0, len(call_tiles), 2)]
 
-        # get a sequence of events based on discards only
-        turn = current_round
-        if current_round >= 4:
-            turn -= 4
-        last_turn: int = 0
-        last_discard: int = 0
+    for [[round, honba, num_riichis],
+         scores, dora_indicators, ura_indicators,
+         haipai0, draws0, discards0,
+         haipai1, draws1, discards1,
+         haipai2, draws2, discards2,
+         haipai3, draws3, discards3, result] in raw_kyokus:
+        # print("===", round_name(round, honba), "===")
+        events: List[Event] = []
+        turn = round % 4
         i = [0] * num_players
-        nagashi = [True] * num_players
-        furiten = [False] * num_players
-        visible_tiles = []
-        events: List[Any] = []
-        gas = 1000
-        num_dora = 1
-        starting_shanten = list(map(calculate_shanten, hand))
-        shanten = list(starting_shanten)
-        final_tile = 0
-        
+        haipai   = [haipai0,   haipai1,   haipai2,   haipai3]
+        draws    = [draws0,    draws1,    draws2,    draws3]
+        discards = [discards0, discards1, discards2, discards3]
+        all_dora_indicators.append(dora_indicators)
+        all_ura_indicators.append(ura_indicators)
+
         for t in range(num_players):
-            events.append((t, "haipai", sorted_hand(hand[t])))
-            events.append((t, "start_shanten", starting_shanten[t]))
+            events.append((t, "haipai", sorted_hand(haipai[t])))
+        events.append((t, "start_game", round, honba))
 
-        @functools.cache
-        def get_call_name(draw: str) -> str:
-            """Get the type of a call from tenhou's log format, e.g. "12p1212" -> "pon" """
-            ret = "chii"   if "c" in draw else \
-                  "riichi" if "r" in draw else \
-                  "pon"    if "p" in draw else \
-                  "kakan"  if "k" in draw else \
-                  "ankan"  if "a" in draw else \
-                  "minkan" if "m" in draw else "" # minkan = daiminkan, but we want it to start with "m"
-            assert ret != "", f"couldn't figure out call name of {draw}"
-            return ret
-
-        @functools.cache
-        def extract_call_tiles(draw: str) -> List[int]:
-            call_type = get_call_name(draw)
-            # the position of the letter determines where it's called from
-            # but we don't use this information, we just brute force check for calls
-            call_tiles = "".join(c for c in draw if c.isdigit())
-            return [int(call_tiles[i:i+2]) for i in range(0, len(call_tiles), 2)]
-        # print("===", round_name(current_round, current_honba), "===")
-        while gas >= 0:
-            gas -= 1
-            # print(last_turn, "=>", turn)
-            if i[turn] >= len(draws[turn]):
-                assert all(i[turn] >= len(draws[turn]) for turn in range(num_players)), f"game ended prematurely in {round_name(current_round, current_honba)} on {turn}'s turn; i = {i}, max i = {list(map(len, draws))}"
-                final_tile = last_discard
-                break
-
-            # first handle the draw
-            # could be a regular draw, chii, pon, or daiminkan
-            # then handle the discard
-            # could be a regular discard, riichi, kakan, or ankan
-            called_kan = False
+        # Emit events for draws and discards and calls, in order
+        while i[turn] < len(draws[turn]):
+            keep_turn = False
             def handle_call(call: str) -> int:
-                """called every time a call happens, returns the called tile"""
-                call_type = get_call_name(call)
+                """Called every time a call happens. Returns the called tile"""
                 call_tiles = extract_call_tiles(call)
-                call_direction = (last_turn - turn) % 4
+                call_from = get_call_direction(call)
                 called_tile = call_tiles[0]
-                events.append((turn, call_type, called_tile))
+
+                # TODO: handle kita?
+                call_type = "chii"   if "c" in call else \
+                            "riichi" if "r" in call else \
+                            "pon"    if "p" in call else \
+                            "kakan"  if "k" in call else \
+                            "ankan"  if "a" in call else \
+                            "minkan" if "m" in call else "" # minkan = daiminkan, but we want it to start with "m"
+                assert call_type != "", f"couldn't figure out call name of {call}"
+                events.append((turn, call_type, called_tile, call_tiles, call_from))
+                nonlocal keep_turn
                 if call_type in {"minkan", "ankan", "kakan"}:
-                    nonlocal num_dora
-                    nonlocal called_kan
-                    num_dora += 1
-                    called_kan = True
-                    visible_tiles.append(called_tile) # account for visible kan tile
-                # if kakan, replace the old pon call with kakan
-                if call_type == "kakan":
-                    kakan_index = next((i for i, callinfo in enumerate(call_info[turn]) if callinfo.type == "pon" and callinfo.tile == called_tile), None)
-                    assert kakan_index is not None, f"called kakan on {called_tile} but there was no previous pon"
-                    orig_direction = call_info[turn][kakan_index].dir
-                    call_info[turn][kakan_index] = CallInfo(call_type, called_tile, orig_direction, [called_tile]*4)
-                elif call_type == "ankan":
-                    calls[turn].extend(call_tiles[:3]) # ignore fourth kan tile
-                    call_info[turn].append(CallInfo(call_type, called_tile, call_direction, call_tiles))
-                elif call_type in {"chii", "pon", "minkan"}:
-                    calls[turn].extend(call_tiles[:3]) # ignore fourth kan tile
-                    call_info[turn].append(CallInfo(call_type, called_tile, call_direction, call_tiles))
-                    if nagashi[last_turn]:
-                        events.append((turn, "end_nagashi", last_turn, call_type, called_tile))
-                        nagashi[last_turn] = False
-                    if call_type == "minkan":
-                        hand[turn].remove(called_tile) # remove the extra kan tile
+                    keep_turn = True # we get another turn after any kan
+                if call_type in {"chii", "pon", "minkan"}:
+                    assert call_from != 0, f"somehow called {call_type} on ourselves"
                 return called_tile
 
+            # first handle the draw
+            # can be either a draw, [c]hii, [p]on, or dai[m]inkan event
             draw = draws[turn][i[turn]]
             if type(draw) is str:
-                hand[turn].append(handle_call(draw))
-                draw = hand[turn][-1]
+                draw = handle_call(draw)
             else:
-                assert type(draw) == int, f"failed to handle unknown draw type: {draw}"
-                # print(turn, i[turn], "drew", draw)
-                hand[turn].append(draw)
                 events.append((turn, "draw", draw))
 
-            if i[turn] >= len(discards[turn]): # tsumo after draw means no discard after this
-                hand[turn].remove(draw) # so we can calculate final shanten/wait
-                final_tile = draw
+            # if you tsumo, there's no next discard, so we jump out here
+            if i[turn] >= len(discards[turn]):
+                i[turn] += 1 # to satisfy the assert check later
                 break
 
+            # then handle the discard
+            # can be either a discard, [r]iichi, [a]nkan, or [k]akan event
             discard = discards[turn][i[turn]]
-            if type(discard) is str:
-                last_discard = handle_call(discard)
-                last_discard = last_discard if last_discard != 60 else draw # 60 = tsumogiri
-                hand[turn].remove(last_discard)
-                visible_tiles.append(last_discard)
-                pond[turn].append(last_discard)
-            elif discard == 0: # the draw earlier was daiminkan, so no discard happened
+            if discard == "r60": # tsumogiri riichi
+                events.append((turn, "riichi", draw))
+            elif type(discard) is str:
+                discard = handle_call(discard)
+            elif discard == 0: # the draw earlier was daiminkan, so no discard happens
                 pass
             else:
-                assert type(discard) == int, f"failed to handle unknown discard type: {discard}"
-                last_discard = discard if discard != 60 else draw # 60 = tsumogiri
-                # print(turn, i[turn], "discarded", last_discard)
-                if last_discard not in YAOCHUUHAI and nagashi[turn]:
-                    events.append((turn, "end_nagashi", turn, "discard", last_discard))
-                    nagashi[turn] = False
-                hand[turn].remove(last_discard)
-                visible_tiles.append(last_discard)
-                pond[turn].append(last_discard)
-                events.append((turn, "discard", last_discard))
-            closed_hand = closed_part(tuple(hand[turn]), tuple(calls[turn]))
-            new_shanten = calculate_shanten(closed_hand)
-            if new_shanten != shanten[turn]: # compare both the shanten number and the iishanten group
-                events.append((turn, "shanten_change", shanten[turn], new_shanten))
-                shanten[turn] = new_shanten
-                # check if the resulting hand is tenpai
-                if new_shanten[0] == 0:
-                    ukeire = calculate_ukeire(closed_hand, calls[turn] + visible_tiles + dora_indicators[:num_dora])
-                    potential_waits = new_shanten[1]
-                    events.append((turn, "tenpai", sorted_hand(hand[turn]), potential_waits, ukeire))
-                    # check for furiten
-                    if any(w in pond[turn] for w in potential_waits):
-                        events.append((turn, "furiten"))
-                        furiten[turn] = True
-                    else:
-                        furiten[turn] = False
+                discard = discard if discard != 60 else draw # 60 = tsumogiri
+                events.append((turn, "discard", discard))
 
-            assert len(hand[turn]) == 13, f"got {len(hand[turn])} tiles in hand after events:\n" + "\n".join(map(str,events[-5:]))
-            was_ankan = type(discard) is str and get_call_name(discard) == "ankan"
-            was_kakan = type(discard) is str and get_call_name(discard) == "kakan"
-            was_daiminkan = type(draws[turn][i[turn]]) is str and get_call_name(draws[turn][i[turn]]) == "minkan"
-            i[turn] += 1 # done processing this draw/discard
+            i[turn] += 1 # done processing the ith draw/discard for this player
 
             # pon / kan handling
             # we have to look at the next draw of every player before changing the turn
             # if any of them pons or kans the previously discarded tile, control goes to them
-            called = False
             for t in range(num_players):
-                if turn == t or i[t] >= len(draws[t]):
-                    continue
-                draw = draws[t][i[t]]
-                if type(draw) is not str:
-                    continue
-                call_type = get_call_name(draw)
-                called_tile = extract_call_tiles(draw)[0]
-                # make sure it's the same tile as last discarded
-                if remove_red_five(called_tile) != remove_red_five(last_discard):
-                    continue
-                # make sure it's coming from the right direction
-                same_dir = (draw[0].isalpha() and turn == (t-1)%4) \
-                        or (draw[2].isalpha() and turn == (t-2)%4) \
-                        or (draw[4].isalpha() and turn == (t-3)%4)
-                if not same_dir:
-                    continue
-                last_turn = turn
-                turn = t
-                last_discard = 0
-                called = True
-                break
+                # check if a next draw exists on a turn other than ours
+                if turn != t and i[t] < len(draws[t]):
+                    # check that next draw is a call
+                    if type(next_draw := draws[t][i[t]]) is str:
+                        # check that it's calling from us, and that it's the same tile we discarded
+                        same_dir = get_call_direction(next_draw) == (turn-t)%4
+                        same_tile = remove_red_five(extract_call_tiles(next_draw)[0]) == remove_red_five(discard)
+                        if same_dir and same_tile:
+                            turn = t
+                            keep_turn = True # don't increment turn after this
+                            break
 
-            # change turn to next player
-            if not called and not called_kan:
-                last_turn = turn
-                turn += 1
-                if turn == num_players:
-                    turn = 0
-        assert gas >= 0, "ran out of gas"
-        assert len(dora_indicators) == num_dora, "there's a bug in counting dora"
+            # unless we set skip_turn, change turn to next player 
+            turn = turn if keep_turn else (turn+1) % num_players
 
-        # get waits of final hands
-        final_waits = [w for _, w in shanten]
-        final_ukeire = [calculate_ukeire(closed_part(tuple(hand[t]), tuple(calls[t])), calls[t] + visible_tiles + dora_indicators) for t in range(num_players)]
-        kyokus.append(Kyoku(
-            round = current_round,
-            honba = current_honba,
-            num_players = num_players,
-            events = events,
-            result = result,
-            hands = hand,
-            calls = calls,
-            call_info = call_info,
-            pond = pond,
-            furiten = furiten,
-            final_waits = final_waits,
-            final_ukeire = final_ukeire,
-            starting_hands = starting_hand,
-            starting_shanten = starting_shanten,
-            dora = list(map(lambda i: DORA[i], dora_indicators)),
-            final_tile = final_tile))
+        assert all(i[turn] >= len(draws[turn]) for turn in range(num_players)), f"game ended prematurely in {round_name(round, honba)} on {turn}'s turn; i = {i}, max i = {list(map(len, draws))}"
+        events.append((t, "end_game", result))
+        all_events.append(events)
 
     # parse metadata
-    parsed_metadata: GameMetadata = {
-        "name": metadata["name"],
-        "game_score": metadata["sc"][::2],
-        "final_score": list(map(lambda s: int(1000*s), metadata["sc"][1::2]))
-    }
-    temp_dict_kyokus = list(map(dataclasses.asdict, kyokus))
-    return temp_dict_kyokus, parsed_metadata
+    parsed_metadata = GameMetadata(num_players = num_players,
+                                   name = metadata["name"],
+                                   game_score = metadata["sc"][::2],
+                                   final_score = list(map(lambda s: int(1000*s), metadata["sc"][1::2])),
+                                   dora_indicators = all_dora_indicators,
+                                   ura_indicators = all_ura_indicators)
 
-async def parse_game_link(link: str, specified_player: int = 0) -> Tuple[List[Dict[str, Any]], GameMetadata, int]:
+    assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
+    return postprocess_events(all_events, parsed_metadata), parsed_metadata
+
+async def parse_game_link(link: str, specified_player: int = 0) -> Tuple[List[Kyoku], GameMetadata, int]:
     """Given a game link, fetch and parse the game into kyokus"""
     # print(f"Analyzing game {link}:")
     if "tenhou.net/" in link:

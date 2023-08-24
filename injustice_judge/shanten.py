@@ -9,6 +9,8 @@ from pprint import pprint
 ### ukeire and shanten calculations
 ###
 
+# note: ctr = Counter(remove_red_fives(starting_hand))
+# passed in so you only have to construct it once
 def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
     # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
     shanten = 6 - len([v for v in ctr.values() if v > 1])
@@ -44,7 +46,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     - 1.4 floating tile iishanten
     +0.5 is added to all iishanten if chiitoitsu iishanten is also present in the hand.
     """
-    assert len(starting_hand) in {1, 4, 7, 10, 13}, f"calculate_shanten() was passed a {len(starting_hand)} tile hand"
+    assert len(starting_hand) in {1, 4, 7, 10, 13}, f"calculate_shanten() was passed a {len(starting_hand)} tile hand: {ph(starting_hand)}"
 
     # 1. Remove all groups
     # 2. Count floating tiles

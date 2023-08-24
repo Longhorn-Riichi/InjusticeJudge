@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import *
 
 ###
@@ -14,28 +14,79 @@ class CallInfo:
     dir: int
     tiles: List[int]
 
+Event = Tuple[Any, ...]
+
+@dataclass
+class YakuList:
+    yaku_strs: List[str]
+    dora: int = 0
+    ura: int = 0
+    riichi: bool = False
+    ippatsu: bool = False
+    haitei: bool = False
+@dataclass(frozen = True)
+class Ron:
+    score_delta: List[int]
+    winner: int
+    won_from: int
+    han: int
+    fu: int
+    limit_name: str
+    score_string: str
+    score: int
+    yaku: YakuList
+@dataclass(frozen = True)
+class Tsumo:
+    score_delta: List[int]
+    winner: int
+    han: int
+    fu: int
+    limit_name: str
+    score_string: str
+    score_oya: int
+    score_ko: int
+    score: int
+    yaku: YakuList
+@dataclass(frozen = True)
+class Draw:
+    score_delta: List[int]
+    name: str
+
 @dataclass
 class Kyoku:
-    round: int
-    honba: int
-    num_players: int
-    final_tile: int
-    dora: List[int]
-    events: List[Tuple[Any, ...]]
-    result: List[Any]
-    hands: List[List[int]]
-    calls: List[List[int]]
-    call_info: List[List[CallInfo]]
-    pond: List[List[int]]
-    furiten: List[bool]
-    final_waits: List[List[int]]
-    final_ukeire: List[int]
-    starting_hands: List[Tuple[int, ...]]
-    starting_shanten: List[Tuple[float, List[int]]]
-
+    round: int                                    = 0
+    honba: int                                    = 0
+    num_players: int                              = 0
+    final_draw: int                               = 0
+    final_discard: int                            = 0
+    final_draw_event_index: List[int]             = field(default_factory=list)
+    final_discard_event_index: List[int]          = field(default_factory=list)
+    doras: List[int]                              = field(default_factory=list)
+    uras: List[int]                               = field(default_factory=list)
+    events: List[Event]                           = field(default_factory=list)
+    result: Tuple[Any, ...]                       = field(default_factory=tuple)
+    hands: List[List[int]]                        = field(default_factory=list)
+    calls: List[List[int]]                        = field(default_factory=list)
+    shanten: List[Tuple[float, List[int]]]        = field(default_factory=list)
+    call_info: List[List[CallInfo]]               = field(default_factory=list)
+    pond: List[List[int]]                         = field(default_factory=list)
+    furiten: List[bool]                           = field(default_factory=list)
+    final_waits: List[List[int]]                  = field(default_factory=list)
+    final_ukeire: List[int]                       = field(default_factory=list)
+    haipai: List[Tuple[int, ...]]                 = field(default_factory=list)
+    haipai_shanten: List[Tuple[float, List[int]]] = field(default_factory=list)
+    haipai_ukeire: List[int]                      = field(default_factory=list)
     # def __post_init__(self):
     #     pass
 
+@dataclass
+class GameMetadata:
+    num_players: int
+    name: List[str]
+    game_score: List[int]
+    final_score: List[int]
+    dora_indicators: List[List[int]]
+    ura_indicators: List[List[int]]
 
 ###
 ### lookup tables

@@ -38,28 +38,27 @@ def pt(tile: int) -> str:
     else:
         return pt_unicode(tile)
 
-def print_call_info(call_info):
-    call_type, called_tile, call_direction, call_tiles = call_info
-    other_tiles = sorted_hand(try_remove_all_tiles(tuple(call_tiles), (called_tile,)))
+def print_call_info(call):
+    other_tiles = sorted_hand(try_remove_all_tiles(tuple(call.tiles), (call.tile,)))
     if os.getenv("use_discord_tile_emoji") == "True":
-        sideways = DISCORD_CALLED_TILES[called_tile]
+        sideways = DISCORD_CALLED_TILES[call.tile]
     else:
-        sideways = f"₍{pt(called_tile)}₎"
-    if call_type == "ankan":
-        return ph((50, called_tile, called_tile, 50))
-    elif call_type == "kakan": # two consecutive sideways tiles
+        sideways = f"₍{pt(call.tile)}₎"
+    if call.type == "ankan":
+        return ph((50, call.tile, call.tile, 50))
+    elif call.type == "kakan": # two consecutive sideways tiles
         sideways = sideways*2
         other_tiles = other_tiles[:-1]
-    if call_direction == 1: # shimocha
+    if call.dir == 1: # shimocha
         return ph(other_tiles) + sideways
-    elif call_direction == 2: # toimen
+    elif call.dir == 2: # toimen
         return pt(other_tiles[0]) + sideways + ph(other_tiles[1:])
-    elif call_direction == 3: # kamicha
+    elif call.dir == 3: # kamicha
         return sideways + ph(other_tiles)
     else:
-        assert False, f"print_call_info got invalid call direction {call_direction}"
+        assert False, f"print_call_info got invalid call direction {call.dir} for the call {call}"
 
-def print_full_hand(closed_part, call_info, shanten, ukeire, final_tile = None, furiten = False):
+def print_full_hand(hidden_part, call_info, shanten, ukeire, final_tile = None, furiten = False):
     call_string = "" if len(call_info) == 0 else "⠀" + "⠀".join(map(print_call_info, reversed(call_info)))
     if shanten[0] == 0:
         wait_string = f"{' (furiten) ' if furiten else ' '}waits: {ph(sorted_hand(shanten[1]))} ({ukeire} out{'s' if ukeire > 1 else ''})"
@@ -67,7 +66,7 @@ def print_full_hand(closed_part, call_info, shanten, ukeire, final_tile = None, 
     else:
         wait_string = f" ({shanten_name(shanten)})"
         win_string = ""
-    return f"{ph(sorted_hand(closed_part))}{call_string}{win_string}{wait_string}"
+    return f"{ph(sorted_hand(hidden_part))}{call_string}{win_string}{wait_string}"
 
 ph = lambda hand: "".join(map(pt, hand)) # print hand
 remove_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else tile
@@ -104,7 +103,7 @@ def get_waits(hand: Tuple[int, ...]) -> Set[int]:
         return {PRED[t1], SUCC[t2]} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
     return set().union(*map(get_taatsu_wait, zip(hand[:-1], hand[1:]))) - {0}
 
-def closed_part(hand: Tuple[int, ...], calls: Tuple[int, ...]) -> Tuple[int, ...]:
+def hidden_part(hand: Tuple[int, ...], calls: Tuple[int, ...]) -> Tuple[int, ...]:
     ret = try_remove_all_tiles(tuple(hand), tuple(calls))
     assert len(ret) + len(calls) == len(hand), f"with hand = {ph(hand)} and calls = {ph(calls)}, somehow closed part is {ph(ret)}"
     return ret
