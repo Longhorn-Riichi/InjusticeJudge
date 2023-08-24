@@ -1,5 +1,6 @@
 import dataclasses
 import functools
+import re
 import google.protobuf as pb  # type: ignore[import]
 from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
@@ -84,13 +85,20 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
     Fetch a raw majsoul log from a given link, returning a parsed log and the specified player's seat
     Example link: https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203
     """
-    assert link.startswith(("https://mahjongsoul.game.yo-star.com/?paipu=",
-                            "http://mahjongsoul.game.yo-star.com/?paipu=")), "expected mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu="
-    if not "_a" in link:
-        print("Assuming you're the first east player, since mahjong soul link did not end with _a<number>")
 
-    identifier, *player_string = link.split("?paipu=")[1].split("_a")
-    ms_account_id = None if len(player_string) == 0 else int((((int(player_string[0])-1358437)^86216345)-1117113)/7)
+    identifier_pattern = r'\?paipu=([^_]+)'
+    identifier_match = re.search(identifier_pattern, link)
+    if identifier_match is None:
+        raise Exception(f"Invalid Mahjong Soul link: {link}")
+    identifier = identifier_match.group(1)
+    
+    player_pattern = r'_a(\d+)'
+    player_match = re.search(player_pattern, link)
+    if player_match is None:
+        ms_account_id = None
+    else:
+        ms_account_id = int((((int(player_match.group(1))-1358437)^86216345)-1117113)/7)
+
     try:
         f = open(f"cached_games/game-{identifier}.log", 'rb')
         record = proto.ResGameRecord()  # type: ignore[attr-defined]
@@ -345,33 +353,31 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[D
 def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
     """
     Fetch a raw tenhou log from a given link, returning a parsed log and the specified player's seat
-    Example link: https://tenhou.net/0/?log=2023072712gm-0089-0000-eff781e1&tw=1
+    Example link: https://tenhou.net/0/?log=2023072712gm-0089-0000-eff781e1&tw=1&ts=4
     """
     import json
-    assert link.startswith(("https://tenhou.net/0/?log=",
-                            "http://tenhou.net/0/?log=",
-                            "https://tenhou.net/3/?log=",
-                            "http://tenhou.net/3/?log=",
-                            "https://tenhou.net/4/?log=",
-                            "http://tenhou.net/4/?log=")), "expected tenhou link starting with https://tenhou.net/0/?log="
-    if link[:-1].endswith("&ts="): # round number (1-8) to start on; we ignore this
-        link = link.split("&ts=")[0]
-    if not link[:-1].endswith("&tw="):
-        print("Assuming you're the first east player, since tenhou link did not end with ?tw=<number>")
+
+    identifier_pattern = r'\?log=([^&]+)'
+    identifier_match = re.search(identifier_pattern, link)
+    if identifier_match is None:
+        raise Exception(f"Invalid Tenhou link: {link}")
+    identifier = identifier_match.group(1)
+    
+    player_pattern = r'&tw=(\d)'
+    player_match = re.search(player_pattern, link)
+    if player_match is None:
         player = 0
     else:
-        player = int(link[-1])
+        player = int(player_match.group(1))
 
-    identifier = link.split("?log=")[1].split("&")[0]
     try:
         f = open(f"cached_games/game-{identifier}.json", 'r')
         game_data = json.load(f)
-    except Exception as e:
+    except Exception:
         import requests
-        import os
         USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
         url = f"https://tenhou.net/5/mjlog2json.cgi?{identifier}"
-        print(f" Fetching game log at url {url}")
+        # print(f" Fetching game log at url {url}")
         r = requests.get(url=url, headers={"User-Agent": USER_AGENT})
         r.raise_for_status()
         game_data = r.json()
@@ -625,15 +631,16 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
 async def parse_game_link(link: str, specified_player: int = 0) -> Tuple[List[Dict[str, Any]], GameMetadata, int]:
     """Given a game link, fetch and parse the game into kyokus"""
     # print(f"Analyzing game {link}:")
-    if "tenhou.net" in link:
+    if "tenhou.net/" in link:
         tenhou_log, metadata, player = fetch_tenhou(link)
         kyokus, parsed_metadata = parse_tenhou(tenhou_log, metadata)
-    elif "mahjongsoul.game.yo-star.com" in link:
+    elif "mahjongsoul" in link or "maj-soul" in link:
+        # EN: `mahjongsoul.game.yo-star.com`; CN: `maj-soul.com`; JP: `mahjongsoul.com`
         majsoul_log, metadata, player = await fetch_majsoul(link)
         kyokus, parsed_metadata = parse_majsoul(majsoul_log, metadata)
     else:
-        raise Exception("expected tenhou link starting with https://tenhou.net/0/?log="
-                        " or mahjong soul link starting with https://mahjongsoul.game.yo-star.com/?paipu=")
+        raise Exception("expected tenhou link similar to `tenhou.net/0/?log=`"
+                        " or mahjong soul link similar to `mahjongsoul.game.yo-star.com/?paipu=`")
     if specified_player is not None:
         player = specified_player
     return kyokus, parsed_metadata, player
