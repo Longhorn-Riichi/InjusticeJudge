@@ -437,7 +437,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 call_type = "pon"
             else:
                 call_type = "chii"
-            call_from = (last_seat - action.seat) % 4
+            call_from = (last_seat - action.seat) % num_players
             events.append((action.seat, call_type, called_tile, call_tiles, call_from))
         elif name == "RecordAnGangAddGang":
             tile = convert_tile(action.tiles)
@@ -642,7 +642,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                     # check that next draw is a call
                     if type(next_draw := draws[t][i[t]]) is str:
                         # check that it's calling from us, and that it's the same tile we discarded
-                        same_dir = get_call_direction(next_draw) == (turn-t)%4
+                        same_dir = get_call_direction(next_draw) == (turn-t)%num_players
                         same_tile = remove_red_five(extract_call_tiles(next_draw)[0]) == remove_red_five(discard)
                         if same_dir and same_tile:
                             turn = t
