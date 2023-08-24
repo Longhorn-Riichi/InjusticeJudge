@@ -62,7 +62,7 @@ def print_call_info(call_info):
 def print_full_hand(closed_part, call_info, shanten, ukeire, final_tile = None, furiten = False):
     call_string = "" if len(call_info) == 0 else "⠀" + "⠀".join(map(print_call_info, reversed(call_info)))
     if shanten[0] == 0:
-        wait_string = f"{' (furiten) ' if furiten else ' '}waits: {ph(sorted_hand(shanten[1]))} ({ukeire} outs)"
+        wait_string = f"{' (furiten) ' if furiten else ' '}waits: {ph(sorted_hand(shanten[1]))} ({ukeire} out{'s' if ukeire > 1 else ''})"
         win_string = "⠀" + pt(final_tile)
     else:
         wait_string = f" ({shanten_name(shanten)})"

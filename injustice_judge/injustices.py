@@ -427,14 +427,14 @@ def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], r
         if chaser_seat == winner_seat and chaser_ukeire < your_ukeire:
             if Flags.YOU_LOST_POINTS in flags and Flags.GAME_ENDED_WITH_RON in flags:
                 ret.append(Injustice(round_number, honba, "Major injustice",
-                           f" your wait {ph(your_wait)} ({your_ukeire} outs)"
+                           f" your wait {ph(your_wait)} ({your_ukeire} out{'s' if your_ukeire > 1 else ''})"
                            f" was chased by {relative_seat_name(your_seat, chaser_seat)}"
-                           f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} outs), and you dealt into it"))
+                           f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} out{'s' if chaser_ukeire > 1 else ''}), and you dealt into it"))
             else:
                 ret.append(Injustice(round_number, honba, "Injustice",
-                           f" your wait {ph(your_wait)} ({your_ukeire} outs)"
+                           f" your wait {ph(your_wait)} ({your_ukeire} out{'s' if your_ukeire > 1 else ''})"
                            f" was chased by {relative_seat_name(your_seat, chaser_seat)}"
-                           f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} outs), and they won"))
+                           f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} out{'s' if chaser_ukeire > 1 else ''}), and they won"))
     return ret
 
 # Print if you failed to improve your shanten for at least nine consecutive draws
