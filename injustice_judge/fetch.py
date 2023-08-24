@@ -86,7 +86,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 visible_tiles.append(tile)
                 kyoku.pond[seat].append(tile)
                 # calculate shanten
-                hidden = hidden_part(tuple(kyoku.hands[seat]), tuple(kyoku.calls[seat]))
+                hidden = hidden_part(kyoku.hands[seat], kyoku.calls[seat])
                 new_shanten = calculate_shanten(hidden)
                 if new_shanten != kyoku.shanten[seat]:
                     kyoku.events.append((seat, "shanten_change", kyoku.shanten[seat], new_shanten))
@@ -138,7 +138,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 for seat in range(kyoku.num_players):
                     ukeire = 0
                     if kyoku.shanten[seat][0] <= 1:
-                        hidden = hidden_part(tuple(kyoku.hands[seat][:13]), tuple(kyoku.calls[seat]))
+                        hidden = hidden_part(kyoku.hands[seat][:13], kyoku.calls[seat])
                         ukeire = calculate_ukeire(hidden, kyoku.calls[seat] + visible_tiles + dora_indicators[:num_doras])
                     kyoku.final_waits.append(kyoku.shanten[seat][1])
                     kyoku.final_ukeire.append(ukeire)
