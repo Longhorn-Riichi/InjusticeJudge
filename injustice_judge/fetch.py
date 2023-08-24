@@ -150,9 +150,13 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                         ukeire = calculate_ukeire(hidden, kyoku.calls[seat] + visible_tiles + dora_indicators[:num_doras])
                     kyoku.final_waits.append(kyoku.shanten[seat][1])
                     kyoku.final_ukeire.append(ukeire)
-            # increment doras for kans
+            # emit dora event, and increment doras for kans
             if event_type in {"minkan", "ankan", "kakan"}:
+                assert len(dora_indicators) > num_doras, "kan without the next dora indicator"
+                called_tile, call_tiles, call_from = event_data
+                kyoku.events.append((seat, "dora_indicator", dora_indicators[num_doras], called_tile))
                 num_doras += 1
+
         assert len(kyoku.hands) > 0, f"somehow we never initialized the kyoku at index {len(kyokus)}"
         if len(kyokus) == 0:
             assert (kyoku.round, kyoku.honba) == (0, 0), f"kyoku numbering didn't start with East 1: instead it's {round_name(kyoku.round, kyoku.honba)}"

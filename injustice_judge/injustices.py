@@ -26,6 +26,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " WINNER_GOT_SANBAIMAN"
     " WINNER_GOT_YAKUMAN"
     " WINNER_GOT_HIDDEN_DORA_3"
+    " WINNER_GOT_KAN_DORA_BOMB"
     " WINNER_GOT_URA_3"
     " WINNER_GOT_HAITEI"
     " WINNER_HAD_BAD_WAIT"
@@ -37,6 +38,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_DEALT_INTO_DOUBLE_RON"
     " YOU_DEALT_INTO_IPPATSU"
     " YOU_DREW_PREVIOUSLY_WAITED_TILE"
+    " YOU_FLIPPED_DORA_BOMB"
     " YOU_FOLDED_FROM_TENPAI"
     " YOU_GAINED_POINTS"
     " YOU_GOT_CHASED"
@@ -206,6 +208,12 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
                 past_waits[seat].append(prev_shanten[1])
                 if new_shanten[0] > 0:
                     add_flag(seat, Flags.YOU_FOLDED_FROM_TENPAI)
+        elif event_type == "dora_indicator":
+            dora_indicator, kan_tile = event_data
+            # check if the dora indicator is the kan tile
+            if dora_indicator == kan_tile:
+                add_flag(seat, Flags.YOU_FLIPPED_DORA_BOMB)
+
 
     # Finally, look at kyoku.result. This determines flags related to:
     # - deal-ins
@@ -267,6 +275,10 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
             # check for 3+ ura
             elif result.yaku.ura >= 3:
                 add_global_flag(Flags.WINNER_GOT_URA_3, {"seat": result.winner, "value": result.yaku.ura})
+            # check for dora bomb
+            if Flags.YOU_FLIPPED_DORA_BOMB in flags[result.winner]:
+                add_global_flag(Flags.WINNER_GOT_KAN_DORA_BOMB, {"seat": result.winner, "value": result.yaku.dora})
+
             # check for haitei/houtei
             if result.yaku.haitei:
                 haitei_type = "haitei" if "海底摸月(1飜)" in result.yaku.yaku_strs \
@@ -592,7 +604,6 @@ def winner_haitei_while_tenpai(flags: List[Flags], data: List[Dict[str, Any]], r
 def lost_points_to_hidden_dora_3(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     seat = data[flags.index(Flags.WINNER_GOT_HIDDEN_DORA_3)]["seat"]
     value = data[flags.index(Flags.WINNER_GOT_HIDDEN_DORA_3)]["value"]
-
     if Flags.GAME_ENDED_WITH_RON in flags:
         return [Injustice(round_number, honba, "Injustice",
             f" you dealt into {relative_seat_name(player, seat)}'s hand with {value} hidden dora{tenpai_status_string(flags)}")]
