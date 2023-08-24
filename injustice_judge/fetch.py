@@ -6,8 +6,8 @@ from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
-from .constants import CallInfo, Kyoku, GameMetadata, DORA, DORA_INDICATOR, LIMIT_HANDS, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
-from .utils import ph, pt, closed_part, remove_red_five, round_name, sorted_hand, try_remove_all_tiles
+from .constants import CallInfo, Event, Kyoku, Ron, Ryuukyoku, Tsumo, YakuList, GameMetadata, DORA, DORA_INDICATOR, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
+from .utils import ph, pt, hidden_part, remove_red_five, round_name, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten, calculate_ukeire
 from pprint import pprint
 
@@ -29,7 +29,6 @@ def save_cache(filename: str, data: bytes) -> None:
 
 TenhouLog = List[List[List[Any]]]
 MajsoulLog = List[Message]
-Event = Tuple[Any, ...]
 
 ###
 ### postprocess events obtained from parsing
@@ -69,7 +68,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.uras = [DORA[d] for d in ura_indicators]
                 kyoku.shanten = [calculate_shanten(h) for h in kyoku.hands]
                 kyoku.haipai_shanten = list(kyoku.shanten)
-                kyoku.events.extend((t, "start_shanten", s) for t, s in enumerate(kyoku.shanten))
+                kyoku.events.extend((t, "haipai_shanten", s) for t, s in enumerate(kyoku.shanten))
             elif event_type == "draw":
                 tile = event_data[0]
                 kyoku.hands[seat].append(tile)
@@ -81,14 +80,14 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 visible_tiles.append(tile)
                 kyoku.pond[seat].append(tile)
                 # calculate shanten
-                closed_hand = closed_part(tuple(kyoku.hands[seat]), tuple(kyoku.calls[seat]))
-                new_shanten = calculate_shanten(closed_hand)
+                hidden = hidden_part(tuple(kyoku.hands[seat]), tuple(kyoku.calls[seat]))
+                new_shanten = calculate_shanten(hidden)
                 if new_shanten != kyoku.shanten[seat]:
                     kyoku.events.append((seat, "shanten_change", kyoku.shanten[seat], new_shanten))
                     kyoku.shanten[seat] = new_shanten
                     # calculate ukeire if tenpai
                     if new_shanten[0] == 0:
-                        ukeire = calculate_ukeire(closed_hand, kyoku.calls[seat] + visible_tiles + dora_indicators[:num_doras])
+                        ukeire = calculate_ukeire(hidden, kyoku.calls[seat] + visible_tiles + dora_indicators[:num_doras])
                         waits = new_shanten[1]
                         kyoku.events.append((seat, "tenpai", sorted_hand(kyoku.hands[seat]), waits, ukeire))
                         # check for furiten
@@ -129,14 +128,102 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 visible_tiles.append(called_tile)
                 kyoku.final_tile = called_tile
             elif event_type == "end_game":
-                kyoku.result, dora_indicators, ura_indicators = event_data
+                for seat in range(kyoku.num_players):
+                    ukeire = 0
+                    if kyoku.shanten[seat][0] <= 1:
+                        hidden = hidden_part(tuple(kyoku.hands[seat][:13]), tuple(kyoku.calls[seat]))
+                        ukeire = calculate_ukeire(hidden, kyoku.calls[seat] + visible_tiles + dora_indicators[:num_doras])
+                    kyoku.final_waits.append(kyoku.shanten[seat][1])
+                    kyoku.final_ukeire.append(ukeire)
+                unparsed_result, dora_indicators, ura_indicators = event_data
+                kyoku.result = parse_result(unparsed_result)
                 # TODO make a result dataclass
             # increment doras for kans
             if event_type in {"minkan", "ankan", "kakan"}:
                 num_doras += 1
         assert len(kyoku.hands) > 0, f"somehow we never initialized the kyoku at index {len(kyokus)}"
+        if len(kyokus) == 0:
+            assert (kyoku.round, kyoku.honba) == (0, 0), f"kyoku numbering didn't start with East 1: instead it's {round_name(kyoku.round, kyoku.honba)}"
+        else:
+            assert (kyoku.round, kyoku.honba) != (kyokus[-1].round, kyokus[-1].honba), f"duplicate kyoku entered: {round_name(kyoku.round, kyoku.honba)}"
         kyokus.append(kyoku)
     return kyokus
+
+def parse_result(result: List[Any]) -> Tuple[Any, ...]:
+    """Given a tenhou game result list, parse it into a list of WinData objects"""
+    result_type, *scoring = result
+    num_players = len(scoring[0])
+    ret: List[Tuple[str, Any]] = []
+    scores = [scoring[i*2:i*2+2] for i in range((len(scoring)+1)//2)]
+    def process_yaku(yaku: List[str]) -> YakuList:
+        ret = YakuList(yaku_strs = yaku)
+        for y in yaku:
+            name = TRANSLATE[y.split("(")[0]]
+            value = int(y.split("(")[1].split("飜")[0])
+            if name == "riichi":
+                ret.riichi = True
+            elif name == "ippatsu":
+                ret.ippatsu = True
+            elif name in {"dora", "aka"}:
+                ret.dora += value
+            elif name == "ura":
+                ret.ura = value
+            elif name in {"haitei", "houtei"}:
+                ret.haitei = True
+        return ret
+    if result_type == "和了":
+        rons: List[Ron] = []
+        for [score_delta, [w, won_from, _, score_string, *yaku]] in scores:
+            below_mangan = "符" in score_string
+            if below_mangan: # e.g. "30符1飜1000点", "50符3飜1600-3200点"
+                [fu, rest] = score_string.split("符")
+                [han, rest] = rest.split("飜")
+                pts = "".join(rest.split("点"))
+                fu = int(fu)
+                han = int(han)
+                limit_name = "" # not a limit hand
+            else: # e.g. "倍満16000点", "満貫4000点∀"
+                pts = "".join(c for c in score_string if c in "0123456789-∀")
+                limit_name = score_string.split(pts[0])[0]
+                han = 0
+                for y in yaku:
+                    han += int(y.split("(")[1].split("飜")[0])
+            assert han > 0, f"somehow got a {han} han win"
+            if w == won_from: # tsumo
+                if "-" in pts:
+                    score_ko, score_oya = map(int, pts.split("-"))
+                    score_total = score_oya + (num_players-2)*score_ko
+                elif "∀" in pts:
+                    score_ko = score_oya = int(pts.split("∀")[0])
+                    score_total = score_oya + (num_players-2)*score_ko
+                else:
+                    assert False, f"unable to parse tsumo score {pts} from score string {score_string}"
+                return ("tsumo", Tsumo(score_delta = score_delta,
+                                       winner = w,
+                                       han = han,
+                                       fu = fu if below_mangan else 0,
+                                       limit_name = limit_name,
+                                       score_string = score_string,
+                                       score = score_total,
+                                       score_oya = score_oya,
+                                       score_ko = score_ko,
+                                       yaku = process_yaku(yaku)))
+            else:
+                score = int(pts)
+                rons.append(Ron(score_delta = score_delta,
+                                winner = w,
+                                won_from = won_from,
+                                han = han,
+                                fu = fu if below_mangan else 0,
+                                limit_name = limit_name,
+                                score_string = score_string,
+                                score = score,
+                                yaku = process_yaku(yaku)))
+        return ("ron", *rons)
+    elif result_type in {"流局", "全員聴牌", "流し満貫"}:
+        return ("ryuukyoku", Ryuukyoku(score_delta = scores[0][0] if len(scores) > 0 else [0]*num_players))
+    else:
+        assert False, f"unhandled result type {result_type}"
 
 ###
 ### loading and parsing mahjong soul games
@@ -315,7 +402,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             events.append((action.seat, call_type, called_tile, call_tiles, call_from))
         elif name == "RecordAnGangAddGang":
             tile = convert_tile(action.tiles)
-            if action.type == 1:
+            if action.type == 2:
                 call_type = "kakan"
             elif action.type == 3:
                 call_type = "ankan"
@@ -347,9 +434,10 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 ura_indicators = majsoul_hand_to_tenhou(h.li_doras) or ura_indicators
             end_round(result)
         elif name == "RecordNoTile":
-            end_round(["流局", *(score_info.delta_scores for score_info in action.scores)])
-            events.append((t, "end_game", result, dora_indicators, ura_indicators))
-            all_events.append(events)
+            if len(action.scores[0].delta_scores) == 0: # everybody/nobody is tenpai, so no score change
+                end_round(["流局", [0]*num_players])
+            else:
+                end_round(["流局", *(score_info.delta_scores for score_info in action.scores)])
         elif name == "RecordBaBei": # kita
             events.append((action.seat, "kita", 44, [44], 0))
         elif name == "RecordLiuJu": # abortive draw

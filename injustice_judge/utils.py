@@ -59,7 +59,7 @@ def print_call_info(call_info):
     else:
         assert False, f"print_call_info got invalid call direction {call_direction}"
 
-def print_full_hand(closed_part, call_info, shanten, ukeire, final_tile = None, furiten = False):
+def print_full_hand(hidden_part, call_info, shanten, ukeire, final_tile = None, furiten = False):
     call_string = "" if len(call_info) == 0 else "⠀" + "⠀".join(map(print_call_info, reversed(call_info)))
     if shanten[0] == 0:
         wait_string = f"{' (furiten) ' if furiten else ' '}waits: {ph(sorted_hand(shanten[1]))} ({ukeire} outs)"
@@ -67,7 +67,7 @@ def print_full_hand(closed_part, call_info, shanten, ukeire, final_tile = None, 
     else:
         wait_string = f" ({shanten_name(shanten)})"
         win_string = ""
-    return f"{ph(sorted_hand(closed_part))}{call_string}{win_string}{wait_string}"
+    return f"{ph(sorted_hand(hidden_part))}{call_string}{win_string}{wait_string}"
 
 ph = lambda hand: "".join(map(pt, hand)) # print hand
 remove_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else tile
@@ -104,7 +104,7 @@ def get_waits(hand: Tuple[int, ...]) -> Set[int]:
         return {PRED[t1], SUCC[t2]} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
     return set().union(*map(get_taatsu_wait, zip(hand[:-1], hand[1:]))) - {0}
 
-def closed_part(hand: Tuple[int, ...], calls: Tuple[int, ...]) -> Tuple[int, ...]:
+def hidden_part(hand: Tuple[int, ...], calls: Tuple[int, ...]) -> Tuple[int, ...]:
     ret = try_remove_all_tiles(tuple(hand), tuple(calls))
     assert len(ret) + len(calls) == len(hand), f"with hand = {ph(hand)} and calls = {ph(calls)}, somehow closed part is {ph(ret)}"
     return ret

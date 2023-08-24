@@ -14,6 +14,43 @@ class CallInfo:
     dir: int
     tiles: List[int]
 
+Event = Tuple[Any, ...]
+
+@dataclass
+class YakuList:
+    yaku_strs: List[str]
+    dora: int = 0
+    ura: int = 0
+    riichi: bool = False
+    ippatsu: bool = False
+    haitei: bool = False
+@dataclass(frozen = True)
+class Ron:
+    score_delta: List[int]
+    winner: int
+    won_from: int
+    han: int
+    fu: int
+    limit_name: str
+    score_string: str
+    score: int
+    yaku: YakuList
+@dataclass(frozen = True)
+class Tsumo:
+    score_delta: List[int]
+    winner: int
+    han: int
+    fu: int
+    limit_name: str
+    score_string: str
+    score_oya: int
+    score_ko: int
+    score: int
+    yaku: YakuList
+@dataclass(frozen = True)
+class Ryuukyoku:
+    score_delta: List[int]
+
 @dataclass
 class Kyoku:
     round: int                                    = 0
@@ -22,8 +59,8 @@ class Kyoku:
     final_tile: int                               = 0
     doras: List[int]                              = field(default_factory=list)
     uras: List[int]                               = field(default_factory=list)
-    events: List[Tuple[Any, ...]]                 = field(default_factory=list)
-    result: List[Any]                             = field(default_factory=list)
+    events: List[Event]                           = field(default_factory=list)
+    result: Tuple[Any, ...]                       = field(default_factory=list)
     hands: List[List[int]]                        = field(default_factory=list)
     calls: List[List[int]]                        = field(default_factory=list)
     shanten: List[Tuple[float, List[int]]]        = field(default_factory=list)
@@ -34,7 +71,6 @@ class Kyoku:
     final_ukeire: List[int]                       = field(default_factory=list)
     haipai: List[Tuple[int, ...]]                 = field(default_factory=list)
     haipai_shanten: List[Tuple[float, List[int]]] = field(default_factory=list)
-
     # def __post_init__(self):
     #     pass
 
