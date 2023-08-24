@@ -304,11 +304,13 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
                       "ukeire": kyoku.final_ukeire[tsumo.winner]})
         # check ippatsu tsumo
         if tsumo.yaku.ippatsu:
-            add_flag(Flags.WINNER_IPPATSU_TSUMO, {"seat": tsumo.winner})
-    elif result_type == "ryuukyoku":
-        assert tiles_in_wall == 0, f"somehow ryuukyoku with {tiles_in_wall} tiles left in wall"
-        for seat in (seat for seat, achieved in enumerate(nagashi) if achieved):
-            add_flag(seat, Flags.YOU_ACHIEVED_NAGASHI, {"seat": seat})
+            add_flag(seat, Flags.WINNER_IPPATSU_TSUMO, {"seat": tsumo.winner})
+    elif result_type == "draw":
+        name = results[0].name
+        if name in {"ryuukyoku", "nagashi mangan"}:
+            assert tiles_in_wall == 0, f"somehow ryuukyoku with {tiles_in_wall} tiles left in wall"
+            for seat in (seat for seat, achieved in enumerate(nagashi) if achieved):
+                add_flag(seat, Flags.YOU_ACHIEVED_NAGASHI, {"seat": seat})
 
     assert len(global_flags) == len(global_data), f"somehow got a different amount of global flags ({len(global_flags)}) than data ({len(global_data)})"
     for seat in range(num_players):

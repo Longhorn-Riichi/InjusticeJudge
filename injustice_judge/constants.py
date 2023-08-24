@@ -48,7 +48,7 @@ class Tsumo:
     score: int
     yaku: YakuList
 @dataclass(frozen = True)
-class Ryuukyoku:
+class Draw:
     score_delta: List[int]
     name: str
 

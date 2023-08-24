@@ -6,7 +6,7 @@ from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
-from .constants import CallInfo, Event, Kyoku, Ron, Ryuukyoku, Tsumo, YakuList, GameMetadata, DORA, DORA_INDICATOR, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
+from .constants import CallInfo, Draw, Event, Kyoku, Ron, Tsumo, YakuList, GameMetadata, DORA, DORA_INDICATOR, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
 from .utils import ph, pt, hidden_part, remove_red_five, round_name, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten, calculate_ukeire
 from pprint import pprint
@@ -121,6 +121,8 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                     kyoku.call_info[seat][pon_index] = CallInfo(event_type, called_tile, orig_direction, call_tiles)
                 else:
                     kyoku.call_info[seat].append(CallInfo(event_type, called_tile, 0, call_tiles))
+                if event_type == "ankan":
+                    kyoku.calls[seat].extend(call_tiles[:3]) # ignore any kan tile
                 kyoku.hands[seat].remove(called_tile)
                 assert len(kyoku.hands[seat]) == 13
                 visible_tiles.append(called_tile)
@@ -134,7 +136,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                     kyoku.final_waits.append(kyoku.shanten[seat][1])
                     kyoku.final_ukeire.append(ukeire)
                 unparsed_result = event_data[0]
-                kyoku.result = parse_result(unparsed_result)
+                kyoku.result = parse_result(unparsed_result, metadata.num_players)
                 # TODO make a result dataclass
             # increment doras for kans
             if event_type in {"minkan", "ankan", "kakan"}:
@@ -147,10 +149,9 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
         kyokus.append(kyoku)
     return kyokus
 
-def parse_result(result: List[Any]) -> Tuple[Any, ...]:
+def parse_result(result: List[Any], num_players: int) -> Tuple[Any, ...]:
     """Given a tenhou game result list, parse it into a list of WinData objects"""
     result_type, *scoring = result
-    num_players = len(scoring[0])
     ret: List[Tuple[str, Any]] = []
     scores = [scoring[i*2:i*2+2] for i in range((len(scoring)+1)//2)]
     def process_yaku(yaku: List[str]) -> YakuList:
@@ -218,10 +219,10 @@ def parse_result(result: List[Any]) -> Tuple[Any, ...]:
                                 score = score,
                                 yaku = process_yaku(yaku)))
         return ("ron", *rons)
-    elif result_type in {"流局", "全員聴牌", "流し満貫"} | {"九種九牌", "四家立直", "三家和了", "四槓散了", "四風連打"}:
-        # TODO use different name for draws, instead of lumping it in with ryuukyoku
-        return ("ryuukyoku", Ryuukyoku(score_delta = scores[0][0] if len(scores) > 0 else [0]*num_players,
-                                       name = TRANSLATE[result_type]))
+    elif result_type in ({"流局", "全員聴牌", "流し満貫"} # exhaustive draws
+                       | {"九種九牌", "四家立直", "三家和了", "四槓散了", "四風連打"}): # abortive draws
+        return ("draw", Draw(score_delta = scores[0][0] if len(scores) > 0 else [0]*num_players,
+                                  name = TRANSLATE[result_type]))
     else:
         assert False, f"unhandled result type {result_type}"
 
@@ -558,6 +559,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 call_tiles = extract_call_tiles(call)
                 call_from = (turn+get_call_direction(call))%4
                 called_tile = call_tiles[0]
+
                 # TODO: handle kita?
                 call_type = "chii"   if "c" in call else \
                             "riichi" if "r" in call else \
@@ -588,12 +590,14 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             # then handle the discard
             # can be either a discard, [r]iichi, [a]nkan, or [k]akan event
             discard = discards[turn][i[turn]]
-            discard = discard if type(discard) is str or discard != 60 else draw # 60 = tsumogiri
-            if type(discard) is str:
+            if discard == "r60": # tsumogiri riichi
+                events.append((turn, "riichi", draw))
+            elif type(discard) is str:
                 discard = handle_call(discard)
             elif discard == 0: # the draw earlier was daiminkan, so no discard happens
                 pass
             else:
+                discard = discard if discard != 60 else draw # 60 = tsumogiri
                 events.append((turn, "discard", discard))
 
             i[turn] += 1 # done processing the ith draw/discard for this player
