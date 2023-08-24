@@ -403,7 +403,7 @@ def injustice(require: List[Flags] = [], forbid: List[Flags] = []) -> Callable[[
 
 
 # Print if your tenpai got chased by a worse wait, and they won
-@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.YOU_TENPAI_FIRST,
+@injustice(require=[Flags.YOU_REACHED_TENPAI,
                     Flags.YOU_GOT_CHASED, Flags.CHASER_GAINED_POINTS],
             forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.GAME_ENDED_WITH_RYUUKYOKU,
                     Flags.YOU_GAINED_POINTS])
