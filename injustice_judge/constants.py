@@ -252,6 +252,7 @@ TRANSLATE = {
     "一気通貫": "iitsu",
     "三色同順": "sanshoku",
     "ダブル立直": "double riichi",
+    "両立直": "double riichi",
     "三色同刻": "sanshoku doukou",
     "三槓子": "sankantsu",
     "対々和": "toitoi",

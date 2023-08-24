@@ -141,6 +141,7 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
                 if already_tenpai and tiles_in_wall <= 3:
                     add_flag(seat, Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT, {"tile": event_data[0]})
         elif event_type == "tenpai":
+            assert len(kyoku.hands[seat]) == 13, f"got tenpai event but we have a {len(kyoku.hands[seat])} tile hand {ph(kyoku.hands[seat])}"
             # check if we're tenpai first
             if Flags.SOMEONE_REACHED_TENPAI not in global_flags:
                 add_flag(seat, Flags.YOU_TENPAI_FIRST)
@@ -575,7 +576,7 @@ def dealt_into_haitei(flags: List[Flags], data: List[Dict[str, Any]], round_numb
             f" you dealt into {relative_seat_name(player, seat)}'s houtei{tenpai_status_string(flags)}")]
 
 # Print if winner drew haitei or got houtei, while you were in tenpai
-@injustice(require=[Flags.WINNER_GOT_HAITEI, Flags.YOU_REACHED_TENPAI])
+@injustice(require=[Flags.WINNER_GOT_HAITEI, Flags.YOU_REACHED_TENPAI], forbid=[Flags.YOU_GAINED_POINTS])
 def winner_haitei_while_tenpai(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     haitei_data = data[flags.index(Flags.WINNER_GOT_HAITEI)]
     seat = haitei_data["seat"]
@@ -590,7 +591,7 @@ def dora_bomb(flags: List[Flags], data: List[Dict[str, Any]], round_number: int,
     seat = data[flags.index(Flags.WINNER_GOT_DORA_BOMB)]["seat"]
     value = data[flags.index(Flags.WINNER_GOT_DORA_BOMB)]["value"]
     return [Injustice(round_number, honba, "Injustice",
-            f" {relative_seat_name(player, seat)} won with dora {value} hidden in hand")]
+            f" {relative_seat_name(player, seat)} won with {value} dora hidden in hand")]
 
 # Print if an early abortive draw happened with an iishanten haipai
 @injustice(require=[Flags.IISHANTEN_HAIPAI_ABORTED])
