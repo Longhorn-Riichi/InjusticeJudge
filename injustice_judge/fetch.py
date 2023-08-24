@@ -66,7 +66,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
             elif event_type == "start_game":
                 kyoku.round, kyoku.honba = event_data
                 kyoku.num_players = metadata.num_players
-                kyoku.doras = [DORA[d] for d in dora_indicators]
+                kyoku.doras = [DORA[d] for d in dora_indicators] + [51, 52, 53] # include red fives
                 kyoku.uras = [DORA[d] for d in ura_indicators]
                 kyoku.shanten = [calculate_shanten(h) for h in kyoku.hands]
                 kyoku.haipai_shanten = list(kyoku.shanten)
@@ -424,7 +424,6 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
         elif name == "RecordDiscardTile":
             tile = convert_tile(action.tile)
             events.append((action.seat, "riichi" if action.is_liqi else "discard", tile))
-            # dora_indicators += [convert_tile(dora) for dora in action.doras]
         elif name == "RecordChiPengGang":
             call_tiles = list(map(convert_tile, action.tiles))
             called_tile = call_tiles[-1]

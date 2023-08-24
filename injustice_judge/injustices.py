@@ -25,7 +25,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " WINNER_GOT_MANGAN"
     " WINNER_GOT_SANBAIMAN"
     " WINNER_GOT_YAKUMAN"
-    " WINNER_GOT_DORA_BOMB"
+    " WINNER_GOT_HIDDEN_DORA_3"
     " WINNER_GOT_URA_3"
     " WINNER_GOT_HAITEI"
     " WINNER_HAD_BAD_WAIT"
@@ -227,7 +227,7 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
     # - LOST_POINTS_TO_FIRST_ROW_WIN
     # - WINNER_GOT_MANGAN, WINNER_GOT_HANEMAN, etc
     # - WINNER_HAD_BAD_WAIT
-    # - WINNER_GOT_DORA_BOMB
+    # - WINNER_GOT_HIDDEN_DORA_3
     # - WINNER_GOT_URA_3
     # - WINNER_GOT_HAITEI
     if result_type in {"ron", "tsumo"}:
@@ -257,12 +257,13 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
                                 {"seat": result.winner,
                                  "wait": kyoku.final_waits[result.winner],
                                  "ukeire": kyoku.final_ukeire[result.winner]})
-            # check for 3+ hidden dora
+            # check for 3+ han from hidden dora
             if result.yaku.dora >= 3:
-                hidden_hand = hidden_part(kyoku.hands[result.winner], kyoku.calls[result.winner])
-                hidden_dora = sum((Counter(hidden_hand) & Counter(kyoku.doras*4)).values())
-                if hidden_dora >= 3:
-                    add_global_flag(Flags.WINNER_GOT_DORA_BOMB, {"seat": result.winner, "value": result.yaku.dora})
+                final_tile = kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw
+                hidden_hand = hidden_part(kyoku.hands[result.winner] + [final_tile], kyoku.calls[result.winner])
+                hidden_dora_han = sum(hidden_hand.count(dora) for dora in kyoku.doras)
+                if hidden_dora_han >= 3:
+                    add_global_flag(Flags.WINNER_GOT_HIDDEN_DORA_3, {"seat": result.winner, "value": hidden_dora_han})
             # check for 3+ ura
             elif result.yaku.ura >= 3:
                 add_global_flag(Flags.WINNER_GOT_URA_3, {"seat": result.winner, "value": result.yaku.ura})
@@ -453,9 +454,9 @@ def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_num
 def tenpai_status_string(flags: List[Flags]) -> str:
     status = ""
     if Flags.YOU_DECLARED_RIICHI in flags and not Flags.YOUR_TENPAI_TILE_DEALT_IN in flags:
-        status = ", while in riichi (goodbye riichi stick)"
+        status = ", while you were in riichi (bye-bye riichi stick)"
     elif Flags.YOU_REACHED_TENPAI in flags:
-        status = ", while tenpai"
+        status = ", while you were tenpai"
     return status
 
 # Print if you lost points to a first row ron/tsumo
@@ -585,13 +586,18 @@ def winner_haitei_while_tenpai(flags: List[Flags], data: List[Dict[str, Any]], r
     return [Injustice(round_number, honba, "Injustice",
             f" {relative_seat_name(player, seat)} got {name} while you were tenpai{dealer_string}")]
 
-# Print if winner had 3+ dora in closed part of hand
-@injustice(require=[Flags.WINNER_GOT_DORA_BOMB], forbid=[Flags.YOU_GAINED_POINTS])
-def dora_bomb(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    seat = data[flags.index(Flags.WINNER_GOT_DORA_BOMB)]["seat"]
-    value = data[flags.index(Flags.WINNER_GOT_DORA_BOMB)]["value"]
-    return [Injustice(round_number, honba, "Injustice",
-            f" {relative_seat_name(player, seat)} won with {value} dora hidden in hand")]
+# Print if winner had 3+ han from dora tiles in the hidden part of hand
+@injustice(require=[Flags.WINNER_GOT_HIDDEN_DORA_3, Flags.YOU_LOST_POINTS])
+def lost_points_to_hidden_dora_3(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    seat = data[flags.index(Flags.WINNER_GOT_HIDDEN_DORA_3)]["seat"]
+    value = data[flags.index(Flags.WINNER_GOT_HIDDEN_DORA_3)]["value"]
+
+    if Flags.GAME_ENDED_WITH_RON in flags:
+        return [Injustice(round_number, honba, "Injustice",
+            f" you dealt into {relative_seat_name(player, seat)}'s hand with {value} hidden dora")]
+    else:
+        return [Injustice(round_number, honba, "Injustice",
+            f" {relative_seat_name(player, seat)} tsumoed with {value} hidden dora")]
 
 # Print if an early abortive draw happened with an iishanten haipai
 @injustice(require=[Flags.IISHANTEN_HAIPAI_ABORTED])
@@ -603,3 +609,5 @@ def iishanten_haipai_aborted(flags: List[Flags], data: List[Dict[str, Any]], rou
             f" a {draw_name} happened when your hand looked like {ph(hand)} ({shanten_name(shanten)})")]
 
 # TODO: head bump
+# check if winning tile is in your waits and you didn't gain points
+# this means either headbump or you skipped it

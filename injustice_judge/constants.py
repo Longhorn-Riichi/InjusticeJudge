@@ -61,7 +61,7 @@ class Kyoku:
     final_discard: int                            = 0
     final_draw_event_index: List[int]             = field(default_factory=list)
     final_discard_event_index: List[int]          = field(default_factory=list)
-    doras: List[int]                              = field(default_factory=list)
+    doras: List[int]                              = field(default_factory=list) # doras include the round doras AND the red fives; each appearance means it's +1 han
     uras: List[int]                               = field(default_factory=list)
     events: List[Event]                           = field(default_factory=list)
     result: Tuple[Any, ...]                       = field(default_factory=tuple)
