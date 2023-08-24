@@ -125,9 +125,9 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                     orig_direction = kyoku.call_info[seat][pon_index].dir
                     kyoku.call_info[seat][pon_index] = CallInfo(event_type, called_tile, orig_direction, call_tiles)
                 else:
-                    kyoku.call_info[seat].append(CallInfo(event_type, called_tile, 0, call_tiles))
+                    kyoku.call_info[seat].append(CallInfo(event_type, called_tile, 0, [called_tile]*4))
                 if event_type == "ankan":
-                    kyoku.calls[seat].extend(call_tiles[:3]) # ignore any kan tile
+                    kyoku.calls[seat].extend([called_tile]*3) # ignore any kan tile
                 kyoku.hands[seat].remove(called_tile)
                 kyoku.final_discard = called_tile
                 kyoku.final_discard_event_index[seat] = i
