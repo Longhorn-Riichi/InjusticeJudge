@@ -319,10 +319,10 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
         assert isinstance(tsumo, Tsumo), f"result tagged tsumo got non-Tsumo object: {tsumo}"
         # check furiten
         if kyoku.furiten[tsumo.winner]:
-            add_flag(Flags.WINNER_WAS_FURITEN,
-                     {"seat": tsumo.winner,
-                      "wait": kyoku.final_waits[tsumo.winner],
-                      "ukeire": kyoku.final_ukeire[tsumo.winner]})
+            add_global_flag(Flags.WINNER_WAS_FURITEN,
+                            {"seat": tsumo.winner,
+                             "wait": kyoku.final_waits[tsumo.winner],
+                             "ukeire": kyoku.final_ukeire[tsumo.winner]})
         # check ippatsu tsumo
         if tsumo.yaku.ippatsu:
             add_flag(seat, Flags.WINNER_IPPATSU_TSUMO, {"seat": tsumo.winner})

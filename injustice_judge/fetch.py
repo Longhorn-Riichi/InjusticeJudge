@@ -152,9 +152,10 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                     kyoku.final_ukeire.append(ukeire)
             # emit dora event, and increment doras for kans
             if event_type in {"minkan", "ankan", "kakan"}:
-                assert len(dora_indicators) > num_doras, "kan without the next dora indicator"
                 called_tile, call_tiles, call_from = event_data
-                kyoku.events.append((seat, "dora_indicator", dora_indicators[num_doras], called_tile))
+                # might not have another dora if we get rinshan right after this
+                if num_doras < len(dora_indicators):
+                    kyoku.events.append((seat, "dora_indicator", dora_indicators[num_doras], called_tile))
                 num_doras += 1
 
         assert len(kyoku.hands) > 0, f"somehow we never initialized the kyoku at index {len(kyokus)}"
@@ -318,6 +319,15 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
         ms_account_id = None
     else:
         ms_account_id = int((((int(player_match.group(1))-1358437)^86216345)-1117113)/7)
+
+    if not all(c in "0123456789abcdef-" for c in identifier):
+        codex = "0123456789abcdefghijklmnopqrstuvwxyz"
+        decoded = ""
+        for i, c in enumerate(identifier):
+            decoded += "-" if c == "-" else codex[(codex.index(c) - i + 55) % 36]
+        identifier = decoded
+        if link.count("_") == 2:
+            player = int(link[-1])
 
     try:
         f = open(f"cached_games/game-{identifier}.log", 'rb')
