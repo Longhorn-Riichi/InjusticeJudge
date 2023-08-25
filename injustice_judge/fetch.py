@@ -676,6 +676,7 @@ async def parse_game_link(link: str, specified_player: int = 0) -> Tuple[List[Ky
     elif "mahjongsoul" in link or "maj-soul" in link:
         # EN: `mahjongsoul.game.yo-star.com`; CN: `maj-soul.com`; JP: `mahjongsoul.com`
         majsoul_log, metadata, player = await fetch_majsoul(link)
+        assert (specified_player or player) < len(metadata["accounts"]), "Can't specify north player in a sanma game"
         kyokus, parsed_metadata = parse_majsoul(majsoul_log, metadata)
     else:
         raise Exception("expected tenhou link similar to `tenhou.net/0/?log=`"
