@@ -217,7 +217,6 @@ def parse_result(result: List[Any], num_players: int, kita_counts: List[int]) ->
             ret.yaku_strs.append(f"抜きドラ({kita_count}飜)")
             ret.kita = kita_count
             ret.dora = non_kita_dora_count
-        print(ret)
         return ret
     if result_type == "和了":
         rons: List[Ron] = []
@@ -520,7 +519,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
         elif name == "RecordBaBei": # kita
             events.append((action.seat, "kita", 44, [44], 0))
         elif name == "RecordLiuJu": # abortive draw
-            """TODO: abortive draw types"""
+            # TODO: abortive draw types
             if action.type == 1:
                 end_round(["九種九牌", [0]*num_players])
             else:
