@@ -446,14 +446,17 @@ def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], r
     return ret
 
 # Print if you failed to improve your shanten for at least nine consecutive draws
-@injustice(require=[Flags.NINE_DRAWS_NO_IMPROVEMENT],
-            forbid=[Flags.YOU_REACHED_TENPAI])
+@injustice(require=[Flags.NINE_DRAWS_NO_IMPROVEMENT])
 def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     shanten_data = data[len(flags) - 1 - flags[::-1].index(Flags.NINE_DRAWS_NO_IMPROVEMENT)]
     draws = shanten_data["draws"]
     shanten = shanten_data["shanten"]
-    return [Injustice(round_number, honba, "Injustice",
-            f" you were stuck at {shanten_name(shanten)} for {draws} draws, and never reached tenpai")]
+    if Flags.YOU_REACHED_TENPAI in flags:
+        return [Injustice(round_number, honba, "Injustice",
+                f" you were stuck at {shanten_name(shanten)} for {draws} draws before you reached tenpai")]
+    else:
+        return [Injustice(round_number, honba, "Injustice",
+                f" you were stuck at {shanten_name(shanten)} for {draws} draws, and never reached tenpai")]
 
 # Print if you started with atrocious shanten and never got to tenpai
 @injustice(require=[Flags.FIVE_SHANTEN_START],
