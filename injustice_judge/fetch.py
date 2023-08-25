@@ -76,13 +76,13 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 tile = event_data[0]
                 kyoku.hands[seat].append(tile)
                 kyoku.final_draw = tile
-                kyoku.final_draw_event_index[seat] = i
+                kyoku.final_draw_event_index[seat] = len(kyoku.events) - 1
                 assert len(kyoku.hands[seat]) == 14
             elif event_type in {"discard", "riichi"}: # discards
                 tile, *_ = event_data
                 kyoku.hands[seat].remove(tile)
                 kyoku.final_discard = tile
-                kyoku.final_discard_event_index[seat] = i
+                kyoku.final_discard_event_index[seat] = len(kyoku.events) - 1
                 visible_tiles.append(tile)
                 kyoku.pond[seat].append(tile)
                 # calculate shanten
@@ -131,7 +131,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                     kyoku.calls[seat].extend([called_tile]*3) # ignore any kan tile
                 kyoku.hands[seat].remove(called_tile)
                 kyoku.final_discard = called_tile
-                kyoku.final_discard_event_index[seat] = i
+                kyoku.final_discard_event_index[seat] = len(kyoku.events) - 1
                 assert len(kyoku.hands[seat]) == 13
                 visible_tiles.append(called_tile)
             elif event_type == "end_game":
