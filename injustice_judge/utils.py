@@ -1,5 +1,5 @@
 import functools
-from .constants import DISCORD_TILES, DISCORD_CALLED_TILES, TOGGLE_RED_FIVE, SHANTEN_NAMES, SUCC, PRED
+from .constants import DISCORD_TILES, DISCORD_CALLED_TILES, TOGGLE_RED_FIVE, SHANTEN_NAMES, SUCC, PRED, CallInfo, Dir
 from typing import *
 import os
 
@@ -38,8 +38,9 @@ def pt(tile: int) -> str:
     else:
         return pt_unicode(tile)
 
-def print_call_info(call):
+def print_call_info(call: CallInfo):
     other_tiles = sorted_hand(try_remove_all_tiles(tuple(call.tiles), (call.tile,)))
+    # TODO: handle red five
     if os.getenv("use_discord_tile_emoji") == "True":
         sideways = DISCORD_CALLED_TILES[call.tile]
     else:
@@ -49,11 +50,11 @@ def print_call_info(call):
     elif call.type == "kakan": # two consecutive sideways tiles
         sideways = sideways*2
         other_tiles = other_tiles[:-1]
-    if call.dir == 1: # shimocha
+    if call.dir == Dir.SHIMOCHA:
         return ph(other_tiles) + sideways
-    elif call.dir == 2: # toimen
+    elif call.dir == Dir.TOIMEN:
         return pt(other_tiles[0]) + sideways + ph(other_tiles[1:])
-    elif call.dir == 3: # kamicha
+    elif call.dir == Dir.KAMICHA:
         return sideways + ph(other_tiles)
     else:
         assert False, f"print_call_info got invalid call direction {call.dir} for the call {call}"

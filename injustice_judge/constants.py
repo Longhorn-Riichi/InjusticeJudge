@@ -1,17 +1,23 @@
 from dataclasses import dataclass, field
 from typing import *
+from enum import IntEnum
 
 ###
 ### types
 ###
 
 # Kyoku = Dict[str, Any]
+class Dir(IntEnum):
+    SELF = 0
+    SHIMOCHA = 1
+    TOIMEN = 2
+    KAMICHA = 3
 
 @dataclass(frozen=True)
 class CallInfo:
     type: str
     tile: int
-    dir: int
+    dir: Dir
     tiles: List[int]
 
 Event = Tuple[Any, ...]
@@ -19,8 +25,9 @@ Event = Tuple[Any, ...]
 @dataclass
 class YakuList:
     yaku_strs: List[str]
-    dora: int = 0
+    dora: int = 0 # count of all round dora and aka
     ura: int = 0
+    kita: int = 0 
     riichi: bool = False
     ippatsu: bool = False
     haitei: bool = False
@@ -61,7 +68,8 @@ class Kyoku:
     final_discard: int                            = 0
     final_draw_event_index: List[int]             = field(default_factory=list)
     final_discard_event_index: List[int]          = field(default_factory=list)
-    doras: List[int]                              = field(default_factory=list) # doras include the round doras AND the red fives; each appearance means it's +1 han
+    # doras include the round doras AND the red fives; each appearance means it's +1 han
+    doras: List[int]                              = field(default_factory=list)
     uras: List[int]                               = field(default_factory=list)
     events: List[Event]                           = field(default_factory=list)
     result: Tuple[Any, ...]                       = field(default_factory=tuple)
@@ -76,6 +84,7 @@ class Kyoku:
     haipai: List[Tuple[int, ...]]                 = field(default_factory=list)
     haipai_shanten: List[Tuple[float, List[int]]] = field(default_factory=list)
     haipai_ukeire: List[int]                      = field(default_factory=list)
+    kita_counts: List[int]                        = field(default_factory=list)
     # def __post_init__(self):
     #     pass
 
@@ -217,6 +226,7 @@ LIMIT_HANDS = {2: "満貫", 3: "満貫", 4: "満貫", 5: "満貫",
 TRANSLATE = {
     "流局": "ryuukyoku",
     "全員聴牌": "ryuukyoku",
+    "全員不聴": "ryuukyoku",
     "流し満貫": "nagashi mangan",
     "九種九牌": "9 terminals draw",
     "四家立直": "4-riichi draw",
