@@ -511,7 +511,7 @@ def someone_got_bad_wait_ippatsu_tsumo(flags: List[Flags], data: List[Dict[str, 
     wait = win_data["wait"]
     ukeire = win_data["ukeire"]
     return [Injustice(round_number, honba, "Injustice",
-            f" {relative_seat_name(player, winner)} got ippatsu tsumo with a bad wait {ph(wait)} ({ukeire} ukeire)")]
+            f" {relative_seat_name(player, winner)} got ippatsu tsumo with a bad wait {ph(wait)} ({ukeire} outs)")]
 
 # Print if you just barely failed nagashi
 @injustice(require=[Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI],
