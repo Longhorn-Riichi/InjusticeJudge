@@ -592,8 +592,8 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
     all_events: List[List[Event]] = []
     all_dora_indicators: List[List[int]] = []
     all_ura_indicators: List[List[int]] = []
-    # check to see if the haipai of the fourth player is empty; if so, it's sanma
-    num_players: int = 3 if len(raw_kyokus[0][13]) == 0 else 4
+    # check to see if the name of the fourth player is empty; Sanma if yes, Yonma if no.
+    num_players: int = 3 if metadata["name"][3] == "" else 4
     @functools.cache
     def get_call_dir(call: str):
         """
@@ -742,16 +742,18 @@ async def parse_game_link(link: str, specified_player: int = 0) -> Tuple[List[Ky
     # print(f"Analyzing game {link}:")
     if "tenhou.net/" in link:
         tenhou_log, metadata, player = fetch_tenhou(link)
+        if metadata["name"][3] == "":
+            assert (specified_player or player) < 3, "Can't specify North player in a sanma game"
         kyokus, parsed_metadata = parse_tenhou(tenhou_log, metadata)
     elif "mahjongsoul" in link or "maj-soul" or "majsoul" in link:
         # EN: `mahjongsoul.game.yo-star.com`; CN: `maj-soul.com`; JP: `mahjongsoul.com`
         # Old CN (?): http://majsoul.union-game.com/0/?paipu=190303-335e8b25-7f5c-4bd1-9ac0-249a68529e8d_a93025901
         majsoul_log, metadata, player = await fetch_majsoul(link)
+        assert (specified_player or player) < len(metadata["accounts"]), "Can't specify North player in a sanma game"
         kyokus, parsed_metadata = parse_majsoul(majsoul_log, metadata)
     else:
         raise Exception("expected tenhou link similar to `tenhou.net/0/?log=`"
                         " or mahjong soul link similar to `mahjongsoul.game.yo-star.com/?paipu=`")
-    assert (specified_player or player) < len(metadata["accounts"]), "Can't specify north player in a sanma game"
     if specified_player is not None:
         player = specified_player
     return kyokus, parsed_metadata, player
