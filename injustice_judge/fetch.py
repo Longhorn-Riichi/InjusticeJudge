@@ -126,7 +126,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                     orig_direction = kyoku.call_info[seat][pon_index].dir
                     kyoku.call_info[seat][pon_index] = CallInfo(event_type, called_tile, orig_direction, call_tiles)
                 elif event_type == "ankan":
-                    kyoku.call_info[seat].append(CallInfo(event_type, called_tile, 0, [called_tile]*4))
+                    kyoku.call_info[seat].append(CallInfo(event_type, called_tile, Dir.SELF, [called_tile]*4))
                     kyoku.calls[seat].extend([called_tile]*3) # keep only 3 tiles for shanten reasons
                 elif event_type == "kita":
                     kyoku.kita_counts[seat] += 1
@@ -206,6 +206,7 @@ def parse_result(result: List[Any], num_players: int, kita_counts: List[int]) ->
             elif name in {"haitei", "houtei"}:
                 ret.haitei = True
         if kita_count > 0 and ret.kita == 0:
+            assert dora_index is not None, f"somehow we know there's {kita_count} kita, but tenhou doesn't count it as dora or kita?"
             # must be a Tenhou sanma game hand with kita because
             # it counts kita as regular dora (not "抜きドラ")
             non_kita_dora_count = ret.dora - kita_count
@@ -610,6 +611,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             if c.isalpha():
                 call_tiles = "".join(reversed(call.split(c)))
                 return [int(call_tiles[i:i+2]) for i in range(0, len(call_tiles), 2)]
+        assert False, f"unable to extract the call tiles from call {call}"
 
     for [[round, honba, num_riichis],
          scores, dora_indicators, ura_indicators,
