@@ -536,11 +536,17 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
         elif name == "RecordBaBei": # kita
             events.append((action.seat, "kita", 44, [44], 0))
         elif name == "RecordLiuJu": # abortive draw
-            # TODO: abortive draw types
+            # TODO: `action,.type` for 三家和了
             if action.type == 1:
                 end_round(["九種九牌", [0]*num_players])
+            elif action.type == 2:
+                end_round(["四風連打", [0]*num_players])
+            elif action.type == 3:
+                end_round(["四槓散了", [0]*num_players])
+            elif action.type == 4:
+                end_round(["四家立直", [0]*num_players])
             else:
-                raise Exception(f"unhandled RecordLiuJu of type {action.type}: {action}")
+                raise Exception(f"unhandled RecordLiuJu of type {action.type}: {action}. Is this triple-ron draw?")
         else:
             raise Exception(f"unhandled action {name}: {action}")
         if hasattr(action, "seat"):
