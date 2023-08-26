@@ -120,13 +120,15 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
             elif event_type in {"ankan", "kakan", "kita"}: # special discards
                 called_tile, call_tiles, call_dir = event_data
                 # if kakan, replace the old pon call with kakan
+                # and add the pon call to the kakan tiles
                 if event_type == "kakan":
                     pon_index = next((i for i, call_info in enumerate(kyoku.call_info[seat]) if call_info.type == "pon" and call_info.tile == called_tile), None)
                     assert pon_index is not None, f"unable to find previous pon for player {seat}'s kakan {event_data}: calls were {kyoku.call_info[seat]}"
                     orig_direction = kyoku.call_info[seat][pon_index].dir
-                    kyoku.call_info[seat][pon_index] = CallInfo(event_type, called_tile, orig_direction, call_tiles)
+                    call_tiles = kyoku.call_info[seat][pon_index].tiles + call_tiles
+                    kyoku.call_info[seat][pon_index] = CallInfo("kakan", called_tile, orig_direction, call_tiles)
                 elif event_type == "ankan":
-                    kyoku.call_info[seat].append(CallInfo(event_type, called_tile, Dir.SELF, [called_tile]*4))
+                    kyoku.call_info[seat].append(CallInfo("ankan", called_tile, Dir.SELF, [called_tile]*4))
                     kyoku.calls[seat].extend([called_tile]*3) # keep only 3 tiles for shanten reasons
                 elif event_type == "kita":
                     kyoku.kita_counts[seat] += 1

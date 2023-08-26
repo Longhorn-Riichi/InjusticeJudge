@@ -2,12 +2,23 @@ import functools
 import itertools
 from .constants import PRED, SUCC, YAOCHUUHAI
 from typing import *
-from .utils import get_waits, pt, ph, remove_red_five, remove_red_fives, sorted_hand, try_remove_all_tiles
+from .utils import get_waits, pt, ph, remove_red_five, remove_red_fives, sorted_hand, try_remove_all_tiles, remove_some, remove_all, fix
 from pprint import pprint
 
 ###
 ### ukeire and shanten calculations
 ###
+
+# helpers for removing tiles from hand
+make_groups = lambda tile: ((SUCC[SUCC[tile]], SUCC[tile], tile), (tile, tile, tile))
+remove_all_groups = lambda hands: functools.reduce(lambda hs, _: remove_all(hs, make_groups), range(4), hands)
+remove_some_groups = lambda hands: functools.reduce(lambda hs, _: remove_some(hs, make_groups), range(4), hands)
+make_taatsus = lambda tile: ((SUCC[tile], tile), (SUCC[SUCC[tile]], tile))
+remove_some_taatsus = lambda hands: fix(lambda hs: remove_some(hs, make_taatsus), hands)
+remove_all_taatsus = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus), hands)
+make_pairs = lambda tile: ((tile, tile),)
+remove_some_pairs = lambda hands: fix(lambda hs: remove_some(hs, make_pairs), hands)
+remove_all_pairs = lambda hands: fix(lambda hs: remove_all(hs, make_pairs), hands)
 
 # note: ctr = Counter(remove_red_fives(starting_hand))
 # passed in so you only have to construct it once
@@ -54,29 +65,6 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     # 4. Check for iishanten/tenpai
     # 5. If iishanten or tenpai, output the waits
     # 6. Do 3-5 for chiitoitsu and kokushi
-
-    # helpers for removing tiles from hand
-    remove_some = lambda hands, tile_to_groups: {cast(Tuple[int, ...], ())} if hands == {()} else set(try_remove_all_tiles(hand, group) for hand in hands for tile in set(hand) for group in tile_to_groups(tile))
-    def remove_all(hands: Set[Tuple[int, ...]], tile_to_groups: Callable[[int], Tuple[Tuple[int, ...], ...]]):
-        # Tries to remove the maximum number of groups in tile_to_groups(tile) from the hand.
-        # Basically same as remove_some but filters the result for min length hands.
-        assert isinstance(hands, set)
-        result = remove_some(hands, tile_to_groups)
-        min_length = min(map(len, result), default=0)
-        ret = set(filter(lambda hand: len(hand) == min_length, result))
-        assert len(ret) > 0
-        # print(list(map(ph,hands)),"\n=>\n",list(map(ph,result)), "\n=>\n",list(map(ph,ret)),"\n")
-        return ret
-    make_groups = lambda tile: ((SUCC[SUCC[tile]], SUCC[tile], tile), (tile, tile, tile))
-    remove_all_groups = lambda hands: functools.reduce(lambda hs, _: remove_all(hs, make_groups), range(4), hands)
-    remove_some_groups = lambda hands: functools.reduce(lambda hs, _: remove_some(hs, make_groups), range(4), hands)
-    fix = lambda f, x: next(x for _ in itertools.cycle([None]) if x == (x := f(x)))
-    make_taatsus = lambda tile: ((SUCC[tile], tile), (SUCC[SUCC[tile]], tile))
-    remove_some_taatsus = lambda hands: fix(lambda hs: remove_some(hs, make_taatsus), hands)
-    remove_all_taatsus = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus), hands)
-    make_pairs = lambda tile: ((tile, tile),)
-    remove_some_pairs = lambda hands: fix(lambda hs: remove_some(hs, make_pairs), hands)
-    remove_all_pairs = lambda hands: fix(lambda hs: remove_all(hs, make_pairs), hands)
 
     # remove as many groups as possible
     hands = remove_all_groups({starting_hand})
@@ -217,12 +205,8 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
 
     # if tenpai, get the waits
     elif shanten == 0:
-        hand_copy = tuple(remove_red_fives(starting_hand))
-        possible_winning_tiles = {t for tile in hand_copy for t in (PRED[tile], tile, SUCC[tile])} - {0}
-        is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
-        makes_winning_hand = lambda tile: any(map(is_pair, remove_all_groups({(*hand_copy, tile)})))
-        waits |= set(filter(makes_winning_hand, possible_winning_tiles))
-        assert len(waits) > 0, f"tenpai hand {ph(sorted_hand(hand_copy))} has no waits?"
+        waits = get_tenpai_waits(starting_hand)
+        assert len(waits) > 0, f"tenpai hand {ph(sorted_hand(starting_hand))} has no waits?"
 
     # compare with chiitoitsu and kokushi shanten
     ctr = Counter(remove_red_fives(starting_hand))
@@ -247,6 +231,14 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     # remove all ankan in hand from the waits
     ankan_tiles = {k for k, v in ctr.items() if v == 4}
     return shanten, list(sorted_hand(waits - ankan_tiles))
+
+@functools.cache
+def get_tenpai_waits(hand: Tuple[int, ...]) -> Set[int]:
+    hand_copy = tuple(remove_red_fives(hand))
+    possible_winning_tiles = {t for tile in hand_copy for t in (PRED[tile], tile, SUCC[tile])} - {0}
+    is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
+    makes_winning_hand = lambda tile: any(map(is_pair, remove_all_groups({(*hand_copy, tile)})))
+    return set(filter(makes_winning_hand, possible_winning_tiles))
 
 def calculate_shanten(starting_hand: Iterable[int]) -> Tuple[float, List[int]]:
     """This just converts the input to a sorted tuple so it can be serialized as a cache key"""

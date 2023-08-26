@@ -18,6 +18,9 @@ if __name__ == "__main__":
     # from injustice_judge.yaku import test_get_yakuman_tenpais
     # test_get_yakuman_tenpais()
     
+    # from injustice_judge.yaku import test_get_stateless_yaku
+    # test_get_stateless_yaku()
+    
     # # shanten tests
     # from injustice_judge.utils import ph
     # from injustice_judge.shanten import calculate_shanten
