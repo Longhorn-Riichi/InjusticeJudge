@@ -39,16 +39,19 @@ def pt(tile: int) -> str:
         return pt_unicode(tile)
 
 def print_call_info(call: CallInfo):
+    # other_tiles is all the non-called tiles in the call
     other_tiles = sorted_hand(try_remove_all_tiles(tuple(call.tiles), (call.tile,)))
-    # TODO: handle red five
     if os.getenv("use_discord_tile_emoji") == "True":
         sideways = DISCORD_CALLED_TILES[call.tile]
     else:
         sideways = f"₍{pt(call.tile)}₎"
     if call.type == "ankan":
-        return ph((50, call.tile, call.tile, 50))
+        if any(tile in {51,52,53} for tile in call.tiles):
+            return ph((50, call.tile, TOGGLE_RED_FIVE[call.tile], 50))
+        else:
+            return ph((50, call.tile, call.tile, 50))
     elif call.type == "kakan": # two consecutive sideways tiles
-        sideways = sideways*2
+        sideways += other_tiles[-1]
         other_tiles = other_tiles[:-1]
     if call.dir == Dir.SHIMOCHA:
         return ph(other_tiles) + sideways
