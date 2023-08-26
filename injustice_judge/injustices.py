@@ -1,4 +1,4 @@
-from .constants import Kyoku, Ron, Tsumo, SHANTEN_NAMES, TRANSLATE
+from .constants import Kyoku, GameMetadata, Ron, Tsumo, SHANTEN_NAMES, TRANSLATE
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
@@ -13,14 +13,14 @@ class Injustice:
     name: str = "Injustice"
     desc: str = ""
 
-def evaluate_injustices(kyoku: Kyoku, player: int) -> List[str]:
+def evaluate_injustices(kyoku: Kyoku, metadata: GameMetadata, player: int) -> List[str]:
     """
     Run each injustice function (defined below this function) against a parsed kyoku
     Relevant injustice functions should return a list of Injustice objects each
     Returns the full formatted list of injustices (a list of strings)
     """
     global injustices
-    flags, data = determine_flags(kyoku)
+    flags, data = determine_flags(kyoku, metadata)
     all_results: List[Injustice] = []
     for i in injustices:
         if     all(flag in flags[player]     for flag in i["required_flags"]) \
@@ -297,6 +297,11 @@ def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], r
     return [Injustice(round_number, honba, "Injustice",
             f" you reached {' and '.join(yakuman_types)} tenpai, but {what_happened}")]
 
-# TODO: head bump
-# check if winning tile is in your waits and you didn't gain points
-# this means either headbump or you skipped it
+# Print if you got head bumped (or you skipped your ron)
+@injustice(require=[Flags.YOU_WAITED_ON_WINNING_TILE, Flags.GAME_ENDED_WITH_RON],
+            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_GAINED_POINTS])
+def you_got_head_bumped(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    tile = data[flags.index(Flags.YOU_WAITED_ON_WINNING_TILE)]["tile"]
+    wait = data[flags.index(Flags.YOU_WAITED_ON_WINNING_TILE)]["wait"]
+    return [Injustice(round_number, honba, "Injustice",
+            f" you were tenpai waiting on {ph(wait)} but then got head bumped")]

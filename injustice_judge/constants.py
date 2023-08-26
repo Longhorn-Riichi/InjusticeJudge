@@ -85,12 +85,15 @@ class Kyoku:
     haipai_shanten: List[Tuple[float, List[int]]] = field(default_factory=list)
     haipai_ukeire: List[int]                      = field(default_factory=list)
     kita_counts: List[int]                        = field(default_factory=list)
+    start_scores: List[int]                       = field(default_factory=list)
     # def __post_init__(self):
     #     pass
 
 @dataclass
 class GameMetadata:
     num_players: int
+    num_rounds: int
+    last_round: Tuple[int, int] # (round, honba)
     name: List[str]
     game_score: List[int]
     final_score: List[int]

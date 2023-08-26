@@ -64,7 +64,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.final_discard_event_index.append(-1)
                 kyoku.kita_counts.append(0)
             elif event_type == "start_game":
-                kyoku.round, kyoku.honba = event_data
+                kyoku.round, kyoku.honba, kyoku.start_scores = event_data
                 kyoku.num_players = metadata.num_players
                 kyoku.doras = [DORA[d] for d in dora_indicators] + [51, 52, 53] # include red fives
                 kyoku.uras = [DORA[d] for d in ura_indicators]
@@ -89,19 +89,14 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 hidden = hidden_part(kyoku.hands[seat], kyoku.calls[seat])
                 new_shanten = calculate_shanten(hidden)
                 if new_shanten != kyoku.shanten[seat]:
-                    kyoku.events.append((seat, "shanten_change", kyoku.shanten[seat], new_shanten))
-                    kyoku.shanten[seat] = new_shanten
-                    # calculate ukeire if tenpai
+                    ukeire = 0
+                    # calculate ukeire/furiten if tenpai
                     if new_shanten[0] == 0:
                         ukeire = calculate_ukeire(hidden, kyoku.calls[seat] + visible_tiles + dora_indicators[:num_doras])
-                        waits = new_shanten[1]
-                        kyoku.events.append((seat, "tenpai", sorted_hand(kyoku.hands[seat]), waits, ukeire))
-                        # check for furiten
-                        if any(w in kyoku.pond[seat] for w in waits):
-                            kyoku.events.append((seat, "furiten"))
-                            kyoku.furiten[seat] = True
-                        else:
-                            kyoku.furiten[seat] = False
+                        kyoku.furiten[seat] = any(w in kyoku.pond[seat] for w in new_shanten[1])
+                    kyoku.events.append((seat, "shanten_change", kyoku.shanten[seat], new_shanten, sorted_hand(kyoku.hands[seat]), ukeire, kyoku.furiten[seat]))
+                    kyoku.shanten[seat] = new_shanten
+                    if new_shanten[0] == 0:
                         # check for yakuman tenpai
                         yakuman_types: Set[str] = get_yakuman_tenpais(kyoku.hands[seat], kyoku.calls[seat])
                         if len(yakuman_types) > 0:
@@ -143,6 +138,12 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
             elif event_type == "end_game":
                 unparsed_result = event_data[0]
                 kyoku.result = parse_result(unparsed_result, metadata.num_players, kyoku.kita_counts)
+                # emit events for placement changes
+                to_placement = lambda scores: (ixs := sorted(range(len(scores)), key=lambda x: -scores[x]), [ixs.index(p) for p in range(len(scores))])[1]
+                placement_before = to_placement(kyoku.start_scores)
+                placement_after = to_placement([score + delta for score, delta in zip(kyoku.start_scores, kyoku.result[1].score_delta)])
+                for old, new in set(zip(placement_before, placement_after)) - {(x,x) for x in range(4)}:
+                    kyoku.events.append((placement_before.index(old), "placement_change", old+1, new+1))
                 # if tsumo or kyuushu kyuuhai, pop the final tile from the winner's hand
                 if kyoku.result[0] == "tsumo" or (kyoku.result[0] == "draw" and kyoku.result[1].name == "9 terminals draw"):
                     next(hand for hand in kyoku.hands if len(hand) == 14).pop()
@@ -442,7 +443,9 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     last_seat = 0
     all_events: List[List[Event]] = []
     events: List[Event] = []
-    num_players: int = -1 # obtained in the main loop below
+    # constants obtained in the main loop below
+    num_players: int = -1
+    last_round: Tuple[int, int] = (-1, -1)
     
     def end_round(result):
         nonlocal events
@@ -468,7 +471,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             # this is actually how Tenhou logs store the round counter
             round = action.chang*4 + action.ju
             honba = action.ben
-            events.append((t, "start_game", round, honba))
+            last_round = (round, honba)
+            events.append((t, "start_game", round, honba, list(action.scores)))
             # pretend we drew the first tile
             events.append((action.ju, "draw", first_tile))
             dora_indicators = [convert_tile(dora) for dora in action.doras]
@@ -545,6 +549,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     acc_data = sorted((acc.get("seat", 0), acc["nickname"]) for acc in metadata["accounts"])
     result_data = sorted((res.get("seat", 0), res["partPoint1"], res["totalPoint"]) for res in metadata["result"]["players"])
     parsed_metadata = GameMetadata(num_players = num_players,
+                                   num_rounds = len(all_events),
+                                   last_round = last_round,
                                    name = [acc_data[i][1] for i in range(num_players)],
                                    game_score = [result_data[i][1] for i in range(num_players)],
                                    final_score = [result_data[i][2] for i in range(num_players)],
@@ -642,7 +648,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
 
         for seat in range(num_players):
             events.append((seat, "haipai", sorted_hand(haipai[seat])))
-        events.append((seat, "start_game", round, honba))
+        events.append((seat, "start_game", round, honba, scores))
 
         # Emit events for draws and discards and calls, in order
         # stops when the current player has no more draws; remaining
@@ -733,6 +739,8 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
 
     # parse metadata
     parsed_metadata = GameMetadata(num_players = num_players,
+                                   num_rounds = len(all_events),
+                                   last_round = cast(Tuple[int, int], tuple(raw_kyokus[-1][0][:2])),
                                    name = metadata["name"],
                                    game_score = metadata["sc"][::2],
                                    final_score = list(map(lambda s: int(1000*s), metadata["sc"][1::2])),
