@@ -27,6 +27,14 @@ def evaluate_injustices(kyoku: Kyoku, metadata: GameMetadata, player: int) -> Li
            and all(flag not in flags[player] for flag in i["forbidden_flags"]):
             result = i["callback"](flags[player], data[player], kyoku.round, kyoku.honba, player)
             all_results.extend(result)
+        else:
+            pass
+            # print("player", player, "|",
+            #       round_name(kyoku.round, kyoku.honba), "|",
+            #       i["callback"].__name__, "was not called because it lacks the flag(s)",
+            #       set(i["required_flags"]) - set(flags[player]),
+            #       "and/or has the flag(s)",
+            #       set(i["forbidden_flags"]) & set(flags[player]))
 
     # `all_results` contains a list of injustices for this kyoku,
     #   but we need to group them up before we printing.
@@ -305,3 +313,24 @@ def you_got_head_bumped(flags: List[Flags], data: List[Dict[str, Any]], round_nu
     wait = data[flags.index(Flags.YOU_WAITED_ON_WINNING_TILE)]["wait"]
     return [Injustice(round_number, honba, "Injustice",
             f" you were tenpai waiting on {ph(wait)} but then got head bumped")]
+
+# Print if someone else's below-mangan win destroyed your haneman+ tenpai
+@injustice(require=[Flags.YOU_HAD_HANEMAN_TENPAI, Flags.WINNER],
+            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_GAINED_POINTS,
+                    Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.YOU_HAD_BAIMAN_TENPAI,
+                    Flags.WINNER_GOT_MANGAN])
+def your_haneman_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    limit_name = data[flags.index(Flags.YOU_HAD_HANEMAN_TENPAI)]["limit_name"]
+    hand_str = data[flags.index(Flags.YOU_HAD_HANEMAN_TENPAI)]["hand_str"]
+    score = data[flags.index(Flags.WINNER)]["score"]
+    return [Injustice(round_number, honba, "Injustice",
+            f" your {limit_name} {hand_str} lost to a paltry {score} point hand")]
+
+# Print if you failed to win with a baiman tenpai
+@injustice(require=[Flags.YOU_HAD_BAIMAN_TENPAI],
+            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_GAINED_POINTS])
+def your_baiman_tenpai_failed(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    limit_name = data[flags.index(Flags.YOU_HAD_BAIMAN_TENPAI)]["limit_name"]
+    hand_str = data[flags.index(Flags.YOU_HAD_BAIMAN_TENPAI)]["hand_str"]
+    return [Injustice(round_number, honba, "Injustice",
+            f" your were {limit_name} tenpai with {hand_str} and did not win")]

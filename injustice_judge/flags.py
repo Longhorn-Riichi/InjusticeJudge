@@ -1,8 +1,9 @@
-from .constants import GameMetadata, Kyoku, Ron, Tsumo, SHANTEN_NAMES, TRANSLATE
+from .constants import GameMetadata, Kyoku, Ron, Tsumo, LIMIT_HANDS, SHANTEN_NAMES, TRANSLATE
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
-from .utils import ph, pt, hidden_part, relative_seat_name, remove_red_five, round_name, shanten_name, sorted_hand, try_remove_all_tiles
+from .utils import ph, pt, hidden_part, print_full_hand_seat, relative_seat_name, remove_red_five, round_name, shanten_name, sorted_hand, try_remove_all_tiles
+from .yaku import get_seat_yaku, get_takame_han
 from pprint import pprint
 
 ###
@@ -32,7 +33,6 @@ Flags = Enum("Flags", "_SENTINEL"
     " WINNER_GOT_URA_3"
     " WINNER_GOT_HAITEI"
     " WINNER_HAD_BAD_WAIT"
-    " WINNER_HAD_HELL_WAIT"
     " WINNER_IPPATSU_TSUMO"
     " WINNER_WAS_FURITEN"
     " YOU_ARE_DEALER"
@@ -47,6 +47,8 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_FOLDED_FROM_TENPAI"
     " YOU_GAINED_POINTS"
     " YOU_GOT_CHASED"
+    " YOU_HAD_BAIMAN_TENPAI"
+    " YOU_HAD_HANEMAN_TENPAI"
     " YOU_LOST_POINTS"
     " YOU_REACHED_TENPAI"
     " YOU_REACHED_YAKUMAN_TENPAI"
@@ -233,6 +235,17 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
                     ix = flags[seat].index(Flags.YOU_FOLDED_FROM_TENPAI)
                     del flags[seat][ix]
                     del data[seat][ix]
+                # check if we are haneman tenpai
+                yaku_values = get_seat_yaku(kyoku, seat)
+                takame_tiles, han = get_takame_han(yaku_values)
+                # TODO make this for mangan, but this requires calculating fu
+                # best_draws, fu = get_max_potential_fu(kyoku.hands[seat], kyoku.call_data[seat], takame_tiles, False)
+                if han >= 6:
+                    add_flag(seat, Flags.YOU_HAD_HANEMAN_TENPAI if han < 8 else Flags.YOU_HAD_BAIMAN_TENPAI,
+                                   {"hand_str": print_full_hand_seat(kyoku, seat),
+                                    "takame": takame_tiles,
+                                    "limit_name": TRANSLATE[LIMIT_HANDS[han]],
+                                    "han": han})
         elif event_type == "dora_indicator":
             dora_indicator, kan_tile = event_data
             # check if the dora indicator is the kan tile
@@ -297,12 +310,14 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
             for flag in limit_hand_flags:
                 add_global_flag(flag, {"seat": result.winner,
                                        "wait": kyoku.final_waits[result.winner],
-                                       "ukeire": kyoku.final_ukeire[result.winner]})
+                                       "ukeire": kyoku.final_ukeire[result.winner],
+                                       "score": result.score})
             if kyoku.final_ukeire[result.winner] <= 4:
                 add_global_flag(Flags.WINNER_HAD_BAD_WAIT,
                                 {"seat": result.winner,
                                  "wait": kyoku.final_waits[result.winner],
-                                 "ukeire": kyoku.final_ukeire[result.winner]})
+                                 "ukeire": kyoku.final_ukeire[result.winner],
+                                 "score": result.score})
             # check for 3+ han from hidden dora
             if result.yaku.dora >= 3:
                 final_tile = kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw

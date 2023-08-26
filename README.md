@@ -6,12 +6,17 @@ Analyzes your tenhou.net game to find instances of mahjong injustice. Currently,
 - You experience iishanten hell (9+ draws)
 - You start with 5+ shanten
 - You lost points to someone's first-row ron or tsumo
+- As dealer you lost points to a baiman+ tsumo
 - Someone else had a bad wait ippatsu tsumo
 - You just barely fail nagashi (due to the draw or a call)
 - You deal into someone with your riichi tile (or tile that got you into tenpai)
 - You draw a tile that would have completed a past tenpai wait
 - You dealt in with what would have been the final discard of the round, while tenpai
 - You dealt into any of: dama, ippatsu, houtei, double/triple ron, ura 3, or closed dora 3
+- Your iishanten haipai got reset due to an abortive draw
+- You reached yakuman tenpai and did not win
+- You got head bumped
+- You were haneman+ tenpai but someone else won with a below-mangan hand
 
 __Note__: This program was explicitly written to
 
