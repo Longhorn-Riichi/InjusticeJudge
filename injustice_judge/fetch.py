@@ -715,14 +715,14 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             # pon / kan handling
             # we have to look at the next draw of every player before changing curr_seat
             # if any of them pons or kans the previously discarded tile, control goes to them
+            # NOTE: in tenhou format, if there's both a chii and a pon waiting for us,
+            #       pon always takes precedence over the chii
             for seat in range(num_players):
                 # check if a next draw exists for a player other than curr_seat
                 if curr_seat != seat and i[seat] < len(draws[seat]):
-                    # check that the next draw is a call
-                    if type(next_draw := draws[seat][i[seat]]) is str:
+                    # check that the next draw is a pon or daiminkan
+                    if type(next_draw := draws[seat][i[seat]]) is str and ("p" in next_draw or "m" in next_draw):
                         # check that it's calling from us, and that it's the same tile we discarded
-                        # TODO: if there is a pon and a chii waiting for us,
-                        # the first player in `range(num_players)` takes precedence 
                         same_dir = get_call_dir(next_draw) == Dir((curr_seat - seat) % 4)
                         same_tile = extract_call_tiles(next_draw)[0] == discard
                         if same_dir and same_tile:
