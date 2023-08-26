@@ -8,6 +8,7 @@ from typing import *
 from .constants import CallInfo, Draw, Event, Kyoku, Ron, Tsumo, YakuList, GameMetadata, Dir, DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
 from .utils import hidden_part, round_name, sorted_hand
 from .shanten import calculate_shanten, calculate_ukeire
+from .yaku import get_yakuman_tenpais
 from pprint import pprint
 
 def save_cache(filename: str, data: bytes) -> None:
@@ -101,6 +102,10 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                             kyoku.furiten[seat] = True
                         else:
                             kyoku.furiten[seat] = False
+                        # check for yakuman tenpai
+                        yakuman_types: Set[str] = get_yakuman_tenpais(kyoku.hands[seat], kyoku.calls[seat])
+                        if len(yakuman_types) > 0:
+                            kyoku.events.append((seat, "yakuman_tenpai", yakuman_types))
                 # check for nagashi
                 if nagashi_eligible[seat] and tile not in YAOCHUUHAI:
                     kyoku.events.append((seat, "end_nagashi", seat, "discard", tile))

@@ -15,6 +15,9 @@ if __name__ == "__main__":
     assert player in {0,1,2,3,None}, "expected second argument to be 0,1,2,3"
     print("\n".join(asyncio.run(analyze_game(link, player))))
 
+    # from injustice_judge.yaku import test_get_yakuman_tenpais
+    # test_get_yakuman_tenpais()
+    
     # # shanten tests
     # from injustice_judge.utils import ph
     # from injustice_judge.shanten import calculate_shanten

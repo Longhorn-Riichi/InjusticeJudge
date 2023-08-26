@@ -14,6 +14,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " FIVE_SHANTEN_START"
     " GAME_ENDED_WITH_RON"
     " GAME_ENDED_WITH_RYUUKYOKU"
+    " GAME_ENDED_WITH_ABORTIVE_DRAW"
     " YOUR_LAST_DISCARD_ENDED_NAGASHI"
     " LOST_POINTS_TO_FIRST_ROW_WIN"
     " NINE_DRAWS_NO_IMPROVEMENT"
@@ -33,6 +34,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " WINNER_IPPATSU_TSUMO"
     " WINNER_WAS_FURITEN"
     " YOU_ARE_DEALER"
+    " YOU_DEALT_IN"
     " YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT"
     " YOU_DEALT_INTO_DAMA"
     " YOU_DEALT_INTO_DOUBLE_RON"
@@ -44,10 +46,12 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_GOT_CHASED"
     " YOU_LOST_POINTS"
     " YOU_REACHED_TENPAI"
+    " YOU_REACHED_YAKUMAN_TENPAI"
+    " YOU_RONNED_SOMEONE"
     " YOU_TENPAI_FIRST"
+    " YOU_TSUMOED"
     " YOUR_LAST_NAGASHI_TILE_CALLED"
     " YOUR_TENPAI_TILE_DEALT_IN"
-
 
     # unused:
     " CHASER_LOST_POINTS"
@@ -92,11 +96,15 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
 
     # add the flag that's the end of the game
     if kyoku.result[0] == "ron":
-        add_global_flag(Flags.GAME_ENDED_WITH_RON)
+        add_global_flag(Flags.GAME_ENDED_WITH_RON, {"objects": kyoku.result[1:]})
     elif kyoku.result[0] == "tsumo":
-        add_global_flag(Flags.GAME_ENDED_WITH_TSUMO)
+        add_global_flag(Flags.GAME_ENDED_WITH_TSUMO, {"object": kyoku.result[1]})
     elif kyoku.result[0] == "ryuukyoku":
-        add_global_flag(Flags.GAME_ENDED_WITH_RYUUKYOKU) # TODO abortive draws
+        add_global_flag(Flags.GAME_ENDED_WITH_RYUUKYOKU, {"object": kyoku.result[1]})
+    elif kyoku.result[0] == "draw":
+        add_global_flag(Flags.GAME_ENDED_WITH_ABORTIVE_DRAW, {"object": kyoku.result[1]})
+    else:
+        assert False, f"unknown result type \"{kyoku.result[0]}\""
 
     # Next, go through kyoku.events. This determines flags related to:
     # - starting shanten
@@ -213,6 +221,9 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
             # check if the dora indicator is the kan tile
             if dora_indicator == kan_tile:
                 add_flag(seat, Flags.YOU_FLIPPED_DORA_BOMB)
+        elif event_type == "yakuman_tenpai":
+            yakuman_types = event_data[0]
+            add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": yakuman_types})
 
 
     # Finally, look at kyoku.result. This determines flags related to:
@@ -288,6 +299,8 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
                 add_global_flag(Flags.WINNER_GOT_HAITEI, {"seat": result.winner, "yaku": haitei_type})
 
     # here we add all flags that have to do with deal-ins:
+    # - YOU_RONNED_SOMEONE
+    # - YOU_DEALT_IN
     # - YOU_DEALT_INTO_DAMA
     # - YOU_DEALT_INTO_IPPATSU
     # - YOU_DEALT_INTO_DOUBLE_RON
@@ -299,6 +312,8 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
             assert isinstance(ron, Ron), f"result tagged ron got non-Ron object: {ron}"
             # check deal-ins
             assert len(kyoku.final_waits[ron.winner]) > 0, f"in {round_name(kyoku.round, kyoku.honba)}, seat {ron.winner} won with hand {ph(sorted_hand(kyoku.hands[ron.winner]))}, but has no waits saved in kyoku.final_waits"
+            add_flag(ron.winner, Flags.YOU_RONNED_SOMEONE, {"from": ron.won_from})
+            add_flag(ron.won_from, Flags.YOU_DEALT_IN, {"to": ron.winner})
             for seat in range(num_players):
                 if ron.score_delta[seat] < 0:
                     if not opened_hand[ron.winner] and not in_riichi[ron.winner]:
@@ -312,10 +327,12 @@ def determine_flags(kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]
             add_flag(ron.won_from, Flags.CHASER_GAINED_POINTS, {"seat": ron.winner, "amount": ron.score})
 
     # here we add all flags that have to do with self-draw luck:
+    # - YOU_TSUMOED
     # - WINNER_WAS_FURITEN
     # - WINNER_IPPATSU_TSUMO
     elif result_type == "tsumo":
         tsumo = results[0]
+        add_flag(tsumo.winner, Flags.YOU_TSUMOED)
         assert isinstance(tsumo, Tsumo), f"result tagged tsumo got non-Tsumo object: {tsumo}"
         # check furiten
         if kyoku.furiten[tsumo.winner]:
@@ -504,7 +521,7 @@ def dealt_into_ippatsu(flags: List[Flags], data: List[Dict[str, Any]], round_num
 
 # Print if someone else won with bad wait ippatsu tsumo
 @injustice(require=[Flags.WINNER_HAD_BAD_WAIT, Flags.WINNER_IPPATSU_TSUMO],
-           forbid=[Flags.YOU_GAINED_POINTS])
+            forbid=[Flags.YOU_GAINED_POINTS])
 def someone_got_bad_wait_ippatsu_tsumo(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     win_data = data[flags.index(Flags.WINNER_HAD_BAD_WAIT)]
     winner = win_data["seat"]
@@ -515,7 +532,7 @@ def someone_got_bad_wait_ippatsu_tsumo(flags: List[Flags], data: List[Dict[str, 
 
 # Print if you just barely failed nagashi
 @injustice(require=[Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI],
-           forbid=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
+            forbid=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
 def lost_nagashi_to_draw(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     tile = data[flags.index(Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI)]["tile"]
     return [Injustice(round_number, honba, "Injustice",
@@ -622,6 +639,27 @@ def iishanten_haipai_aborted(flags: List[Flags], data: List[Dict[str, Any]], rou
     hand = data[flags.index(Flags.IISHANTEN_HAIPAI_ABORTED)]["hand"]
     return [Injustice(round_number, honba, "Injustice",
             f" a {draw_name} happened when your hand looked like {ph(hand)} ({shanten_name(shanten)})")]
+
+# Print if you reached yakuman tenpai but did not win
+@injustice(require=[Flags.YOU_REACHED_YAKUMAN_TENPAI],
+            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_RONNED_SOMEONE, Flags.YOU_TSUMOED, ])
+def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    yakuman_types = data[flags.index(Flags.YOU_REACHED_YAKUMAN_TENPAI)]["types"]
+    what_happened = "you didn't win"
+    if Flags.GAME_ENDED_WITH_RON in flags:
+        rons = data[flags.index(Flags.GAME_ENDED_WITH_RON)]["objects"]
+        score = sum(ron.score for ron in rons)
+        if Flags.YOU_DEALT_IN in flags:
+            what_happened = f"then you dealt in for {score}"
+        else:
+            what_happened = f"then someone dealt into someone else for {score}"
+    elif Flags.GAME_ENDED_WITH_TSUMO in flags:
+        what_happened = "then someone just had to tsumo"
+    elif Flags.GAME_ENDED_WITH_ABORTIVE_DRAW in flags:
+        draw_name = data[flags.index(Flags.GAME_ENDED_WITH_ABORTIVE_DRAW)]["object"].name
+        what_happened = f"then someone ended the game with {draw_name}"
+    return [Injustice(round_number, honba, "Injustice",
+            f" you reached {' and '.join(yakuman_types)} tenpai, but {what_happened}")]
 
 # TODO: head bump
 # check if winning tile is in your waits and you didn't gain points
