@@ -697,6 +697,11 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             if type(draw) is str:
                 # extract the called tile from the string
                 draw = handle_call(draw)
+            elif draw == 0:
+                # skip this draw/discard
+                assert discards[curr_seat][i[curr_seat]] == 0
+                i[curr_seat] += 1
+                continue
             else:
                 events.append((curr_seat, "draw", draw))
 
