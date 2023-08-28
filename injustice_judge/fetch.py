@@ -5,9 +5,10 @@ from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
-from .constants import CallInfo, Draw, Event, Kyoku, Ron, Tsumo, YakuList, GameMetadata, Dir, DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
-from .utils import ph, pt, hidden_part, round_name, sorted_hand
-from .shanten import calculate_shanten, calculate_ukeire
+from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Tsumo, YakuList, GameMetadata, Dir
+from .constants import DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
+from .utils import ph, pt, round_name, sorted_hand
+from .shanten import calculate_shanten
 from .yaku import get_yakuman_tenpais, get_seat_yaku, get_takame, debug_yaku
 from pprint import pprint
 
@@ -50,16 +51,14 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
         for i, (seat, event_type, *event_data) in enumerate(events):
             kyoku.events.append(events[i]) # copy every event we process
             # if len(kyoku.hands) == metadata.num_players:
-            #     print(seat, event_type, ph(kyoku.hands[seat]), "|", ph(kyoku.calls[seat]), event_data)
+            #     print(seat, event_type, ph(kyoku.hands[seat].closed_part), "|", ph(kyoku.hands[seat].open_part), event_data)
             if event_type == "haipai":
-                hand = event_data[0]
-                assert len(hand) == 13, f"haipai was length {len(hand)}, expected 13"
-                kyoku.hands.append(list(hand))
-                kyoku.calls.append([])
-                kyoku.call_info.append([])
+                hand = Hand(event_data[0])
+                assert len(hand.tiles) == 13, f"haipai was length {len(hand.tiles)}, expected 13"
+                kyoku.hands.append(hand)
                 kyoku.pond.append([])
                 kyoku.furiten.append(False)
-                kyoku.haipai.append(sorted_hand(hand))
+                kyoku.haipai.append(hand)
                 kyoku.final_draw_event_index.append(-1)
                 kyoku.final_discard_event_index.append(-1)
                 kyoku.kita_counts.append(0)
@@ -68,37 +67,32 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.num_players = metadata.num_players
                 kyoku.doras = [DORA[d] for d in dora_indicators] + ([51, 52, 53] if metadata.use_red_fives else [])
                 kyoku.uras = [DORA[d] for d in ura_indicators]
-                kyoku.shanten = [calculate_shanten(h) for h in kyoku.hands]
-                kyoku.haipai_shanten = list(kyoku.shanten)
-                kyoku.haipai_ukeire = [calculate_ukeire(tuple(hand), dora_indicators[:num_doras]) for hand in kyoku.hands]
-                kyoku.events.extend((t, "haipai_shanten", s) for t, s in enumerate(kyoku.shanten))
+                kyoku.haipai_ukeire = [hand.ukeire(dora_indicators[:num_doras]) for hand in kyoku.hands]
+                kyoku.events.extend((seat, "haipai_shanten", hand.shanten) for seat, hand in enumerate(kyoku.hands))
             elif event_type == "draw":
                 tile = event_data[0]
-                kyoku.hands[seat].append(tile)
+                kyoku.hands[seat] = kyoku.hands[seat].add(tile)
                 kyoku.final_draw = tile
                 kyoku.final_draw_event_index[seat] = len(kyoku.events) - 1
-                assert len(kyoku.hands[seat]) == 14
+                assert len(kyoku.hands[seat].tiles) == 14
             elif event_type in {"discard", "riichi"}: # discards
                 tile, *_ = event_data
-                kyoku.hands[seat].remove(tile)
+                old_shanten = kyoku.hands[seat].shanten
+                kyoku.hands[seat] = kyoku.hands[seat].remove(tile)
                 kyoku.final_discard = tile
                 kyoku.final_discard_event_index[seat] = len(kyoku.events) - 1
                 visible_tiles.append(tile)
                 kyoku.pond[seat].append(tile)
-                # calculate shanten
-                hidden = hidden_part(kyoku.hands[seat], kyoku.calls[seat])
-                new_shanten = calculate_shanten(hidden)
-                if new_shanten != kyoku.shanten[seat]:
-                    ukeire = 0
-                    # calculate ukeire/furiten if tenpai
-                    if new_shanten[0] == 0:
-                        ukeire = calculate_ukeire(hidden, kyoku.calls[seat] + visible_tiles + dora_indicators[:num_doras])
-                        kyoku.furiten[seat] = any(w in kyoku.pond[seat] for w in new_shanten[1])
-                    kyoku.events.append((seat, "shanten_change", kyoku.shanten[seat], new_shanten, sorted_hand(kyoku.hands[seat]), ukeire, kyoku.furiten[seat]))
-                    kyoku.shanten[seat] = new_shanten
+                # check if shanten changed
+                new_shanten = kyoku.hands[seat].shanten
+                if old_shanten != new_shanten:
+                    # calculate ukeire/furiten (if not tenpai, gives 0/False)
+                    ukeire = kyoku.hands[seat].ukeire(visible_tiles + dora_indicators[:num_doras])
+                    kyoku.furiten[seat] = new_shanten[0] == 0 and any(w in kyoku.pond[seat] for w in new_shanten[1])
+                    kyoku.events.append((seat, "shanten_change", old_shanten, new_shanten, kyoku.hands[seat], ukeire, kyoku.furiten[seat]))
                     if new_shanten[0] == 0:
                         # check for yakuman tenpai
-                        yakuman_types: Set[str] = get_yakuman_tenpais(kyoku.hands[seat], kyoku.calls[seat])
+                        yakuman_types: Set[str] = get_yakuman_tenpais(kyoku.hands[seat])
                         if len(yakuman_types) > 0:
                             kyoku.events.append((seat, "yakuman_tenpai", yakuman_types))
                 # check for nagashi
@@ -108,10 +102,9 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
             elif event_type in {"chii", "pon", "minkan"}: # calls
                 called_tile, call_tiles, call_dir = event_data
                 if event_type != "minkan":
-                    kyoku.hands[seat].append(called_tile)
-                    assert len(kyoku.hands[seat]) == 14
-                kyoku.calls[seat].extend(call_tiles[:3]) # keep only 3 tiles for shanten reasons
-                kyoku.call_info[seat].append(CallInfo(event_type, called_tile, call_dir, call_tiles))
+                    kyoku.hands[seat] = kyoku.hands[seat].add(called_tile)
+                    assert len(kyoku.hands[seat].tiles) == 14
+                kyoku.hands[seat] = kyoku.hands[seat].add_call(CallInfo(event_type, called_tile, call_dir, call_tiles))
                 # check for nagashi
                 callee_seat = (seat + call_dir) % 4
                 if nagashi_eligible[callee_seat]:
@@ -122,19 +115,15 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 # if kakan, replace the old pon call with kakan
                 # and add the pon call to the kakan tiles
                 if event_type == "kakan":
-                    pon_index = next((i for i, call_info in enumerate(kyoku.call_info[seat]) if call_info.type == "pon" and call_info.tile == called_tile), None)
-                    assert pon_index is not None, f"unable to find previous pon for player {seat}'s kakan {event_data}: calls were {kyoku.call_info[seat]}"
-                    orig_direction = kyoku.call_info[seat][pon_index].dir
-                    kyoku.call_info[seat][pon_index] = CallInfo("kakan", called_tile, orig_direction, call_tiles)
+                    kyoku.hands[seat] = kyoku.hands[seat].kakan(called_tile)
                 elif event_type == "ankan":
-                    kyoku.call_info[seat].append(CallInfo("ankan", called_tile, Dir.SELF, [called_tile]*4))
-                    kyoku.calls[seat].extend([called_tile]*3) # keep only 3 tiles for shanten reasons
+                    kyoku.hands[seat] = kyoku.hands[seat].add_call(CallInfo("ankan", called_tile, Dir.SELF, [called_tile]*4))
                 elif event_type == "kita":
                     kyoku.kita_counts[seat] += 1
-                kyoku.hands[seat].remove(called_tile)
+                kyoku.hands[seat] = kyoku.hands[seat].remove(called_tile)
                 kyoku.final_discard = called_tile
                 kyoku.final_discard_event_index[seat] = len(kyoku.events) - 1
-                assert len(kyoku.hands[seat]) == 13
+                assert len(kyoku.hands[seat].tiles) == 13
                 visible_tiles.append(called_tile)
             elif event_type == "end_game":
                 unparsed_result = event_data[0]
@@ -147,16 +136,16 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                     kyoku.events.append((placement_before.index(old), "placement_change", old+1, new+1))
                 # if tsumo or kyuushu kyuuhai, pop the final tile from the winner's hand
                 if kyoku.result[0] == "tsumo" or (kyoku.result[0] == "draw" and kyoku.result[1].name == "9 terminals draw"):
-                    next(hand for hand in kyoku.hands if len(hand) == 14).pop()
+                    for seat in range(kyoku.num_players):
+                        if len(kyoku.hands[seat].tiles) == 14:
+                            kyoku.hands[seat] = kyoku.hands[seat].remove(kyoku.final_draw)
+                            break
                 else: # otherwise we pop the deal-in tile from the visible tiles (so ukeire calculation won't count it)
                     assert kyoku.final_discard == visible_tiles.pop(), f"final discard of round {round_name(kyoku.round, kyoku.honba)} was not equal to the last visible tile"
                 # save final waits and ukeire
                 for seat in range(kyoku.num_players):
-                    ukeire = 0
-                    if kyoku.shanten[seat][0] <= 1:
-                        hidden = hidden_part(kyoku.hands[seat][:13], kyoku.calls[seat])
-                        ukeire = calculate_ukeire(hidden, kyoku.calls[seat] + visible_tiles + dora_indicators[:num_doras])
-                    kyoku.final_waits.append(kyoku.shanten[seat][1])
+                    ukeire = kyoku.hands[seat].ukeire(visible_tiles + dora_indicators[:num_doras])
+                    kyoku.final_waits.append(kyoku.hands[seat].shanten[1])
                     kyoku.final_ukeire.append(ukeire)
             # emit dora event, and increment doras for kans
             if event_type in {"minkan", "ankan", "kakan"}:
@@ -172,9 +161,9 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
         else:
             assert (kyoku.round, kyoku.honba) != (kyokus[-1].round, kyokus[-1].honba), f"duplicate kyoku entered: {round_name(kyoku.round, kyoku.honba)}"
         for i in range(metadata.num_players):
-            assert len(kyoku.hands[i]) == 13, f"on {round_name(kyoku.round, kyoku.honba)}, player {i}'s hand was length {len(kyoku.hands[i])} when the round ended, should be 13"
-            assert (len(kyoku.calls[i]) % 3) == 0, f"on {round_name(kyoku.round, kyoku.honba)}, player {i}'s calls was length {len(kyoku.calls[i])} when the round ended, should be divisible by 3"
+            assert len(kyoku.hands[i].tiles) == 13, f"on {round_name(kyoku.round, kyoku.honba)}, player {i}'s hand was length {len(kyoku.hands[i].tiles)} when the round ended, should be 13"
         kyokus.append(kyoku)
+        # debug_yaku(kyoku)
     return kyokus
 
 def parse_result(result: List[Any], num_players: int, kita_counts: List[int]) -> Tuple[Any, ...]:

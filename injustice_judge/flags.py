@@ -1,8 +1,9 @@
-from .constants import GameMetadata, Kyoku, Ron, Tsumo, LIMIT_HANDS, SHANTEN_NAMES, TRANSLATE, YAOCHUUHAI
+from .classes import GameMetadata, Hand, Kyoku, Ron, Tsumo
+from .constants import LIMIT_HANDS, SHANTEN_NAMES, TRANSLATE, YAOCHUUHAI
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
-from .utils import ph, pt, hidden_part, print_full_hand_seat, relative_seat_name, remove_red_five, round_name, shanten_name, sorted_hand, try_remove_all_tiles
+from .utils import ph, pt, relative_seat_name, remove_red_five, round_name, shanten_name, sorted_hand, try_remove_all_tiles
 from .yaku import get_seat_yaku, get_takame
 from pprint import pprint
 
@@ -180,8 +181,9 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
                 add_flag(seat, Flags.FIVE_SHANTEN_START, {"shanten": shanten[seat]})
         elif event_type == "shanten_change":
             prev_shanten, new_shanten, hand, ukeire, furiten = event_data
+            assert type(hand) == Hand, "TODO"
             assert shanten[seat][0] != 99, f"missing haipai_shanten event before a shanten_change event"
-            assert prev_shanten == shanten[seat], f"somehow shanten for seat {seat} changed from {shanten[seat]} to {prev_shanten} outside a shanten_change event"
+            assert new_shanten[0] >= 0, f"somehow shanten for seat {seat} was {new_shanten[0]}"
             shanten[seat] = new_shanten
             draws_since_shanten_change[seat] = 0
             # record past waits if we've changed from tenpai
@@ -243,13 +245,14 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
                 # if no calls, use tsumo score. else, get ron score
                 # note, this only checks calls present at the end of the game
                 # but it is not too important which score we use
-                takame_tiles, han, fu, yaku = get_takame(get_seat_yaku(kyoku, seat), tsumo=(len(kyoku.call_info[seat]) == 0))
+                takame_tiles, han, fu, yaku = get_takame(get_seat_yaku(kyoku, seat), tsumo=(len(kyoku.hands[seat].calls) == 0))
                 assert len(takame_tiles) >= 0, "somehow takame_tiles was empty for a tenpai hand"
                 # check if we are mangan+ tenpai
                 if han >= 5 or (han,fu) >= (4,40) or (han,fu) >= (3,70):
                     most_yaku_names_tile = max(takame_tiles, key=lambda t: len(yaku[t]))
+                    hand_str = hand.final_hand(ukeire=ukeire, final_tile=None, furiten=furiten)
                     add_flag(seat, Flags.YOU_HAD_LIMIT_TENPAI,
-                                   {"hand_str": print_full_hand_seat(kyoku, seat),
+                                   {"hand_str": hand_str,
                                     "takame": takame_tiles,
                                     "limit_name": TRANSLATE[LIMIT_HANDS[han]],
                                     "yaku_str": ", ".join(name for name, value in yaku[most_yaku_names_tile]),
@@ -304,10 +307,10 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
                         add_flag(seat, Flags.LOST_POINTS_TO_FIRST_ROW_WIN, {"seat": result.winner, "turn": num_winner_discards})
                 # if tenpai, check if the winning tile is in our waits
                 # this is useful to find missed/skipped wins, or head bumps
-                if kyoku.shanten[seat][0] == 0:
+                if kyoku.hands[seat].shanten[0] == 0:
                     winning_tile = kyoku.final_discard if result_type == "ron" else kyoku.final_draw
-                    if remove_red_five(winning_tile) in kyoku.shanten[seat][1]:
-                        add_flag(seat, Flags.YOU_WAITED_ON_WINNING_TILE, {"tile": winning_tile, "wait": kyoku.shanten[seat][1]})
+                    if remove_red_five(winning_tile) in kyoku.hands[seat].shanten[1]:
+                        add_flag(seat, Flags.YOU_WAITED_ON_WINNING_TILE, {"tile": winning_tile, "wait": kyoku.hands[seat].shanten[1]})
             # Add potentially several WINNER flags depending on the limit hand
             # e.g. haneman wins will get WINNER_GOT_HANEMAN plus all the flags before that
             assert len(kyoku.final_waits) > 0, "forgot to set kyoku.final_waits after processing event list"
@@ -331,7 +334,7 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
             # check for 3+ han from hidden dora
             if result.yaku.dora >= 3:
                 final_tile = kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw
-                hidden_hand = hidden_part(kyoku.hands[result.winner] + [final_tile], kyoku.calls[result.winner])
+                hidden_hand = (*kyoku.hands[result.winner].hidden_part, final_tile)
                 hidden_dora_han = sum(hidden_hand.count(dora) for dora in kyoku.doras)
                 if hidden_dora_han >= 3:
                     add_global_flag(Flags.WINNER_GOT_HIDDEN_DORA_3, {"seat": result.winner, "value": hidden_dora_han})
@@ -408,10 +411,10 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
         elif name in {"9 terminals draw", "4-wind draw"}:
             # check if anyone started with a really good hand
             for seat in range(num_players):
-                if kyoku.shanten[seat][0] <= 1:
+                if kyoku.hands[seat].shanten[0] <= 1:
                     add_flag(seat, Flags.IISHANTEN_HAIPAI_ABORTED,
                              {"draw_name": name,
-                              "shanten": kyoku.haipai_shanten[seat],
+                              "shanten": kyoku.haipai[seat].shanten,
                               "hand": kyoku.hands[seat]})
 
     assert len(global_flags) == len(global_data), f"somehow got a different amount of global flags ({len(global_flags)}) than data ({len(global_data)})"

@@ -1,9 +1,10 @@
-from .constants import Kyoku, GameMetadata, Ron, Tsumo, SHANTEN_NAMES, TRANSLATE
+from .classes import Kyoku, GameMetadata, Ron, Tsumo
+from .constants import SHANTEN_NAMES, TRANSLATE
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
 from .flags import Flags, determine_flags
-from .utils import ph, pt, hidden_part, relative_seat_name, round_name, shanten_name, sorted_hand, try_remove_all_tiles
+from .utils import ph, pt, relative_seat_name, round_name, shanten_name, sorted_hand, try_remove_all_tiles
 from pprint import pprint
 
 # used for joining two injustices
@@ -423,14 +424,18 @@ def you_got_head_bumped(flags: List[Flags], data: List[Dict[str, Any]], round_nu
             forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_GAINED_POINTS,
                     Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.WINNER_GOT_MANGAN])
 def your_mangan_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    hand_str = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["hand_str"]
-    yaku_str = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["yaku_str"]
-    limit_name = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["limit_name"]
+    hand_str = data[len(data) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["hand_str"]
+    yaku_str = data[len(data) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["yaku_str"]
+    limit_name = data[len(data) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["limit_name"]
     han = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["han"]
     score = data[flags.index(Flags.WINNER)]["score"]
 
-    return [Injustice(round_number, honba, "Injustice",
-            InjusticeClause(subject="your hand",
-                            subject_description=hand_str,
-                            content=f"could have had {limit_name} ({yaku_str}) but someone just had to score a {score} point hand",
-                            last_subject="someone"))]
+    # it's injustice if haneman+ OR if your mangan lost to something below 3900
+    if han > 5 or score < 3900:
+        return [Injustice(round_number, honba, "Injustice",
+                InjusticeClause(subject="your hand",
+                                subject_description=hand_str,
+                                content=f"could have had {limit_name} ({yaku_str}) but someone just had to score a {score} point hand",
+                                last_subject="someone"))]
+    else:
+        return []

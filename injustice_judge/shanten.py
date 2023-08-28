@@ -2,7 +2,7 @@ import functools
 import itertools
 from .constants import PRED, SUCC, YAOCHUUHAI
 from typing import *
-from .utils import get_waits, pt, ph, remove_red_five, remove_red_fives, sorted_hand, try_remove_all_tiles, remove_some, remove_all, fix
+from .utils import pt, ph, remove_red_five, remove_red_fives, sorted_hand, try_remove_all_tiles, remove_some, remove_all, fix
 from pprint import pprint
 
 ###
@@ -19,6 +19,14 @@ remove_all_taatsus = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus), 
 make_pairs = lambda tile: ((tile, tile),)
 remove_some_pairs = lambda hands: fix(lambda hs: remove_some(hs, make_pairs), hands)
 remove_all_pairs = lambda hands: fix(lambda hs: remove_all(hs, make_pairs), hands)
+
+def get_waits(hand: Tuple[int, ...]) -> Set[int]:
+    """Get all waits resulting from each pair of consecutive tiles, excluding pair waits"""
+    hand = sorted_hand(hand)
+    def get_taatsu_wait(taatsu: Tuple[int, int]) -> Set[int]:
+        t1, t2 = remove_red_fives(taatsu)
+        return {PRED[t1], SUCC[t2]} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
+    return set().union(*map(get_taatsu_wait, zip(hand[:-1], hand[1:]))) - {0}
 
 # note: ctr = Counter(remove_red_fives(starting_hand))
 # passed in so you only have to construct it once
@@ -243,15 +251,3 @@ def get_tenpai_waits(hand: Tuple[int, ...]) -> Set[int]:
 def calculate_shanten(starting_hand: Iterable[int]) -> Tuple[float, List[int]]:
     """This just converts the input to a sorted tuple so it can be serialized as a cache key"""
     return _calculate_shanten(tuple(sorted(starting_hand)))
-
-def calculate_ukeire(hand: Tuple[int, ...], visible: Iterable[int]):
-    """
-    Return the ukeire of the hand, or 0 if the hand is not tenpai.
-    Requires passing in the visible tiles on board (not including hand).
-    """
-    shanten, waits = calculate_shanten(hand)
-    if shanten > 0:
-        return 0
-    relevant_tiles = set(remove_red_fives(waits))
-    visible = list(remove_red_fives(list(hand) + list(visible)))
-    return 4 * len(relevant_tiles) - sum(visible.count(wait) for wait in relevant_tiles)
