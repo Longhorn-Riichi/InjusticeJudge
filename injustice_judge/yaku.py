@@ -486,10 +486,10 @@ def get_yaku(hand: List[int],
             if wait in doras:
                 wait_dora = dora + doras.count(wait)
                 if wait_dora > 0:
-                    yaku[wait].append((f"dora {wait_dora}", wait_dora))
+                    yaku[wait].append((f"dora {wait_dora}" if wait_dora > 1 else "dora", wait_dora))
             else:
                 if dora > 0:
-                    yaku[wait].append((f"dora {dora}", dora))
+                    yaku[wait].append((f"dora {dora}" if dora > 1 else "dora", dora))
 
         # ura: simply count the ura
         ura = sum(list(hand).count(ura) for ura in uras)
@@ -497,10 +497,10 @@ def get_yaku(hand: List[int],
             if wait in uras:
                 wait_ura = ura + uras.count(wait)
                 if wait_ura > 0:
-                    yaku[wait].append((f"ura {wait_ura}", wait_ura))
+                    yaku[wait].append((f"ura {wait_ura}" if wait_ura > 1 else "ura", wait_ura))
             else:
                 if ura > 0:
-                    yaku[wait].append((f"ura {ura}", ura))
+                    yaku[wait].append((f"ura {ura}" if ura > 1 else "ura", ura))
 
         # get total han and fu
         han = {wait: sum(b for _, b in wait_yaku) for wait, wait_yaku in yaku.items()}
