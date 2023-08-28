@@ -47,8 +47,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_FOLDED_FROM_TENPAI"
     " YOU_GAINED_POINTS"
     " YOU_GOT_CHASED"
-    " YOU_HAD_BAIMAN_TENPAI"
-    " YOU_HAD_HANEMAN_TENPAI"
+    " YOU_HAD_LIMIT_TENPAI"
     " YOU_LOST_POINTS"
     " YOU_REACHED_TENPAI"
     " YOU_REACHED_YAKUMAN_TENPAI"
@@ -235,14 +234,24 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
                     ix = flags[seat].index(Flags.YOU_FOLDED_FROM_TENPAI)
                     del flags[seat][ix]
                     del data[seat][ix]
-                # check if we are haneman tenpai
-                takame_tiles, han, fu, yaku = get_takame(get_seat_yaku(kyoku, seat), True)
-                if han >= 6:
-                    add_flag(seat, Flags.YOU_HAD_HANEMAN_TENPAI if han < 8 else Flags.YOU_HAD_BAIMAN_TENPAI,
+
+                # get takame data
+                # if no calls, use tsumo score. else, get ron score
+                # note, this only checks calls present at the end of the game
+                # but it is not too important which score we use
+                takame_tiles, han, fu, yaku = get_takame(get_seat_yaku(kyoku, seat), tsumo=(len(kyoku.call_info[seat]) == 0))
+                assert len(takame_tiles) >= 0, "somehow takame_tiles was empty for a tenpai hand"
+                # check if we are mangan+ tenpai
+                if han >= 5 or (han,fu) >= (4,40) or (han,fu) >= (3,70):
+                    most_yaku_names_tile = max(takame_tiles, key=lambda t: len(yaku[t]))
+                    add_flag(seat, Flags.YOU_HAD_LIMIT_TENPAI,
                                    {"hand_str": print_full_hand_seat(kyoku, seat),
                                     "takame": takame_tiles,
                                     "limit_name": TRANSLATE[LIMIT_HANDS[han]],
+                                    "yaku_str": ", ".join(name for name, value in yaku[most_yaku_names_tile]),
                                     "han": han})
+                if han >= 13:
+                    add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": {"kazoe yakuman"}})
         elif event_type == "dora_indicator":
             dora_indicator, kan_tile = event_data
             # check if the dora indicator is the kan tile
@@ -301,9 +310,9 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
             limit_hand_flags = [Flags.WINNER, Flags.WINNER_GOT_MANGAN,
                                 Flags.WINNER_GOT_HANEMAN, Flags.WINNER_GOT_BAIMAN,
                                 Flags.WINNER_GOT_SANBAIMAN, Flags.WINNER_GOT_YAKUMAN]
-            limit_hand_names = ["", "", "満貫", "跳満", "倍満", "三倍満", "役満"]
+            limit_hand_names = ["", "満貫", "跳満", "倍満", "三倍満", "役満"]
             assert result.limit_name in limit_hand_names, f"unknown limit hand name {result.limit_name}"
-            limit_hand_flags = limit_hand_flags[0:limit_hand_names.index(result.limit_name)]
+            limit_hand_flags = limit_hand_flags[0:limit_hand_names.index(result.limit_name)+1]
             for flag in limit_hand_flags:
                 add_global_flag(flag, {"seat": result.winner,
                                        "wait": kyoku.final_waits[result.winner],

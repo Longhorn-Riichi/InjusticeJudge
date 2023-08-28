@@ -216,7 +216,7 @@ def drew_tile_completing_past_wait(flags: List[Flags], data: List[Dict[str, Any]
     wait = tile_data["wait"]
     shanten = tile_data["shanten"]
     return [Injustice(round_number, honba, "Injustice",
-            f" you drew a tile {pt(tile)} that would have completed your past wait on {ph(wait)}"
+            f" you drew a tile {pt(tile)} that would have completed your past tenpai wait on {ph(wait)}"
             f" if you didn't change to {shanten_name(shanten)}")]
 
 # Print if you dealt in while tenpai, right before you would have received tenpai payments
@@ -301,7 +301,10 @@ def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], r
         what_happened = "then someone just had to tsumo"
     elif Flags.GAME_ENDED_WITH_ABORTIVE_DRAW in flags:
         draw_name = data[flags.index(Flags.GAME_ENDED_WITH_ABORTIVE_DRAW)]["object"].name
-        what_happened = f"then someone ended the game with {draw_name}"
+        if draw_name == "ryuukyoku":
+            what_happened = f"you never got it"
+        else:
+            what_happened = f"then someone ended the game with {draw_name}"
     return [Injustice(round_number, honba, "Injustice",
             f" you reached {' and '.join(yakuman_types)} tenpai, but {what_happened}")]
 
@@ -314,23 +317,16 @@ def you_got_head_bumped(flags: List[Flags], data: List[Dict[str, Any]], round_nu
     return [Injustice(round_number, honba, "Injustice",
             f" you were tenpai waiting on {ph(wait)} but then got head bumped")]
 
-# Print if someone else's below-mangan win destroyed your haneman+ tenpai
-@injustice(require=[Flags.YOU_HAD_HANEMAN_TENPAI, Flags.WINNER],
+# Print if someone else's below-mangan win destroyed your mangan+ tenpai
+@injustice(require=[Flags.YOU_HAD_LIMIT_TENPAI, Flags.WINNER],
             forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_GAINED_POINTS,
-                    Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.YOU_HAD_BAIMAN_TENPAI,
-                    Flags.WINNER_GOT_MANGAN])
-def your_haneman_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    limit_name = data[flags.index(Flags.YOU_HAD_HANEMAN_TENPAI)]["limit_name"]
-    hand_str = data[flags.index(Flags.YOU_HAD_HANEMAN_TENPAI)]["hand_str"]
+                    Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.WINNER_GOT_MANGAN])
+def your_mangan_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    hand_str = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["hand_str"]
+    yaku_str = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["yaku_str"]
+    limit_name = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["limit_name"]
+    han = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["han"]
     score = data[flags.index(Flags.WINNER)]["score"]
-    return [Injustice(round_number, honba, "Injustice",
-            f" your {limit_name} {hand_str} lost to a paltry {score} point hand")]
 
-# Print if you failed to win with a baiman tenpai
-@injustice(require=[Flags.YOU_HAD_BAIMAN_TENPAI],
-            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_GAINED_POINTS])
-def your_baiman_tenpai_failed(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    limit_name = data[flags.index(Flags.YOU_HAD_BAIMAN_TENPAI)]["limit_name"]
-    hand_str = data[flags.index(Flags.YOU_HAD_BAIMAN_TENPAI)]["hand_str"]
     return [Injustice(round_number, honba, "Injustice",
-            f" your were {limit_name} tenpai with {hand_str} and did not win")]
+            f" your hand {hand_str} could have had {limit_name} ({yaku_str}) but someone just had to score a {score} point hand")]
