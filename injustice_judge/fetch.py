@@ -125,7 +125,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                     pon_index = next((i for i, call_info in enumerate(kyoku.call_info[seat]) if call_info.type == "pon" and call_info.tile == called_tile), None)
                     assert pon_index is not None, f"unable to find previous pon for player {seat}'s kakan {event_data}: calls were {kyoku.call_info[seat]}"
                     orig_direction = kyoku.call_info[seat][pon_index].dir
-                    call_tiles = kyoku.call_info[seat][pon_index].tiles + call_tiles
                     kyoku.call_info[seat][pon_index] = CallInfo("kakan", called_tile, orig_direction, call_tiles)
                 elif event_type == "ankan":
                     kyoku.call_info[seat].append(CallInfo("ankan", called_tile, Dir.SELF, [called_tile]*4))
