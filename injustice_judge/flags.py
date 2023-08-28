@@ -1,4 +1,4 @@
-from .constants import GameMetadata, Kyoku, Ron, Tsumo, LIMIT_HANDS, SHANTEN_NAMES, TRANSLATE
+from .constants import GameMetadata, Kyoku, Ron, Tsumo, LIMIT_HANDS, SHANTEN_NAMES, TRANSLATE, YAOCHUUHAI
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
@@ -13,28 +13,33 @@ from pprint import pprint
 Flags = Enum("Flags", "_SENTINEL"
     " CHANGED_WAIT_ON_LAST_DISCARD"
     " CHASER_GAINED_POINTS"
+    " CHASER_LOST_POINTS"
+    " FIRST_ROW_TENPAI"
     " FIVE_SHANTEN_START"
+    " GAME_ENDED_WITH_ABORTIVE_DRAW"
     " GAME_ENDED_WITH_RON"
     " GAME_ENDED_WITH_RYUUKYOKU"
-    " GAME_ENDED_WITH_ABORTIVE_DRAW"
+    " GAME_ENDED_WITH_TSUMO"
     " IISHANTEN_HAIPAI_ABORTED"
     " LOST_POINTS_TO_FIRST_ROW_WIN"
     " NINE_DRAWS_NO_IMPROVEMENT"
+    " SEVEN_TERMINAL_START"
     " SOMEONE_REACHED_TENPAI"
     " TENPAI_ON_LAST_DISCARD"
     " WINNER"
     " WINNER_GOT_BAIMAN"
+    " WINNER_GOT_HAITEI"
     " WINNER_GOT_HANEMAN"
-    " WINNER_GOT_MANGAN"
-    " WINNER_GOT_SANBAIMAN"
-    " WINNER_GOT_YAKUMAN"
     " WINNER_GOT_HIDDEN_DORA_3"
     " WINNER_GOT_KAN_DORA_BOMB"
+    " WINNER_GOT_MANGAN"
+    " WINNER_GOT_SANBAIMAN"
     " WINNER_GOT_URA_3"
-    " WINNER_GOT_HAITEI"
+    " WINNER_GOT_YAKUMAN"
     " WINNER_HAD_BAD_WAIT"
     " WINNER_IPPATSU_TSUMO"
     " WINNER_WAS_FURITEN"
+    " YOU_ACHIEVED_NAGASHI"
     " YOU_ARE_DEALER"
     " YOU_AVOIDED_LAST_PLACE"
     " YOU_DEALT_IN"
@@ -42,6 +47,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_DEALT_INTO_DAMA"
     " YOU_DEALT_INTO_DOUBLE_RON"
     " YOU_DEALT_INTO_IPPATSU"
+    " YOU_DECLARED_RIICHI"
     " YOU_DREW_PREVIOUSLY_WAITED_TILE"
     " YOU_FLIPPED_DORA_BOMB"
     " YOU_FOLDED_FROM_TENPAI"
@@ -58,13 +64,6 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOUR_LAST_DISCARD_ENDED_NAGASHI"
     " YOUR_LAST_NAGASHI_TILE_CALLED"
     " YOUR_TENPAI_TILE_DEALT_IN"
-
-    # unused:
-    " CHASER_LOST_POINTS"
-    " FIRST_ROW_TENPAI"
-    " GAME_ENDED_WITH_TSUMO"
-    " YOU_ACHIEVED_NAGASHI"
-    " YOU_DECLARED_RIICHI"
     )
 
 def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]]]:
@@ -170,6 +169,11 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
                     add_flag(who, Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI, {"tile": tile})
                 elif reason in {"minkan", "pon", "chii"}:
                     add_flag(who, Flags.YOUR_LAST_NAGASHI_TILE_CALLED, {"tile": tile, "caller": seat})
+        elif event_type == "haipai":
+            hand = event_data[0]
+            num_types = len(set(hand) & YAOCHUUHAI) # of terminal/honor tiles
+            if num_types >= 7:
+                add_flag(seat, Flags.SEVEN_TERMINAL_START, {"num_types": num_types})
         elif event_type == "haipai_shanten":
             shanten[seat] = event_data[0]
             if shanten[seat][0] >= 5:

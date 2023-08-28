@@ -108,6 +108,36 @@ def injustice(require: List[Flags] = [], forbid: List[Flags] = []) -> Callable[[
         return lambda f: f
     return decorator
 
+
+
+###
+### early game injustices
+###
+
+# Print if you started with atrocious shanten and couldn't gain points as a result
+@injustice(require=[Flags.FIVE_SHANTEN_START],
+            forbid=[Flags.YOU_GAINED_POINTS])
+def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    shanten = data[flags.index(Flags.FIVE_SHANTEN_START)]["shanten"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="you",
+                            content=f"started at {shanten_name(shanten)}"))]
+
+# Print if you started with 7-8 types of terminals and couldn't gain points as a result
+@injustice(require=[Flags.SEVEN_TERMINAL_START],
+            forbid=[Flags.YOU_GAINED_POINTS])
+def seven_terminal_start(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    num_types = data[flags.index(Flags.SEVEN_TERMINAL_START)]["num_types"]
+    if num_types in {8,9}:
+        return [Injustice(round_number, honba, "Injustice",
+                InjusticeClause(subject="you",
+                                content=f"started with {num_types} types of terminal/honor tiles"))]
+    return []
+
+###
+### mid game injustices
+###
+
 # Print if your tenpai got chased by a worse wait, and they won
 @injustice(require=[Flags.YOU_REACHED_TENPAI,
                     Flags.YOU_GOT_CHASED, Flags.CHASER_GAINED_POINTS],
@@ -148,15 +178,6 @@ def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], r
                                        last_subject=relative_seat_name(your_seat, chaser_seat))))
     return ret
 
-# Print if you started with atrocious shanten and never got to tenpai
-@injustice(require=[Flags.FIVE_SHANTEN_START],
-            forbid=[Flags.YOU_REACHED_TENPAI])
-def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    shanten = data[flags.index(Flags.FIVE_SHANTEN_START)]["shanten"]
-    return [Injustice(round_number, honba, "Injustice",
-            InjusticeClause(subject="you",
-                            content=f"started at {shanten_name(shanten)}"))]
-
 # Print if you failed to improve your shanten for at least nine consecutive draws
 @injustice(require=[Flags.NINE_DRAWS_NO_IMPROVEMENT])
 def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
@@ -177,6 +198,29 @@ def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: i
                    InjusticeClause(subject="you",
                                    content=f"never reached tenpai")))
     return ret
+
+# Print if you just barely failed nagashi
+@injustice(require=[Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI],
+            forbid=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
+def lost_nagashi_to_draw(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    tile = data[flags.index(Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI)]["tile"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="you",
+                            content=f"lost nagashi on your last discard ({pt(tile)})"))]
+
+# Print if someone calls your last tile for nagashi (not ron)
+@injustice(require=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
+def lost_nagashi_to_call(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    nagashi_data = data[flags.index(Flags.YOUR_LAST_NAGASHI_TILE_CALLED)]
+    tile = nagashi_data["tile"]
+    caller = nagashi_data["caller"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="you",
+                            content=f"lost nagashi on your last discard {pt(tile)} because {relative_seat_name(player, caller)} called it"))]
+
+###
+### end game injustices
+###
 
 def tenpai_status_string(flags: List[Flags]) -> str:
     status = ""
@@ -228,25 +272,6 @@ def someone_got_bad_wait_ippatsu_tsumo(flags: List[Flags], data: List[Dict[str, 
     return [Injustice(round_number, honba, "Injustice",
             InjusticeClause(subject=relative_seat_name(player, winner),
                             content=f"got ippatsu tsumo with a bad wait {ph(wait)} ({ukeire} outs)"))]
-
-# Print if you just barely failed nagashi
-@injustice(require=[Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI],
-            forbid=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
-def lost_nagashi_to_draw(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    tile = data[flags.index(Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI)]["tile"]
-    return [Injustice(round_number, honba, "Injustice",
-            InjusticeClause(subject="you",
-                            content=f"lost nagashi on your last discard ({pt(tile)})"))]
-
-# Print if someone calls your last tile for nagashi (not ron)
-@injustice(require=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
-def lost_nagashi_to_call(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    nagashi_data = data[flags.index(Flags.YOUR_LAST_NAGASHI_TILE_CALLED)]
-    tile = nagashi_data["tile"]
-    caller = nagashi_data["caller"]
-    return [Injustice(round_number, honba, "Injustice",
-            InjusticeClause(subject="you",
-                            content=f"lost nagashi on your last discard {pt(tile)} because {relative_seat_name(player, caller)} called it"))]
 
 # Print if you are dealer and lost to baiman+ tsumo
 @injustice(require=[Flags.YOU_ARE_DEALER, Flags.GAME_ENDED_WITH_TSUMO, Flags.YOU_LOST_POINTS, Flags.WINNER_GOT_BAIMAN])
