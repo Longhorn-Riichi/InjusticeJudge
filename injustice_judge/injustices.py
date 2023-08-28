@@ -6,12 +6,21 @@ from .flags import Flags, determine_flags
 from .utils import ph, pt, hidden_part, relative_seat_name, round_name, shanten_name, sorted_hand, try_remove_all_tiles
 from pprint import pprint
 
+# used for joining two injustices
+@dataclass(frozen=True)
+class InjusticeClause:
+    subject: str
+    content: str
+    subject_description: Optional[str] = None
+    last_subject: Optional[str] = None
+    
+# main injustice object used for printing
 @dataclass(frozen=True)
 class Injustice:
     round: int
     honba: int
-    name: str = "Injustice"
-    desc: str = ""
+    name: str
+    clause: InjusticeClause
 
 def evaluate_injustices(kyoku: Kyoku, metadata: GameMetadata, player: int) -> List[str]:
     """
@@ -47,9 +56,37 @@ def evaluate_injustices(kyoku: Kyoku, metadata: GameMetadata, player: int) -> Li
         longest_name = next(r.name for r in all_results if len(r.name) == longest_name_length)
         # assemble the header
         header = f"- {longest_name} detected in **{round_name(all_results[0].round, all_results[0].honba)}**:"
-        # return a list containing a single string:
-        #   the header + each injustice separated by ", and"
-        return [header + ", and".join(r.desc for r in all_results)]
+        # now print the subject of the first injustice clause followed by content
+        # whenever the subject of the next clause is the same as the subject of the previous clause,
+        # we omit the subject and just write ", and <content>"
+        # return a list containing a single string
+        ret = header
+        current_subject = None
+        seen_results: Set[Tuple[str, str]] = set() # (subject, content)
+        for result in all_results:
+            clause = result.clause
+            # skip things we've already said
+            if (clause.subject, clause.content) in seen_results:
+                continue
+            seen_results.add((clause.subject, clause.content))
+            # add ", and" unless it's the first clause
+            if current_subject is not None:
+                ret += ", and"
+            # print subject if subject changed
+            if clause.subject != current_subject:
+                ret += " " + clause.subject
+                # print subject description
+                # this is basically part of the subject,
+                # but we don't want it to be used for comparing subjects
+                if clause.subject_description is not None:
+                    ret += " " + clause.subject_description
+                current_subject = clause.subject
+            # print the content of the clause (starts with a verb usually)
+            ret += " " + clause.content
+            # if the clause ends on another subject, change current subject to that
+            if clause.last_subject is not None:
+                current_subject = clause.last_subject
+        return [ret]
     else:
         return []
 
@@ -93,31 +130,23 @@ def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], r
             winner_seat = data[i+flags[i:].index(Flags.CHASER_GAINED_POINTS)]["seat"]
         except ValueError:
             continue
-        if chaser_seat == winner_seat and chaser_ukeire < your_ukeire:
-            if Flags.YOU_LOST_POINTS in flags and Flags.GAME_ENDED_WITH_RON in flags:
-                ret.append(Injustice(round_number, honba, "Major injustice",
-                           f" your wait {ph(your_wait)} ({your_ukeire} out{'s' if your_ukeire > 1 else ''})"
-                           f" was chased by {relative_seat_name(your_seat, chaser_seat)}"
-                           f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} out{'s' if chaser_ukeire > 1 else ''}), and you dealt into it"))
-            else:
-                ret.append(Injustice(round_number, honba, "Injustice",
-                           f" your wait {ph(your_wait)} ({your_ukeire} out{'s' if your_ukeire > 1 else ''})"
-                           f" was chased by {relative_seat_name(your_seat, chaser_seat)}"
-                           f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} out{'s' if chaser_ukeire > 1 else ''}), and they won"))
+        if chaser_seat != winner_seat or chaser_ukeire >= your_ukeire:
+            continue
+        if Flags.YOU_LOST_POINTS in flags and Flags.GAME_ENDED_WITH_RON in flags:
+            ret.append(Injustice(round_number, honba, "Major injustice",
+                       InjusticeClause(subject="your wait",
+                                       subject_description=f"{ph(your_wait)} ({your_ukeire} out{'s' if your_ukeire > 1 else ''})",
+                                       content=f"was chased by {relative_seat_name(your_seat, chaser_seat)}"
+                                               f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} out{'s' if chaser_ukeire > 1 else ''}), and you dealt into it",
+                                       last_subject="you")))
+        else:
+            ret.append(Injustice(round_number, honba, "Injustice",
+                       InjusticeClause(subject="your wait",
+                                       subject_description=f"{ph(your_wait)} ({your_ukeire} out{'s' if your_ukeire > 1 else ''})",
+                                       content=f"was chased by {relative_seat_name(your_seat, chaser_seat)}"
+                                               f" with a worse wait {ph(chaser_wait)} ({chaser_ukeire} out{'s' if chaser_ukeire > 1 else ''}), and they won",
+                                       last_subject=relative_seat_name(your_seat, chaser_seat))))
     return ret
-
-# Print if you failed to improve your shanten for at least nine consecutive draws
-@injustice(require=[Flags.NINE_DRAWS_NO_IMPROVEMENT])
-def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    shanten_data = data[len(flags) - 1 - flags[::-1].index(Flags.NINE_DRAWS_NO_IMPROVEMENT)]
-    draws = shanten_data["draws"]
-    shanten = shanten_data["shanten"]
-    if Flags.YOU_REACHED_TENPAI in flags:
-        return [Injustice(round_number, honba, "Injustice",
-                f" you were stuck at {shanten_name(shanten)} for {draws} draws before you reached tenpai")]
-    else:
-        return [Injustice(round_number, honba, "Injustice",
-                f" you were stuck at {shanten_name(shanten)} for {draws} draws, and never reached tenpai")]
 
 # Print if you started with atrocious shanten and never got to tenpai
 @injustice(require=[Flags.FIVE_SHANTEN_START],
@@ -125,7 +154,29 @@ def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: i
 def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     shanten = data[flags.index(Flags.FIVE_SHANTEN_START)]["shanten"]
     return [Injustice(round_number, honba, "Injustice",
-            f" you started at {shanten_name(shanten)} and never reached tenpai")]
+            InjusticeClause(subject="you",
+                            content=f"started at {shanten_name(shanten)}"))]
+
+# Print if you failed to improve your shanten for at least nine consecutive draws
+@injustice(require=[Flags.NINE_DRAWS_NO_IMPROVEMENT])
+def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    shanten_data = data[len(flags) - 1 - flags[::-1].index(Flags.NINE_DRAWS_NO_IMPROVEMENT)]
+    draws = shanten_data["draws"]
+    shanten = shanten_data["shanten"]
+    ret = []
+    reached_tenpai_str = " before you finally reached tenpai" if Flags.YOU_REACHED_TENPAI in flags else ", and never reached tenpai"
+    if Flags.YOU_REACHED_TENPAI in flags:
+        ret.append(Injustice(round_number, honba, "Injustice",
+                   InjusticeClause(subject="you",
+                                   content=f"were stuck at {shanten_name(shanten)} for {draws} draws before you finally reached tenpai")))
+    else:
+        ret.append(Injustice(round_number, honba, "Injustice",
+                   InjusticeClause(subject="you",
+                                   content=f"were stuck at {shanten_name(shanten)} for {draws} draws")))
+        ret.append(Injustice(round_number, honba, "Injustice",
+                   InjusticeClause(subject="you",
+                                   content=f"never reached tenpai")))
+    return ret
 
 def tenpai_status_string(flags: List[Flags]) -> str:
     status = ""
@@ -141,9 +192,10 @@ def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]],
     win_data = data[flags.index(Flags.LOST_POINTS_TO_FIRST_ROW_WIN)]
     winner = win_data["seat"]
     turn = win_data["turn"]
-    prefix = f"you dealt into an early ron" if Flags.GAME_ENDED_WITH_RON in flags else "you got hit by an early tsumo"
+    prefix = f"dealt into an early ron" if Flags.GAME_ENDED_WITH_RON in flags else "got hit by an early tsumo"
     return [Injustice(round_number, honba, "Injustice",
-            f" {prefix} by {relative_seat_name(player, winner)} on turn {turn}{tenpai_status_string(flags)}")]
+            InjusticeClause(subject="you",
+                            content=f"{prefix} by {relative_seat_name(player, winner)} on turn {turn}{tenpai_status_string(flags)}"))]
 
 # Print if you dealt into dama
 @injustice(require=[Flags.YOU_DEALT_INTO_DAMA])
@@ -152,7 +204,8 @@ def dealt_into_dama(flags: List[Flags], data: List[Dict[str, Any]], round_number
     winner = win_data["seat"]
     score = win_data["score"]
     return [Injustice(round_number, honba, "Injustice",
-            f" you dealt into {relative_seat_name(player, winner)}'s {score} point dama{tenpai_status_string(flags)}")]
+            InjusticeClause(subject="you",
+                            content=f"dealt into {relative_seat_name(player, winner)}'s {score} point dama{tenpai_status_string(flags)}"))]
 
 # Print if you dealt into ippatsu
 @injustice(require=[Flags.YOU_DEALT_INTO_IPPATSU])
@@ -161,7 +214,8 @@ def dealt_into_ippatsu(flags: List[Flags], data: List[Dict[str, Any]], round_num
     winner = win_data["seat"]
     score = win_data["score"]
     return [Injustice(round_number, honba, "Injustice",
-            f" you dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu{tenpai_status_string(flags)}")]
+            InjusticeClause(subject="you",
+                            content=f"dealt into {relative_seat_name(player, winner)}'s {score} point ippatsu{tenpai_status_string(flags)}"))]
 
 # Print if someone else won with bad wait ippatsu tsumo
 @injustice(require=[Flags.WINNER_HAD_BAD_WAIT, Flags.WINNER_IPPATSU_TSUMO],
@@ -172,7 +226,8 @@ def someone_got_bad_wait_ippatsu_tsumo(flags: List[Flags], data: List[Dict[str, 
     wait = win_data["wait"]
     ukeire = win_data["ukeire"]
     return [Injustice(round_number, honba, "Injustice",
-            f" {relative_seat_name(player, winner)} got ippatsu tsumo with a bad wait {ph(wait)} ({ukeire} outs)")]
+            InjusticeClause(subject=relative_seat_name(player, winner),
+                            content=f"got ippatsu tsumo with a bad wait {ph(wait)} ({ukeire} outs)"))]
 
 # Print if you just barely failed nagashi
 @injustice(require=[Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI],
@@ -180,7 +235,8 @@ def someone_got_bad_wait_ippatsu_tsumo(flags: List[Flags], data: List[Dict[str, 
 def lost_nagashi_to_draw(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     tile = data[flags.index(Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI)]["tile"]
     return [Injustice(round_number, honba, "Injustice",
-            f" you lost nagashi on your last discard ({pt(tile)})")]
+            InjusticeClause(subject="you",
+                            content=f"lost nagashi on your last discard ({pt(tile)})"))]
 
 # Print if someone calls your last tile for nagashi (not ron)
 @injustice(require=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
@@ -189,7 +245,8 @@ def lost_nagashi_to_call(flags: List[Flags], data: List[Dict[str, Any]], round_n
     tile = nagashi_data["tile"]
     caller = nagashi_data["caller"]
     return [Injustice(round_number, honba, "Injustice",
-            f" you lost nagashi on your last discard {pt(tile)} because {relative_seat_name(player, caller)} called it")]
+            InjusticeClause(subject="you",
+                            content=f"lost nagashi on your last discard {pt(tile)} because {relative_seat_name(player, caller)} called it"))]
 
 # Print if you are dealer and lost to baiman+ tsumo
 @injustice(require=[Flags.YOU_ARE_DEALER, Flags.GAME_ENDED_WITH_TSUMO, Flags.YOU_LOST_POINTS, Flags.WINNER_GOT_BAIMAN])
@@ -198,7 +255,8 @@ def baiman_oyakaburi(flags: List[Flags], data: List[Dict[str, Any]], round_numbe
     winner = win_data["seat"]
     furiten_string = ", while in furiten" if Flags.WINNER_WAS_FURITEN else ""
     return [Injustice(round_number, honba, "Injustice",
-            f" you were dealer and {relative_seat_name(player, winner)} got a baiman tsumo{furiten_string}")]
+            InjusticeClause(subject="you",
+                            content=f"were dealer and {relative_seat_name(player, winner)} got a baiman tsumo{furiten_string}"))]
 
 # Print if your riichi/tenpai tile dealt in
 @injustice(require=[Flags.YOUR_TENPAI_TILE_DEALT_IN])
@@ -206,7 +264,8 @@ def your_tenpai_tile_dealt_in(flags: List[Flags], data: List[Dict[str, Any]], ro
     tile = data[flags.index(Flags.YOUR_TENPAI_TILE_DEALT_IN)]["tile"]
     tenpai_string = "declared riichi with" if Flags.YOU_DECLARED_RIICHI in flags else "reached tenpai by discarding"
     return [Injustice(round_number, honba, "Injustice",
-            f" you {tenpai_string} {pt(tile)} and immediately dealt in")]
+            InjusticeClause(subject="you",
+                            content=f"{tenpai_string} {pt(tile)} and immediately dealt in"))]
 
 # Print if you drew a tile that would have completed a past wait
 @injustice(require=[Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE])
@@ -216,8 +275,9 @@ def drew_tile_completing_past_wait(flags: List[Flags], data: List[Dict[str, Any]
     wait = tile_data["wait"]
     shanten = tile_data["shanten"]
     return [Injustice(round_number, honba, "Injustice",
-            f" you drew a tile {pt(tile)} that would have completed your past tenpai wait on {ph(wait)}"
-            f" if you didn't change to {shanten_name(shanten)}")]
+            InjusticeClause(subject="you",
+                            content=f"drew a tile {pt(tile)} that would have completed your past tenpai wait on {ph(wait)}"
+                                    f" if you didn't change to {shanten_name(shanten)}"))]
 
 # Print if you dealt in while tenpai, right before you would have received tenpai payments
 @injustice(require=[Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT])
@@ -225,14 +285,16 @@ def you_JUST_dealt_in_before_noten_payment(flags: List[Flags], data: List[Dict[s
     tile = data[flags.index(Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT)]["tile"]
     tenpai_string = "in riichi" if Flags.YOU_DECLARED_RIICHI in flags else "tenpai"
     return [Injustice(round_number, honba, "Injustice",
-            f" you were {tenpai_string} and about to get noten payments, but then dealt in with {pt(tile)}")]
+            InjusticeClause(subject="you",
+                            content=f"were {tenpai_string} and about to get noten payments, but then dealt in with {pt(tile)}"))]
 
 # Print if you dealt in while tenpai, right before you would have received tenpai payments
 @injustice(require=[Flags.YOU_DEALT_INTO_DOUBLE_RON])
 def you_dealt_into_double_ron(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     number = data[flags.index(Flags.YOU_DEALT_INTO_DOUBLE_RON)]["number"]
     return [Injustice(round_number, honba, "Injustice",
-            f" you dealt into {'double' if number == 2 else 'triple'} ron")]
+            InjusticeClause(subject="you",
+                            content=f"dealt into {'double' if number == 2 else 'triple'} ron"))]
 
 # Print if you dealt into ura 3 OR if someone else tsumoed and got ura 3
 @injustice(require=[Flags.WINNER_GOT_URA_3, Flags.YOU_LOST_POINTS])
@@ -241,17 +303,20 @@ def lost_points_to_ura_3(flags: List[Flags], data: List[Dict[str, Any]], round_n
     seat = data[flags.index(Flags.WINNER_GOT_URA_3)]["seat"]
     if Flags.GAME_ENDED_WITH_RON in flags:
         return [Injustice(round_number, honba, "Injustice",
-                f" you dealt into {relative_seat_name(player, seat)}'s hand with ura {value}{tenpai_status_string(flags)}")]
+            InjusticeClause(subject="you",
+                            content=f"dealt into {relative_seat_name(player, seat)}'s hand with ura {value}{tenpai_status_string(flags)}"))]
     else:
         return [Injustice(round_number, honba, "Injustice",
-                f" you paid {relative_seat_name(player, seat)}'s tsumo with ura {value}")]
+            InjusticeClause(subject="you",
+                            content=f"paid {relative_seat_name(player, seat)}'s tsumo with ura {value}"))]
 
 # Print if you dealt into haitei
 @injustice(require=[Flags.WINNER_GOT_HAITEI, Flags.GAME_ENDED_WITH_RON, Flags.YOU_LOST_POINTS])
 def dealt_into_haitei(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     seat = data[flags.index(Flags.WINNER_GOT_HAITEI)]["seat"]
     return [Injustice(round_number, honba, "Injustice",
-            f" you dealt into {relative_seat_name(player, seat)}'s houtei{tenpai_status_string(flags)}")]
+            InjusticeClause(subject="you",
+                            content=f"dealt into {relative_seat_name(player, seat)}'s houtei{tenpai_status_string(flags)}"))]
 
 # Print if winner drew haitei or got houtei, while you were in tenpai
 @injustice(require=[Flags.WINNER_GOT_HAITEI, Flags.YOU_REACHED_TENPAI], forbid=[Flags.YOU_GAINED_POINTS])
@@ -261,7 +326,8 @@ def winner_haitei_while_tenpai(flags: List[Flags], data: List[Dict[str, Any]], r
     name = haitei_data["yaku"]
     dealer_string = " as dealer" if Flags.YOU_ARE_DEALER in flags else ""
     return [Injustice(round_number, honba, "Injustice",
-            f" {relative_seat_name(player, seat)} got {name} while you were tenpai{dealer_string}")]
+            InjusticeClause(subject=relative_seat_name(player, seat),
+                            content=f"{name} while you were tenpai{dealer_string}"))]
 
 # Print if winner had 3+ han from dora tiles in the hidden part of hand
 @injustice(require=[Flags.WINNER_GOT_HIDDEN_DORA_3, Flags.YOU_LOST_POINTS])
@@ -270,10 +336,12 @@ def lost_points_to_hidden_dora_3(flags: List[Flags], data: List[Dict[str, Any]],
     value = data[flags.index(Flags.WINNER_GOT_HIDDEN_DORA_3)]["value"]
     if Flags.GAME_ENDED_WITH_RON in flags:
         return [Injustice(round_number, honba, "Injustice",
-            f" you dealt into {relative_seat_name(player, seat)}'s hand with {value} hidden dora{tenpai_status_string(flags)}")]
+            InjusticeClause(subject="you",
+                            content=f"dealt into {relative_seat_name(player, seat)}'s hand with {value} hidden dora{tenpai_status_string(flags)}"))]
     else:
         return [Injustice(round_number, honba, "Injustice",
-            f" you paid {relative_seat_name(player, seat)}'s tsumo with {value} hidden dora")]
+            InjusticeClause(subject="you",
+                            content=f"paid {relative_seat_name(player, seat)}'s tsumo with {value} hidden dora"))]
 
 # Print if an early abortive draw happened with an iishanten haipai
 @injustice(require=[Flags.IISHANTEN_HAIPAI_ABORTED])
@@ -282,7 +350,9 @@ def iishanten_haipai_aborted(flags: List[Flags], data: List[Dict[str, Any]], rou
     shanten = data[flags.index(Flags.IISHANTEN_HAIPAI_ABORTED)]["shanten"]
     hand = data[flags.index(Flags.IISHANTEN_HAIPAI_ABORTED)]["hand"]
     return [Injustice(round_number, honba, "Injustice",
-            f" a {draw_name} happened when your hand looked like {ph(hand)} ({shanten_name(shanten)})")]
+            InjusticeClause(subject="a {draw_name}",
+                            content=f"happened when you had a great hand {ph(hand)} ({shanten_name(shanten)})",
+                            last_subject="you"))]
 
 # Print if you reached yakuman tenpai but did not win
 @injustice(require=[Flags.YOU_REACHED_YAKUMAN_TENPAI],
@@ -290,6 +360,7 @@ def iishanten_haipai_aborted(flags: List[Flags], data: List[Dict[str, Any]], rou
 def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     yakuman_types = data[flags.index(Flags.YOU_REACHED_YAKUMAN_TENPAI)]["types"]
     what_happened = "you didn't win"
+    last_subject = "you"
     if Flags.GAME_ENDED_WITH_RON in flags:
         rons = data[flags.index(Flags.GAME_ENDED_WITH_RON)]["objects"]
         score = sum(ron.score for ron in rons)
@@ -297,6 +368,7 @@ def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], r
             what_happened = f"then you dealt in for {score}"
         else:
             what_happened = f"then someone dealt into someone else for {score}"
+            last_subject = "someone"
     elif Flags.GAME_ENDED_WITH_TSUMO in flags:
         what_happened = "then someone just had to tsumo"
     elif Flags.GAME_ENDED_WITH_ABORTIVE_DRAW in flags:
@@ -305,8 +377,11 @@ def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], r
             what_happened = f"you never got it"
         else:
             what_happened = f"then someone ended the game with {draw_name}"
+            last_subject = "someone"
     return [Injustice(round_number, honba, "Injustice",
-            f" you reached {' and '.join(yakuman_types)} tenpai, but {what_happened}")]
+            InjusticeClause(subject="you",
+                            content=f"reached {' and '.join(yakuman_types)} tenpai, but {what_happened}",
+                            last_subject=last_subject))]
 
 # Print if you got head bumped (or you skipped your ron)
 @injustice(require=[Flags.YOU_WAITED_ON_WINNING_TILE, Flags.GAME_ENDED_WITH_RON],
@@ -315,7 +390,8 @@ def you_got_head_bumped(flags: List[Flags], data: List[Dict[str, Any]], round_nu
     tile = data[flags.index(Flags.YOU_WAITED_ON_WINNING_TILE)]["tile"]
     wait = data[flags.index(Flags.YOU_WAITED_ON_WINNING_TILE)]["wait"]
     return [Injustice(round_number, honba, "Injustice",
-            f" you were tenpai waiting on {ph(wait)} but then got head bumped")]
+            InjusticeClause(subject="you",
+                            content=f"were tenpai waiting on {ph(wait)} but then got head bumped"))]
 
 # Print if someone else's below-mangan win destroyed your mangan+ tenpai
 @injustice(require=[Flags.YOU_HAD_LIMIT_TENPAI, Flags.WINNER],
@@ -329,4 +405,7 @@ def your_mangan_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]],
     score = data[flags.index(Flags.WINNER)]["score"]
 
     return [Injustice(round_number, honba, "Injustice",
-            f" your hand {hand_str} could have had {limit_name} ({yaku_str}) but someone just had to score a {score} point hand")]
+            InjusticeClause(subject="your hand",
+                            subject_description=hand_str,
+                            content=f"could have had {limit_name} ({yaku_str}) but someone just had to score a {score} point hand",
+                            last_subject="someone"))]
