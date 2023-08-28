@@ -66,7 +66,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
             elif event_type == "start_game":
                 kyoku.round, kyoku.honba, kyoku.start_scores = event_data
                 kyoku.num_players = metadata.num_players
-                kyoku.doras = [DORA[d] for d in dora_indicators] + [51, 52, 53] # include red fives
+                kyoku.doras = [DORA[d] for d in dora_indicators] + ([51, 52, 53] if metadata.use_red_fives else [])
                 kyoku.uras = [DORA[d] for d in ura_indicators]
                 kyoku.shanten = [calculate_shanten(h) for h in kyoku.hands]
                 kyoku.haipai_shanten = list(kyoku.shanten)
@@ -563,7 +563,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                                    game_score = [result_data[i][1] for i in range(num_players)],
                                    final_score = [result_data[i][2] for i in range(num_players)],
                                    dora_indicators = all_dora_indicators,
-                                   ura_indicators = all_ura_indicators)
+                                   ura_indicators = all_ura_indicators,
+                                   use_red_fives = True)
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
     return postprocess_events(all_events, parsed_metadata), parsed_metadata
 
@@ -751,6 +752,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         all_events.append(events)
 
     # parse metadata
+    use_red_fives = "aka51" in metadata["rule"] and metadata["rule"]["aka51"]
     parsed_metadata = GameMetadata(num_players = num_players,
                                    num_rounds = len(all_events),
                                    last_round = cast(Tuple[int, int], tuple(raw_kyokus[-1][0][:2])),
@@ -758,7 +760,8 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                                    game_score = metadata["sc"][::2],
                                    final_score = list(map(lambda s: int(1000*s), metadata["sc"][1::2])),
                                    dora_indicators = all_dora_indicators,
-                                   ura_indicators = all_ura_indicators)
+                                   ura_indicators = all_ura_indicators,
+                                   use_red_fives = use_red_fives)
 
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
     return postprocess_events(all_events, parsed_metadata), parsed_metadata

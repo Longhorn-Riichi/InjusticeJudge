@@ -137,8 +137,6 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
         if event_type == "draw":
             tiles_in_wall -= 1
             tile = event_data[0]
-            if kyoku.round == 6 and kyoku.honba == 0 and seat == 2:
-                print(kyoku.haipai[2], pt(tile))
             # check if draw would have completed a past wait
             for wait in past_waits[seat]:
                 if tile in wait:

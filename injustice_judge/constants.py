@@ -100,6 +100,7 @@ class GameMetadata:
     final_score: List[int]
     dora_indicators: List[List[int]]
     ura_indicators: List[List[int]]
+    use_red_fives: bool
 
 # hand interpretations and yaku
 @dataclass
