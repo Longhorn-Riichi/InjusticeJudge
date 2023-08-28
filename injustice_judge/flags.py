@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import *
 from .utils import ph, pt, hidden_part, print_full_hand_seat, relative_seat_name, remove_red_five, round_name, shanten_name, sorted_hand, try_remove_all_tiles
-from .yaku import get_seat_yaku, get_takame_han
+from .yaku import get_seat_yaku, get_takame
 from pprint import pprint
 
 ###
@@ -137,6 +137,8 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
         if event_type == "draw":
             tiles_in_wall -= 1
             tile = event_data[0]
+            if kyoku.round == 6 and kyoku.honba == 0 and seat == 2:
+                print(kyoku.haipai[2], pt(tile))
             # check if draw would have completed a past wait
             for wait in past_waits[seat]:
                 if tile in wait:
@@ -236,10 +238,7 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
                     del flags[seat][ix]
                     del data[seat][ix]
                 # check if we are haneman tenpai
-                yaku_values = get_seat_yaku(kyoku, seat)
-                takame_tiles, han = get_takame_han(yaku_values)
-                # TODO make this for mangan, but this requires calculating fu
-                # best_draws, fu = get_max_potential_fu(kyoku.hands[seat], kyoku.call_data[seat], takame_tiles, False)
+                takame_tiles, han, fu, yaku = get_takame(get_seat_yaku(kyoku, seat), True)
                 if han >= 6:
                     add_flag(seat, Flags.YOU_HAD_HANEMAN_TENPAI if han < 8 else Flags.YOU_HAD_BAIMAN_TENPAI,
                                    {"hand_str": print_full_hand_seat(kyoku, seat),

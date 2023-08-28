@@ -6,9 +6,9 @@ from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
 from .constants import CallInfo, Draw, Event, Kyoku, Ron, Tsumo, YakuList, GameMetadata, Dir, DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
-from .utils import hidden_part, round_name, sorted_hand
+from .utils import ph, pt, hidden_part, round_name, sorted_hand
 from .shanten import calculate_shanten, calculate_ukeire
-from .yaku import get_yakuman_tenpais
+from .yaku import get_yakuman_tenpais, get_seat_yaku, get_takame, debug_yaku
 from pprint import pprint
 
 def save_cache(filename: str, data: bytes) -> None:
