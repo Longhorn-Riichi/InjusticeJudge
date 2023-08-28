@@ -134,13 +134,17 @@ def get_hand_interpretations(hand: Tuple[int, ...], call_info: List[CallInfo], w
     base_fu = 20
 
     # first, use the call info to filter some groups out of the hand
+    called_sequences = []
+    called_triplets = []
     for call in call_info:
         if call.type == "chii":
             hand = try_remove_all_tiles(hand, tuple(call.tiles))
+            called_sequences.append(tuple(call.tiles))
         if call.type == "pon":
             base_fu += 4 if call.tile in YAOCHUUHAI else 2
             # print(f"add {4 if call.tile in YAOCHUUHAI else 2} for open triplet {pt(call.tile)}")
             hand = try_remove_all_tiles(hand, tuple(call.tiles))
+            called_triplets.append(tuple(call.tiles))
         if "kan" in call.type: 
             base_fu += 16 if call.tile in YAOCHUUHAI else 8
             if call.type == "ankan":
@@ -150,6 +154,7 @@ def get_hand_interpretations(hand: Tuple[int, ...], call_info: List[CallInfo], w
                 pass
                 # print(f"add {16 if call.tile in YAOCHUUHAI else 8} for open kan {pt(call.tile)}")
             hand = try_remove_all_tiles(hand, tuple(call.tiles[:3]))
+            called_triplets.append(tuple(call.tiles[:3]))
 
     # print(f"base fu + calls = {base_fu} fu")
 
@@ -162,7 +167,9 @@ def get_hand_interpretations(hand: Tuple[int, ...], call_info: List[CallInfo], w
     # let's get all the interpretations of the hand
     # (fu, sequences, triplets, remainder)
     interpretations: Set[Interpretation] = set()
-    to_update: Set[Interpretation] = {Interpretation(hand)}
+    to_update: Set[Interpretation] = {Interpretation(hand,
+                                                     sequences=tuple(called_sequences),
+                                                     triplets=tuple(called_triplets))}
     already_checked_hands: Set[Tuple[int, ...]] = set()
     add_group = lambda groups, group: tuple(sorted((*groups, tuple(sorted(group)))))
     while len(to_update) > 0:
@@ -383,9 +390,10 @@ def get_stateless_yaku(interpetation: Interpretation, shanten: Tuple[float, List
             if set(full_hand) - chinitsu_suit == set():
                 for wait in waits & chinitsu_suit:
                     yaku[wait].append(("chinitsu", 6 if is_closed_hand else 5))
-            for wait in waits & honitsu_suit:
-                if len(yaku[wait]) == 0 or yaku[wait][-1] != "chinitsu":
-                    yaku[wait].append(("honitsu", 3 if is_closed_hand else 2))
+            else:
+                for wait in waits & honitsu_suit:
+                    if len(yaku[wait]) == 0 or yaku[wait][-1] != "chinitsu":
+                        yaku[wait].append(("honitsu", 3 if is_closed_hand else 2))
 
     # shousangen: if your tenpai hand has 8 of the 9 dragons, then you just have shousangen for any wait
     # alternatively if your tenpai hand has 7, then any wait matching a missing dragon gives shousangen
@@ -478,10 +486,10 @@ def get_yaku(hand: List[int],
             if wait in doras:
                 wait_dora = dora + doras.count(wait)
                 if wait_dora > 0:
-                    yaku[wait].append(("dora", wait_dora))
+                    yaku[wait].append((f"dora {wait_dora}", wait_dora))
             else:
                 if dora > 0:
-                    yaku[wait].append(("dora", dora))
+                    yaku[wait].append((f"dora {dora}", dora))
 
         # ura: simply count the ura
         ura = sum(list(hand).count(ura) for ura in uras)
@@ -489,10 +497,10 @@ def get_yaku(hand: List[int],
             if wait in uras:
                 wait_ura = ura + uras.count(wait)
                 if wait_ura > 0:
-                    yaku[wait].append(("ura", wait_ura))
+                    yaku[wait].append((f"ura {wait_ura}", wait_ura))
             else:
                 if ura > 0:
-                    yaku[wait].append(("ura", ura))
+                    yaku[wait].append((f"ura {ura}", ura))
 
         # get total han and fu
         han = {wait: sum(b for _, b in wait_yaku) for wait, wait_yaku in yaku.items()}
@@ -554,9 +562,9 @@ def debug_yaku(kyoku):
         w = kyoku.result[1].winner
         is_dealer = w == kyoku.round % 4
         y = get_seat_yaku(kyoku, w)
-        ron_takame_tiles, ron_han, ron_fu, ron_yaku = get_takame(y, False)
-        tsumo_takame_tiles, tsumo_han, tsumo_fu, tsumo_yaku = get_takame(y, True)
-        print(f"{round_name(kyoku.round, kyoku.honba)} | seat {w} {print_full_hand_seat(kyoku, w)} | dora {ph(kyoku.doras[:-3])} ura {ph(kyoku.uras)}")
+        ron_takame_tiles, ron_han, ron_fu, ron_yaku = get_takame(y, tsumo=False)
+        tsumo_takame_tiles, tsumo_han, tsumo_fu, tsumo_yaku = get_takame(y, tsumo=True)
+        print(f"{round_name(kyoku.round, kyoku.honba)} | seat {w} {print_full_hand_seat(kyoku, w)} | dora {ph(kyoku.doras)} ura {ph(kyoku.uras)}")
         if kyoku.result[0] == "ron":
             for t in ron_takame_tiles:
                 score = (OYA_RON_SCORE if is_dealer else KO_RON_SCORE)[ron_han][ron_fu]  # type: ignore[index]
