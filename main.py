@@ -27,7 +27,7 @@ if __name__ == "__main__":
     # # shanten tests
     # from injustice_judge.utils import ph, shanten_name
     # from injustice_judge.shanten import calculate_shanten
-    # hand = [13,14,15,16,17,18,22,24,24,25,26,32,33] # 345678m24456p23s
+    # hand = [15,15,16,16,17,17,23,23,24,24,25,31,39]
     # shanten = calculate_shanten(hand)
     # print(ph(hand), shanten, shanten_name(shanten))
 
@@ -48,9 +48,9 @@ if __name__ == "__main__":
     # assert calculate_shanten([11,11,12,13,16,21,22,23,25,26,27,37,38]) == (1.24, [11,14,16,36,39]) # 11236m123567p78s  headless floating iishanten
     # assert calculate_shanten([13,14,15,16,17,18,22,24,24,25,26,32,33]) == (1.24, [22,23,24,27,31,32,33,34]) # 345678m24456p23s  headless floating iishanten
     # print("complete iishanten:")
-    # assert calculate_shanten([11,11,11,12,13,13,21,22,23,25,26,37,37]) == (1.35, [11,12,13,14,24,27,37]) # 111233m12356p77s  complete iishanten
+    # assert calculate_shanten([11,11,11,12,13,13,21,22,23,25,26,37,37]) == (1.32, [11,12,13,14,24,27,37]) # 111233m12356p77s  complete iishanten
     # assert calculate_shanten([11,12,13,17,18,19,23,23,25,27,27,32,33]) == (1.3, [23,24,26,27,31,34]) # 123789m33577p23s
-    # assert calculate_shanten([12,12,13,14,14,15,23,24,29,29,31,32,33]) == (1.35, [12,13,16,22,25,29]) # 223445m3499p123s
+    # assert calculate_shanten([12,12,13,14,14,15,23,24,29,29,31,32,33]) == (1.32, [12,13,16,22,25,29]) # 223445m3499p123s
     # print("floating tile iishanten:")
     # assert calculate_shanten([11,11,11,12,13,17,21,22,23,25,26,37,37]) == (1.4, [11,14,24,27,37]) # 111237m12356p77s  floating tile iishanten
     # assert calculate_shanten([11,13,13,51,21,21,27,28,29,31,32,33,41]) == (1.4, [12,14]) # 1330m11789p123s  floating tile iishanten

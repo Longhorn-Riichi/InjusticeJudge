@@ -101,18 +101,16 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
             count_floating = lambda hand: len(next(iter(remove_all_pairs(remove_all_taatsus({hand})))))
             waits = set()
             for hand in [tuple(remove_red_fives(hand)) for hand in hands]:
-                # first count the floating tiles
-                # then try removing each pair
-                # if removing the pair increases the floating count, skip this pair
+                # try removing each pair
+                # if removing the pair results in more than 1 floating tile, skip this pair
                 # otherwise, get the wait for the result, and also add this pair to a list
                 # if we have 1 pair, don't do anything
-                # if we have 2+ pairs, add them all to the wait
-                num_floating = count_floating(hand)
+                # if we have 2+ pairs (shanpon), add them all to the wait
                 pairs = set()
                 for tile in hand:
                     nopair = try_remove_all_tiles(hand, (tile, tile))
                     if len(nopair) < len(hand): # we removed this pair
-                        if count_floating(nopair) == num_floating: # didn't remove a taatsu
+                        if count_floating(nopair) == 1: # didn't remove a taatsu
                             waits |= get_waits(nopair)
                             pairs.add(tile)
                 if len(pairs) >= 2:
@@ -151,19 +149,20 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
             # floating iishanten is when you have a floating tile + a pair + 2 taatsus/pairs
             # complete iishanten is when that floating tile forms a complex group with either of the 2 taatsus/pairs
 
-            # remove groups until you have length 7 hands, then get the floating waits
-            # (because length 7 is waiting to form 2 groups and a pair)
+            # length 7 hands are waiting to form 2 groups and a pair
+            # remove groups until you have length 7 subhands, then remove a pair
+            # this should give you all your waits
             subhands = set(filter(lambda hand: len(hand) == 7, remove_some_groups({starting_hand})))
-            floating_iishanten_tiles = {t for s in remove_all_taatsus(remove_all_pairs(subhands)) for t in s}
+            without_head = set(filter(lambda hand: len(hand) == 5, remove_some_pairs(subhands))) # remove a pair
+            floating_iishanten_tiles = {t for s in remove_all_taatsus(remove_all_pairs(without_head)) for t in s}
             floating_waits = get_floating_waits(subhands) if len(floating_iishanten_tiles) > 0 else set()
 
             # get waits for complete iishanten
             # look for a complex group after removing a pair and a taatsu/pair
-            subhands = set(filter(lambda hand: len(hand) == 5, remove_some_pairs(subhands))) # remove a pair
-            subhands = set(filter(lambda hand: len(hand) == 3, remove_some_pairs(remove_some_taatsus(subhands)))) # remove a taatsu/pair
+            complex_candidates = set(filter(lambda hand: len(hand) == 3, remove_some_pairs(remove_some_taatsus(without_head)))) # remove a taatsu/pair
             to_complex_shapes = lambda t1: (t2:=SUCC[t1], t3:=SUCC[t2], t5:=SUCC[SUCC[t3]], ((t1,t1,t2),(t1,t2,t2),(t1,t1,t3),(t1,t3,t3),(t1,t3,t5)))[-1]
-            complete_iishanten_shapes = subhands & {shape for hand in subhands for shape in to_complex_shapes(hand[0])}
-            complete_waits = set().union(*map(get_waits, complete_iishanten_shapes))
+            complete_iishanten_shapes = complex_candidates & {shape for hand in complex_candidates for shape in to_complex_shapes(hand[0])}
+            complete_waits = set().union(*map(get_waits, complete_iishanten_shapes)) if len(complete_iishanten_shapes) > 0 else set()
             if shanten == 1.2:
                 if len(complete_waits | headless_waits) > len(headless_waits):
                     # print(f"{ph(sorted_hand(starting_hand))} is headless iishanten, adding extra waits {ph(complete_waits - headless_waits)}")
@@ -192,18 +191,18 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
                    tuple({(t1,t2,t2,t3,t4), (t2,t2,t3,t3,t4), (t1,t2,t2,t3,t3), (t1,t2,t3,t3,t4),
                           (t1,t2,t3,t3,t3), (t1,t2,t2,t2,t2), (t1,t1,t1,t1,t2), (t1,t1,t1,t2,t3)} - penchan_shapes))[-1]
                 flexible_shapes = set().union(*map(to_flexible_shapes, sorted_hand(starting_hand)))
-                if len(flexible_shapes & subhands) >= 2:
+                if len(flexible_shapes & remove_some_pairs(remove_some_taatsus(subhands))) >= 2:
                     shanten = 1.22
 
                 waits = floating_waits | complete_waits | headless_waits
             elif len(complete_iishanten_shapes) > 0:
                 # take out all ryanmen shapes (not penchan!)
-                make_ryanmen = lambda tile: ((SUCC[tile], tile),) if tile not in {11,18,21,28,31,38} else {()}
+                make_ryanmen = lambda tile: ((SUCC[tile], tile),) if tile not in {11,18,21,28,31,38} else ()
                 remove_all_ryanmen = lambda hands: fix(lambda hs: remove_all(hs, make_ryanmen), hands)
                 # if the resulting length is 3 then it's a perfect iishanten
                 # otherwise, it's imperfect iishanten
                 if len(next(iter(remove_all_ryanmen(hands)))) == 3:
-                    shanten = 1.35
+                    shanten = 1.32
                 else:
                     shanten = 1.3
                 waits = get_floating_waits(hands)
