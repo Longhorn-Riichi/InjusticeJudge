@@ -1,6 +1,6 @@
 import functools
 import itertools
-from .constants import DISCORD_TILES, DISCORD_CALLED_TILES, TOGGLE_RED_FIVE, SHANTEN_NAMES, SUCC, PRED
+from .constants import DISCORD_TILES, DISCORD_CALLED_TILES, PRED, SHANTEN_NAMES, SUCC, TOGGLE_RED_FIVE, TRANSLATE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, OYA_RON_SCORE, KO_RON_SCORE
 from typing import *
 import os
 
@@ -97,3 +97,42 @@ def shanten_name(shanten: Tuple[float, List[int]]):
         return SHANTEN_NAMES[shanten[0]]
     else:
         return SHANTEN_NAMES[shanten[0]] + " accepting " + ph(shanten[1])
+
+# takes in "場風 東(1飜)", "ドラ(2飜)", "裏ドラ(1飜)"
+# outputs ("ton", 1), ("dora 2", 2), ("ura", 1)
+def translate_tenhou_yaku(yaku: str) -> Tuple[str, int]:
+    name, rest = yaku.split("(")
+    name = TRANSLATE[name]
+    if "役満" in yaku: # e.g. "大三元(役満)"
+        han = 13
+    else: # e.g. "ドラ(2飜)"
+        han = int(rest.split("飜")[0])
+    if "ドラ" in name and han > 1:
+        name = f"{name} {han}"
+    return name, han
+
+def get_score(han: int, fu: int, is_dealer: bool, is_tsumo: bool, num_players: int):
+    if is_tsumo:
+        oya = OYA_TSUMO_SCORE[han][fu]  # type: ignore[index]
+        ko = KO_TSUMO_SCORE[han][fu]  # type: ignore[index]
+        return oya + (oya if is_dealer else ko) * (num_players - 2)
+    else: 
+        return (OYA_RON_SCORE if is_dealer else KO_RON_SCORE)[han][fu]  # type: ignore[index]
+
+def calculate_delta_scores(han: int, fu: int, is_tsumo: bool, winner: int, dealer: int, num_players: int, loser: Optional[int]) -> List[int]:
+    delta_scores = [0]*num_players
+    if is_tsumo:
+        oya = OYA_TSUMO_SCORE[han][fu]  # type: ignore[index]
+        ko = KO_TSUMO_SCORE[han][fu]  # type: ignore[index]
+        delta_scores = [-ko]*num_players
+        delta_scores[dealer] = -oya
+        delta_scores[winner] = 0
+        delta_scores[winner] = -sum(delta_scores)
+    else:
+        assert loser is not None
+        score = (OYA_RON_SCORE if winner == dealer else KO_RON_SCORE)[han][fu]  # type: ignore[index]
+        delta_scores[winner] = score
+        delta_scores[loser] = -score
+    return delta_scores
+
+apply_delta_scores = lambda scores, delta_score:  [score + delta for score, delta in zip(scores, delta_score)]

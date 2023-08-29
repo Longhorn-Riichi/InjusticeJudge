@@ -33,6 +33,8 @@ SHANTEN_NAMES = {
     5: "5-shanten",
     6: "6-shanten"
 }
+PLACEMENTS = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th"}
+
 YAKU_NAMES = {
     1: "門前清自摸和",        # Fully Concealed Hand
     2: "立直",               # Riichi

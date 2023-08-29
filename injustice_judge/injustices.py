@@ -1,10 +1,10 @@
 from .classes import Kyoku, GameMetadata, Ron, Tsumo
-from .constants import SHANTEN_NAMES, TRANSLATE
+from .constants import PLACEMENTS, SHANTEN_NAMES, TRANSLATE
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
 from .flags import Flags, determine_flags
-from .utils import ph, pt, relative_seat_name, round_name, shanten_name, sorted_hand, try_remove_all_tiles
+from .utils import ph, pt, relative_seat_name, round_name, shanten_name, sorted_hand, try_remove_all_tiles, calculate_delta_scores, apply_delta_scores
 from pprint import pprint
 
 # used for joining two injustices
@@ -218,6 +218,16 @@ def lost_nagashi_to_call(flags: List[Flags], data: List[Dict[str, Any]], round_n
     return [Injustice(round_number, honba, "Injustice",
             InjusticeClause(subject="you",
                             content=f"lost nagashi on your last discard {pt(tile)} because {relative_seat_name(player, caller)} called it"))]
+
+# Print if your riichi discard passed, but someone stole your riichi stick before your next draw
+@injustice(require=[Flags.LAST_DISCARD_WAS_RIICHI, Flags.WINNER],
+            forbid=[Flags.YOUR_TENPAI_TILE_DEALT_IN])
+def riichi_stick_robbed(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    winner = data[flags.index(Flags.WINNER)]["seat"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="your riichi discard",
+                            content=f"passed, but {relative_seat_name(player, winner)} won before your next draw, stealing your riichi stick",
+                            last_subject=relative_seat_name(player, winner)))]
 
 ###
 ### end game injustices
@@ -439,3 +449,28 @@ def your_mangan_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]],
                                 last_subject="someone"))]
     else:
         return []
+
+# Print if someone took your points and you lost placement but only because they lucked out on ura
+@injustice(require=[Flags.YOU_DEALT_IN, Flags.YOU_DROPPED_PLACEMENT, Flags.WINNER],
+            forbid=[])
+def ura_caused_placement_change(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    # winner = data[flags.index(Flags.WINNER)]["seat"]
+    # han = data[flags.index(Flags.WINNER)]["han"]
+    # ura = data[flags.index(Flags.WINNER)]["ura"]
+    # fu = data[flags.index(Flags.WINNER)]["fu"]
+    # score = data[flags.index(Flags.WINNER)]["score"]
+    # old_placement = data[flags.index(Flags.YOU_DROPPED_PLACEMENT)]["old"]
+    # new_placement = data[flags.index(Flags.YOU_DROPPED_PLACEMENT)]["new"]
+    # counterfactual_point_gain = 1000
+    # score_difference_str = "1000 above"
+
+    # if ura >= 0:
+    #     return [Injustice(round_number, honba, "Injustice",
+    #             InjusticeClause(subject="you",
+    #                             content=f"dropped from {PLACEMENTS[old_placement]} to {PLACEMENTS[new_placement]},"
+    #                                     f" which only happened because {relative_seat_name(player, winner)} got ura {ura},"
+    #                                     f" pushing their point gain from {counterfactual_point_gain} to {score}"
+    #                                     f" when your score was {score_difference_str} {PLACEMENTS[new_placement]} place",
+    #                             last_subject=relative_seat_name(player, winner)))]
+    return [] # WIP
+

@@ -7,9 +7,9 @@ from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
 from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Tsumo, YakuList, GameMetadata, Dir
 from .constants import DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
-from .utils import ph, pt, round_name, sorted_hand
+from .utils import ph, pt, apply_delta_scores, round_name, sorted_hand, translate_tenhou_yaku
 from .shanten import calculate_shanten
-from .yaku import get_yakuman_tenpais, get_seat_yaku, get_takame, debug_yaku
+from .yaku import get_yakuman_tenpais, debug_yaku
 from pprint import pprint
 
 def save_cache(filename: str, data: bytes) -> None:
@@ -131,9 +131,10 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 # emit events for placement changes
                 to_placement = lambda scores: (ixs := sorted(range(len(scores)), key=lambda x: -scores[x]), [ixs.index(p) for p in range(len(scores))])[1]
                 placement_before = to_placement(kyoku.start_scores)
-                placement_after = to_placement([score + delta for score, delta in zip(kyoku.start_scores, kyoku.result[1].score_delta)])
+                new_scores = apply_delta_scores(kyoku.start_scores, kyoku.result[1].score_delta)
+                placement_after = to_placement(new_scores)
                 for old, new in set(zip(placement_before, placement_after)) - {(x,x) for x in range(4)}:
-                    kyoku.events.append((placement_before.index(old), "placement_change", old+1, new+1))
+                    kyoku.events.append((placement_before.index(old), "placement_change", old+1, new+1, kyoku.start_scores, kyoku.result[1].score_delta))
                 # if tsumo or kyuushu kyuuhai, pop the final tile from the winner's hand
                 if kyoku.result[0] == "tsumo" or (kyoku.result[0] == "draw" and kyoku.result[1].name == "9 terminals draw"):
                     for seat in range(kyoku.num_players):
@@ -229,13 +230,7 @@ def parse_result(result: List[Any], num_players: int, kita_counts: List[int]) ->
             else: # e.g. "倍満16000点", "満貫4000点∀"
                 pts = "".join(c for c in score_string if c in "0123456789-∀")
                 limit_name = score_string.split(pts[0])[0]
-                han = 0
-                for y in yaku:
-                    if "役満" in y:
-                        han = 13
-                        break
-                    else:
-                        han += int(y.split("(")[1].split("飜")[0])
+                han = sum(translate_tenhou_yaku(y)[1] for y in yaku)
             assert han > 0, f"somehow got a {han} han win"
             if w == won_from: # tsumo
                 if "-" in pts:
@@ -417,7 +412,6 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
                 if acc.account_id == ms_account_id:
                     player = acc.seat
                     break
-    
     return actions, MessageToDict(record.head), player
 
 def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:

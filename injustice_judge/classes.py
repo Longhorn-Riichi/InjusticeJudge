@@ -58,30 +58,6 @@ class GameMetadata:
     ura_indicators: List[List[int]]
     use_red_fives: bool
 
-# hand interpretations and yaku
-@dataclass
-class Interpretation:
-    hand: Tuple[int, ...]
-    ron_fu: int = 0
-    tsumo_fu: int = 0
-    sequences: Tuple[Tuple[int, ...], ...] = ()
-    triplets: Tuple[Tuple[int, ...], ...] = ()
-    pair: Optional[Tuple[int, int]] = None
-    def unpack(self):
-        return (self.hand, self.ron_fu, self.tsumo_fu, self.sequences, self.triplets, self.pair)
-    def __hash__(self):
-        return hash(self.unpack())
-YakuValues = Dict[int, List[Tuple[str, int]]]
-@dataclass
-class YakuHanFu:
-    yaku: YakuValues # wait -> list of ("yaku name", value)
-    han: Dict[int, int] # wait -> han
-    fu: int
-    tsumo: bool
-    interpretation: Interpretation # basically only for debug use
-    def __hash__(self):
-        return hash((self.fu, tuple(self.yaku)))
-
 
 
 
@@ -135,6 +111,7 @@ class Hand:
     hidden_part: Tuple[int, ...] = ()
     closed_part: Tuple[int, ...] = ()
     shanten: Tuple[float, List[int]] = (-1, [])
+    prev_shanten: Tuple[float, List[int]] = (-1, [])
     def __post_init__(self):
         super().__setattr__("tiles", sorted_hand(self.tiles))
         super().__setattr__("open_part", tuple(tile for call in self.calls for tile in call.tiles[:3]))
@@ -147,18 +124,19 @@ class Hand:
         super().__setattr__("closed_part", closed_part)
         if len(self.tiles) in {1, 4, 7, 10, 13}:
             super().__setattr__("shanten", calculate_shanten(self.hidden_part))
+        else:
+            super().__setattr__("shanten", self.prev_shanten)
     def add(self, tile: int) -> "Hand":
-        return Hand((*self.tiles, tile), [*self.calls])
+        return Hand((*self.tiles, tile), [*self.calls], prev_shanten=self.shanten)
     def add_call(self, calls: CallInfo) -> "Hand":
-        return Hand(self.tiles, [*self.calls, calls])
+        return Hand(self.tiles, [*self.calls, calls], prev_shanten=self.shanten)
     def remove(self, tile: int) -> "Hand":
         tiles = list(self.tiles)
         tiles.remove(tile)
-        return Hand(tuple(tiles), [*self.calls])
+        return Hand(tuple(tiles), [*self.calls], prev_shanten=self.shanten)
     def __str__(self):
         call_string = "" if len(self.calls) == 0 else "⠀" + "⠀".join(map(str, reversed(self.calls)))
         return f"{ph(self.hidden_part)}{call_string}"
-
     def final_hand(self, ukeire: int, final_tile: Optional[int] = None, furiten: bool = False):
         wait_string = ""
         win_string = ""
@@ -186,13 +164,51 @@ class Hand:
         orig_tiles = [*self.calls[pon_index].tiles, called_tile]
         calls_copy = [*self.calls]
         calls_copy[pon_index] = CallInfo("kakan", called_tile, orig_direction, orig_tiles)
-        return Hand(self.tiles, calls_copy)
+        return Hand(self.tiles, calls_copy, prev_shanten=self.shanten)
     
     def __hash__(self):
         return hash((self.open_part, self.closed_part))
 
-Event = Tuple[Any, ...]
 
+
+
+
+# hand interpretations and yaku
+@dataclass
+class Interpretation:
+    hand: Tuple[int, ...]
+    ron_fu: int = 0
+    tsumo_fu: int = 0
+    sequences: Tuple[Tuple[int, ...], ...] = ()
+    triplets: Tuple[Tuple[int, ...], ...] = ()
+    pair: Optional[Tuple[int, int]] = None
+    def unpack(self):
+        return (self.hand, self.ron_fu, self.tsumo_fu, self.sequences, self.triplets, self.pair)
+    def __hash__(self):
+        return hash(self.unpack())
+YakuForWait = Dict[int, List[Tuple[str, int]]]
+@dataclass
+class YakuHanFu:
+    yaku: List[Tuple[str, int]] # list of ("yaku name", value)
+    han: int
+    fu: int
+    tsumo: bool
+    def __hash__(self):
+        return hash((self.fu, tuple(self.yaku)))
+    def __lt__(self, other):
+        return (self.han, self.fu) < (other.han, other.fu)
+    
+    # basically only for debug use
+    interpretation: Interpretation
+    hand: Hand
+
+
+
+
+
+
+# main kyoku object
+Event = Tuple[Any, ...]
 @dataclass
 class Kyoku:
     round: int                                    = 0
