@@ -100,7 +100,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
         def get_floating_waits(hands: Set[Tuple[int, ...]]) -> Set[int]:
             count_floating = lambda hand: len(next(iter(remove_all_pairs(remove_all_taatsus({hand})))))
             waits = set()
-            for hand in [tuple(remove_red_fives(hand)) for hand  in hands]:
+            for hand in [tuple(remove_red_fives(hand)) for hand in hands]:
                 # first count the floating tiles
                 # then try removing each pair
                 # if removing the pair increases the floating count, skip this pair
@@ -148,14 +148,19 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
 
         # handle floating/complete iishanten
         if groups_needed == 2 or shanten == 1.2: # headless can also be interpreted as floating/complete iishanten
-            subhands = remove_some_pairs(remove_some_taatsus(filter(lambda hand: len(hand) == 7, remove_some_groups({starting_hand}))))
-            subhands = set(map(sorted_hand, subhands))
+            # floating iishanten is when you have a floating tile + a pair + 2 taatsus/pairs
+            # complete iishanten is when that floating tile forms a complex group with either of the 2 taatsus/pairs
 
-            # get waits for floating tile iishanten
-            floating_iishanten_tiles = {tile for hand in subhands if len(hand) == 1 for tile in hand}
+            # remove groups until you have length 7 hands, then get the floating waits
+            # (because length 7 is waiting to form 2 groups and a pair)
+            subhands = set(filter(lambda hand: len(hand) == 7, remove_some_groups({starting_hand})))
+            floating_iishanten_tiles = {t for s in remove_all_taatsus(remove_all_pairs(subhands)) for t in s}
             floating_waits = get_floating_waits(subhands) if len(floating_iishanten_tiles) > 0 else set()
 
             # get waits for complete iishanten
+            # look for a complex group after removing a pair and a taatsu/pair
+            subhands = set(filter(lambda hand: len(hand) == 5, remove_some_pairs(subhands))) # remove a pair
+            subhands = set(filter(lambda hand: len(hand) == 3, remove_some_pairs(remove_some_taatsus(subhands)))) # remove a taatsu/pair
             to_complex_shapes = lambda t1: (t2:=SUCC[t1], t3:=SUCC[t2], t5:=SUCC[SUCC[t3]], ((t1,t1,t2),(t1,t2,t2),(t1,t1,t3),(t1,t3,t3),(t1,t3,t5)))[-1]
             complete_iishanten_shapes = subhands & {shape for hand in subhands for shape in to_complex_shapes(hand[0])}
             complete_waits = set().union(*map(get_waits, complete_iishanten_shapes))
