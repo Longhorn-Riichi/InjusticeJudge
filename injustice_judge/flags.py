@@ -1,9 +1,9 @@
-from .classes import GameMetadata, Hand, Kyoku, Ron, Tsumo, YakuHanFu
+from .classes import GameMetadata, Hand, Kyoku, Ron, Score, Tsumo
 from .constants import LIMIT_HANDS, SHANTEN_NAMES, TRANSLATE, YAOCHUUHAI
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
-from .utils import ph, pt, relative_seat_name, remove_red_five, round_name, shanten_name, sorted_hand, try_remove_all_tiles, translate_tenhou_yaku
+from .utils import is_mangan, ph, pt, relative_seat_name, remove_red_five, round_name, shanten_name, sorted_hand, try_remove_all_tiles, translate_tenhou_yaku
 from .yaku import get_yaku, get_final_yaku, get_score
 from pprint import pprint
 
@@ -258,26 +258,27 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
                 calls_present = len(hand.calls) > 0
                 assert hand.shanten[0] == 0
 
-                yaku: Dict[int, YakuHanFu] = get_yaku(hand = hand,
-                                                      events = kyoku.events,
-                                                      doras = kyoku.doras,
-                                                      uras = kyoku.uras,
-                                                      round = kyoku.round,
-                                                      seat = seat,
-                                                      check_rons = calls_present,
-                                                      check_tsumos = not calls_present)
-                best_yaku, takame = max((yhf, wait) for wait, yhf in yaku.items())
-                han = best_yaku.han
-                fu = best_yaku.fu
+                scores: Dict[int, Score] = get_yaku(hand = hand,
+                                                    events = kyoku.events,
+                                                    doras = kyoku.doras,
+                                                    uras = kyoku.uras,
+                                                    round = kyoku.round,
+                                                    seat = seat,
+                                                    check_rons = calls_present,
+                                                    check_tsumos = not calls_present)
+                best_score, takame = max((score, wait) for wait, score in scores.items())
+                han = best_score.han
+                fu = best_score.fu
                 # check if we are mangan+ tenpai
-                if han >= 5 or (han,fu) >= (4,40) or (han,fu) >= (3,70):
+                if han >= 5 or is_mangan(han, fu):
                     hand_str = hand.final_hand(ukeire=ukeire, final_tile=None, furiten=furiten)
                     add_flag(seat, Flags.YOU_HAD_LIMIT_TENPAI,
                                    {"hand_str": hand_str,
                                     "takame": takame,
                                     "limit_name": TRANSLATE[LIMIT_HANDS[han]],
-                                    "yaku_str": ", ".join(name for name, value in best_yaku.yaku),
-                                    "han": han})
+                                    "yaku_str": ", ".join(name for name, value in best_score.yaku),
+                                    "han": han,
+                                    "fu": fu})
                 if han >= 13:
                     add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": {"kazoe yakuman"}})
         elif event_type == "dora_indicator":

@@ -33,8 +33,10 @@ def pt_unicode(tile: int) -> str:
     else:
         return "??"
 
+DISCORD_DORA_TILES = DISCORD_TILES # temp
 pt = lambda tile: DISCORD_TILES[tile] if os.getenv("use_discord_tile_emoji") == "True" else pt_unicode(tile)
 pt_sideways = lambda tile: DISCORD_CALLED_TILES[tile] if os.getenv("use_discord_tile_emoji") == "True" else f"₍{pt_unicode(tile)}₎"
+pt_dora = lambda tile: DISCORD_DORA_TILES[tile] if os.getenv("use_discord_tile_emoji") == "True" else f"{pt_unicode(tile)}̷"
 
 def print_final_hand_seat(kyoku, seat, print_final_tile=False):
     final_tile = None if not print_final_tile else kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw
@@ -50,6 +52,7 @@ sorted_hand = lambda hand: tuple(sorted(hand, key=remove_red_five))
 round_name = lambda rnd, honba: (f"East {rnd+1}" if rnd <= 3 else f"South {rnd-3}" if rnd <= 7 else f"West {rnd-7}") + ("" if honba == 0 else f"-{honba}")
 short_round_name = lambda rnd, honba: (f"E{rnd+1}" if rnd <= 3 else f"S{rnd-3}" if rnd <= 7 else f"W{rnd-7}") + f"-{honba}"
 relative_seat_name = lambda you, other: {0: "self", 1: "shimocha", 2: "toimen", 3: "kamicha"}[(other-you)%4]
+is_mangan = lambda han, fu: han == 5 or (han >= 4 and fu >= 40) or (han >= 3 and fu >= 70)
 
 # helpers for removing tiles from hand
 @functools.cache

@@ -188,7 +188,7 @@ class Interpretation:
         return hash(self.unpack())
 YakuForWait = Dict[int, List[Tuple[str, int]]]
 @dataclass
-class YakuHanFu:
+class Score:
     yaku: List[Tuple[str, int]] # list of ("yaku name", value)
     han: int
     fu: int

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import *
 from .flags import Flags, determine_flags
-from .utils import ph, pt, relative_seat_name, round_name, shanten_name, sorted_hand, try_remove_all_tiles, calculate_delta_scores, apply_delta_scores
+from .utils import is_mangan, ph, pt, relative_seat_name, round_name, shanten_name, sorted_hand, try_remove_all_tiles, calculate_delta_scores, apply_delta_scores
 from pprint import pprint
 
 # used for joining two injustices
@@ -392,7 +392,7 @@ def iishanten_haipai_aborted(flags: List[Flags], data: List[Dict[str, Any]], rou
 
 # Print if you reached yakuman tenpai but did not win
 @injustice(require=[Flags.YOU_REACHED_YAKUMAN_TENPAI],
-            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_RONNED_SOMEONE, Flags.YOU_TSUMOED, ])
+            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_RONNED_SOMEONE, Flags.YOU_TSUMOED])
 def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     yakuman_types = data[flags.index(Flags.YOU_REACHED_YAKUMAN_TENPAI)]["types"]
     what_happened = "you didn't win"
@@ -400,13 +400,17 @@ def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], r
     if Flags.GAME_ENDED_WITH_RON in flags:
         rons = data[flags.index(Flags.GAME_ENDED_WITH_RON)]["objects"]
         score = sum(ron.score for ron in rons)
-        if Flags.YOU_DEALT_IN in flags:
-            what_happened = f"then you dealt in for {score}"
+        winner = rons[0].winner
+        won_from = rons[0].won_from
+        if won_from == player:
+            what_happened = f"then you dealt into {relative_seat_name(player, winner)} for {score}"
         else:
-            what_happened = f"then someone dealt into someone else for {score}"
-            last_subject = "someone"
+            what_happened = f"then {relative_seat_name(player, won_from)} dealt into {relative_seat_name(player, winner)} for {score}"
+            last_subject = relative_seat_name(player, won_from)
     elif Flags.GAME_ENDED_WITH_TSUMO in flags:
-        what_happened = "then someone just had to tsumo"
+        tsumo = data[flags.index(Flags.GAME_ENDED_WITH_TSUMO)]["object"]
+        what_happened = f"then {relative_seat_name(player, tsumo.winner)} just had to tsumo"
+        last_subject = relative_seat_name(player, tsumo.winner)
     elif Flags.GAME_ENDED_WITH_ABORTIVE_DRAW in flags:
         draw_name = data[flags.index(Flags.GAME_ENDED_WITH_ABORTIVE_DRAW)]["object"].name
         if draw_name == "ryuukyoku":
@@ -438,15 +442,18 @@ def your_mangan_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]],
     yaku_str = data[len(data) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["yaku_str"]
     limit_name = data[len(data) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["limit_name"]
     han = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["han"]
+    fu = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["fu"]
     score = data[flags.index(Flags.WINNER)]["score"]
+    winner = data[flags.index(Flags.WINNER)]["seat"]
 
     # it's injustice if haneman+ OR if your mangan lost to something below 3900
     if han > 5 or score < 3900:
+        fu_string = f", {fu} fu" if han < 5 else "" # need to show fu if 3 or 4 han
         return [Injustice(round_number, honba, "Injustice",
                 InjusticeClause(subject="your hand",
                                 subject_description=hand_str,
-                                content=f"could have had {limit_name} ({yaku_str}) but someone just had to score a {score} point hand",
-                                last_subject="someone"))]
+                                content=f"could have had {limit_name} ({yaku_str}{fu_string}) but {relative_seat_name(player, winner)} just had to score a {score} point hand",
+                                last_subject=relative_seat_name(player, winner)))]
     else:
         return []
 
@@ -472,5 +479,6 @@ def ura_caused_placement_change(flags: List[Flags], data: List[Dict[str, Any]], 
     #                                     f" pushing their point gain from {counterfactual_point_gain} to {score}"
     #                                     f" when your score was {score_difference_str} {PLACEMENTS[new_placement]} place",
     #                             last_subject=relative_seat_name(player, winner)))]
+    # TODO take honba into account?
     return [] # WIP
 

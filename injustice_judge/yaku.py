@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import functools
 import itertools
 from typing import *
-from .classes import CallInfo, Event, Hand, Kyoku, YakuForWait, YakuHanFu, Interpretation
+from .classes import CallInfo, Event, Hand, Kyoku, YakuForWait, Score, Interpretation
 from .constants import KO_RON_SCORE, OYA_RON_SCORE, KO_TSUMO_SCORE, OYA_TSUMO_SCORE, PRED, SUCC, YAOCHUUHAI
 from .shanten import get_tenpai_waits
 from .utils import fix, get_score, pt, ph, print_final_hand_seat, remove_red_five, remove_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles
@@ -510,7 +510,7 @@ def get_yaku(hand: Hand,
              round: int,
              seat: int,
              check_rons: bool = True,
-             check_tsumos: bool = True) -> Dict[int, YakuHanFu]:
+             check_tsumos: bool = True) -> Dict[int, Score]:
     if hand.shanten[0] != 0:
         return {}
 
@@ -520,15 +520,15 @@ def get_yaku(hand: Hand,
 
     # now for each of the waits we calculate their possible yaku
     interpretations = get_hand_interpretations(hand, round, seat)
-    # best_yaku[wait] = the YakuHanFu value representing the best interpretation for that wait
-    best_yaku = {wait: YakuHanFu([], 0, 0, False, Interpretation(()), hand) for wait in waits}
+    # best_score[wait] = the Score value representing the best interpretation for that wait
+    best_score = {wait: Score([], 0, 0, False, Interpretation(()), hand) for wait in waits}
 
     # we want to get the best yaku for each wait
     # each hand interpretation gives han and fu for some number of waits
     # get the best han and fu for each wait acrosss all interpretations
     for interpretation in interpretations:
         # print("========")
-        # for k, v in best_yaku.items():
+        # for k, v in best_score.items():
         #     print(f"{pt(k)}, {v.hand!s}")
         yaku: YakuForWait = get_stateless_yaku(interpretation, hand.shanten, is_closed_hand)
         # pprint(yaku)
@@ -541,25 +541,25 @@ def get_yaku(hand: Hand,
             if check_rons:
 
                 ron_fu = fixed_fu or round_fu(interpretation.ron_fu)
-                best_yaku[wait] = max(best_yaku[wait], YakuHanFu(yaku[wait], han, ron_fu, False, interpretation, hand))
+                best_score[wait] = max(best_score[wait], Score(yaku[wait], han, ron_fu, False, interpretation, hand))
             if check_tsumos:
                 if is_closed_hand:
                     fixed_fu = fixed_fu or (20 if ("pinfu", 1) in yaku[wait] else None)
                     tsumo_fu = fixed_fu or round_fu(interpretation.tsumo_fu)
-                    best_yaku[wait] = max(best_yaku[wait], YakuHanFu(yaku[wait] + [("tsumo", 1)], han + 1, tsumo_fu, True, interpretation, hand))
+                    best_score[wait] = max(best_score[wait], Score(yaku[wait] + [("tsumo", 1)], han + 1, tsumo_fu, True, interpretation, hand))
                 else:
                     tsumo_fu = fixed_fu or round_fu(interpretation.tsumo_fu)
-                    best_yaku[wait] = max(best_yaku[wait], YakuHanFu(yaku[wait], han, tsumo_fu, True, interpretation, hand))
-        # for k, v in best_yaku.items():
+                    best_score[wait] = max(best_score[wait], Score(yaku[wait], han, tsumo_fu, True, interpretation, hand))
+        # for k, v in best_score.items():
         #     print(f"{pt(k)}, {v!s}")
         # print("========")
 
-    return best_yaku
+    return best_score
 
 def get_final_yaku(kyoku: Kyoku,
                    seat: int,
                    check_rons: bool = True,
-                   check_tsumos: bool = True) -> Dict[int, YakuHanFu]:
+                   check_tsumos: bool = True) -> Dict[int, Score]:
     assert kyoku.hands[seat].shanten[0] == 0, f"on {round_name(kyoku.round, kyoku.honba)}, get_seat_yaku was passed in seat {seat}'s non-tenpai hand {kyoku.hands[seat]!s} ({shanten_name(kyoku.hands[seat].shanten)})"
     ret = get_yaku(hand = kyoku.hands[seat],
                     events = kyoku.events,
