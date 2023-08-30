@@ -4,6 +4,9 @@ from .constants import DISCORD_TILES, DISCORD_CALLED_TILES, PRED, SHANTEN_NAMES,
 from typing import *
 import os
 
+# This file contains a bunch of utility functions that don't really belong anywhere else.
+# The goal is to move these someday, so they're not really documented right now.
+
 ###
 ### utility functions
 ###

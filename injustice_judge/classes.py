@@ -222,6 +222,7 @@ class Kyoku:
     num_players: int                              = 0
     final_draw: int                               = 0
     final_discard: int                            = 0
+    is_final_round: bool                          = False
 
     # Events describing what happened in this kyoku
     # Each event is of the form (seat, event type, *event data)
@@ -268,8 +269,6 @@ class Kyoku:
 class GameMetadata:
     """Facts that apply across every kyoku"""
     num_players: int
-    num_rounds: int
-    last_round: Tuple[int, int]      # (round, honba)
     name: List[str]                  # name of each player indexed by seat
     game_score: List[int]            # final scores (points) indexed by seat
     final_score: List[int]           # final scores (points plus uma) indexed by seat

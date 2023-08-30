@@ -1,4 +1,4 @@
-from .classes import Kyoku, GameMetadata, Ron, Tsumo
+from .classes import Kyoku, Ron, Tsumo
 from .constants import PLACEMENTS, SHANTEN_NAMES, TRANSLATE
 from dataclasses import dataclass
 from enum import Enum
@@ -7,7 +7,17 @@ from .flags import Flags, determine_flags
 from .utils import is_mangan, ph, pt, relative_seat_name, round_name, shanten_name, sorted_hand, try_remove_all_tiles, calculate_delta_scores, apply_delta_scores
 from pprint import pprint
 
-# used for joining two injustices
+# This file provides `evaluate_injustices`, which is called by `__init__.py`
+#   after it fetches a list of kyoku. It first generates facts about the kyoku
+#   via `determine_flags` from `flags.py`. It then calls every injustice
+#   function (defined at the end of the file) that satisfies said flags,
+#   generating a list of `Injustice` objects. These `Injustice`s are then
+#   formatted as a string and returned to `__init__.py`.
+#   
+# See `evaluate_injustices` and `injustice` for more info.
+
+# ad-hoc object used for joining two injustices with better grammar
+# extremely subject to change
 @dataclass(frozen=True)
 class InjusticeClause:
     subject: str
@@ -23,14 +33,15 @@ class Injustice:
     name: str
     clause: InjusticeClause
 
-def evaluate_injustices(kyoku: Kyoku, metadata: GameMetadata, player: int) -> List[str]:
+def evaluate_injustices(kyoku: Kyoku, player: int) -> List[str]:
     """
-    Run each injustice function (defined below this function) against a parsed kyoku
-    Relevant injustice functions should return a list of Injustice objects each
-    Returns the full formatted list of injustices (a list of strings)
+    Run each injustice function (defined below this function) against a parsed kyoku.
+    Relevant injustice functions should return a list of Injustice objects each.
+    The return value is either a single-element list containing the final formatted
+        injustice string, or an empty list if there were no injustices.
     """
     global injustices
-    flags, data = determine_flags(kyoku, metadata)
+    flags, data = determine_flags(kyoku)
     all_results: List[Injustice] = []
     for i in injustices:
         if     all(flag in flags[player]     for flag in i["required_flags"]) \

@@ -1,4 +1,4 @@
-from .classes import GameMetadata, Hand, Kyoku, Ron, Score, Tsumo
+from .classes import Hand, Kyoku, Ron, Score, Tsumo
 from .constants import LIMIT_HANDS, SHANTEN_NAMES, TRANSLATE, YAOCHUUHAI
 from dataclasses import dataclass
 from enum import Enum
@@ -6,6 +6,24 @@ from typing import *
 from .utils import is_mangan, ph, pt, relative_seat_name, remove_red_five, round_name, shanten_name, sorted_hand, to_placement, try_remove_all_tiles, translate_tenhou_yaku
 from .yaku import get_yaku, get_final_yaku, get_score, get_takame_score
 from pprint import pprint
+
+# This file provides a `Flags` enum and a single function, `determine_flags`,
+#   which is called by `` in `injustices.py`
+# 
+# After getting a list of `Kyoku`s from `parse_game_link` in `fetch.py`,
+#   `determine_flags` turns each `Kyoku` into an ordered list of facts about
+#   the `Kyoku` for each player. This is represented by (for each player) a
+#   list of `Flags`, each one corresponding to a fact and each one associated
+#   with some data represented by a `data` dict. The list of `data` dicts is
+#   returned alongside the `flags` list, where the data at index `i`
+#   corresponds to the flag at index `i`. There's no documentation on the
+#   `data` dict associated with each type of flag -- you'll have to go down
+#   and examine the code generating that specific flag.
+# 
+# The resulting flags are used in `evaluate_injustices` in `injustices.py`,
+#   which checks for combinations of flags that might constitute an injustice.
+#   The `data` dicts are used for further checks, but mainly they contain
+#   information used to detail the injustice to the user.
 
 ###
 ### round flags used to determine injustices
@@ -74,7 +92,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOUR_TENPAI_TILE_DEALT_IN"
     )
 
-def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]]]:
+def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]]]:
     """
     Analyze a parsed kyoku by spitting out an ordered list of all interesting facts about it (flags)
     Returns a pair of lists `(flags, data)`, where the nth entry in `data` is the data for the nth flag in `flags`
@@ -105,7 +123,7 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
         add_flag(seat, placement_flags[placement])
 
     # add final round flag (NOT all last)
-    if (kyoku.round, kyoku.honba) == metadata.last_round:
+    if kyoku.is_final_round:
         add_global_flag(seat, Flags.FINAL_ROUND)
 
     # add the flag that's the end of the game

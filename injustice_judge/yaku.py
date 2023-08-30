@@ -8,7 +8,16 @@ from .shanten import get_tenpai_waits
 from .utils import fix, get_score, is_mangan, pt, ph, print_hand_details_seat, remove_red_five, remove_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles
 from pprint import pprint
 
-# all of these functions assume the passed-in hand is a 13-tile tenpai hand
+# This file details some algorithms for checking the yaku of a given `Hand` object.
+# It's used in `fetch.py` and `flags.py` to calculate some information that will be
+#   included in their event list and flags list respectively.
+
+
+###
+### yakuman checking functions
+###
+
+# All of these functions below assume the passed-in hand is a 13-tile tenpai hand
 
 # (tenpai hand, calls) -> is it yakuman?
 CheckYakumanFunc = Callable[[Hand], bool]
@@ -104,6 +113,10 @@ def test_get_yakuman_tenpais():
     assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,19], [19,19,19]) == set()
     assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,11]) == {"chuuren"}
     assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,11,11]) == set()
+
+###
+### yaku calculation
+###
 
 # checks for:
 # - yakuhai
@@ -624,6 +637,9 @@ def get_takame_score(hand: Hand,
             takame = ron_takame
     return best_score, takame
 
+###
+### for debug use
+###
 
 def debug_yaku(kyoku):
     if kyoku.result[0] in {"ron", "tsumo"}:

@@ -5,6 +5,17 @@ from typing import *
 from .utils import pt, ph, remove_red_five, remove_red_fives, sorted_hand, try_remove_all_tiles, remove_some, remove_all, fix
 from pprint import pprint
 
+# This file details a shanten algorithm. It's not super efficient, but the
+#   goal is to be able to distinguish different types of iishanten, and to
+#   be able to determine the waits for both iishanten and tenpai hands.
+#  
+# The algorithm basically tries to remove every combination of groups
+#   and taatsus to determine the shanten, and then checks for the existence
+#   of certain combinations of resulting subhands to determine the iishanten
+#   type and the waits.
+# 
+# See `_calculate_shanten` for more info.
+
 ###
 ### ukeire and shanten calculations
 ###

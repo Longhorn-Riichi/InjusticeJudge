@@ -12,6 +12,28 @@ from .shanten import calculate_shanten
 from .yaku import get_yakuman_tenpais, debug_yaku
 from pprint import pprint
 
+# This file contains all the logic for fetching and parsing game logs into `Kyoku`s.
+# 
+# `__init__.py` calls the entry point `parse_game_link`, which takes a game log link
+#    and returns a tuple (kyokus, game metadata, player specified in the link).
+#   
+# `fetch_majsoul`/`fetch_tenhou` handle requesting and caching game logs given a link.
+# 
+# `parse_majsoul`/`parse_tenhou` parse said game logs into a list of `Event`s
+#   for each kyoku, as well as a `GameMetadata` object containing information about
+#   the game across kyokus. They both use `postprocess_events` to turn each `Event` list
+#   into a `Kyoku` object, and return the resulting list of `Kyoku`s, plus the
+#   `GameMetadata` object.
+#   
+# The `GameMetadata` class is basically not used in InjusticeJudge, but other
+#   callers of `parse_game_link` might take interest in it.
+# NOTE: Currently working on removing the GameMetadata class, and putting all
+#   the relevant information into the Kyoku class instead.
+# 
+# The sole uses of the resulting `Kyoku` objects are:
+# - `determine_flags` in `flags.py`,
+# - `evaluate_injustices` in `injustices.py`.
+
 def save_cache(filename: str, data: bytes) -> None:
     """Save data to a cache file"""
     import os
@@ -427,7 +449,6 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     events: List[Event] = []
     # constants obtained in the main loop below
     num_players: int = -1
-    last_round: Tuple[int, int] = (-1, -1)
     
     def end_round(result):
         nonlocal events
@@ -453,7 +474,6 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             # this is actually how Tenhou logs store the round counter
             round = action.chang*4 + action.ju
             honba = action.ben
-            last_round = (round, honba)
             events.append((t, "start_game", round, honba, list(action.scores)))
             # pretend we drew the first tile
             events.append((action.ju, "draw", first_tile))
@@ -537,8 +557,6 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     acc_data = sorted((acc.get("seat", 0), acc["nickname"]) for acc in metadata["accounts"])
     result_data = sorted((res.get("seat", 0), res["partPoint1"], res["totalPoint"]) for res in metadata["result"]["players"])
     parsed_metadata = GameMetadata(num_players = num_players,
-                                   num_rounds = len(all_events),
-                                   last_round = last_round,
                                    name = [acc_data[i][1] for i in range(num_players)],
                                    game_score = [result_data[i][1] for i in range(num_players)],
                                    final_score = [result_data[i][2] for i in range(num_players)],
@@ -734,8 +752,6 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
     # parse metadata
     use_red_fives = "aka51" in metadata["rule"] and metadata["rule"]["aka51"]
     parsed_metadata = GameMetadata(num_players = num_players,
-                                   num_rounds = len(all_events),
-                                   last_round = cast(Tuple[int, int], tuple(raw_kyokus[-1][0][:2])),
                                    name = metadata["name"],
                                    game_score = metadata["sc"][::2],
                                    final_score = list(map(lambda s: int(1000*s), metadata["sc"][1::2])),
@@ -763,6 +779,7 @@ async def parse_game_link(link: str, specified_player: int = 0) -> Tuple[List[Ky
     else:
         raise Exception("expected tenhou link similar to `tenhou.net/0/?log=`"
                         " or mahjong soul link similar to `mahjongsoul.game.yo-star.com/?paipu=`")
+    kyokus[-1].is_final_round = True
     if specified_player is not None:
         player = specified_player
     return kyokus, parsed_metadata, player
