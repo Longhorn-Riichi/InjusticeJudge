@@ -27,6 +27,7 @@ class Ron:
     score_delta: List[int] # list of score differences for this round
     winner: int            # winner's seat (0-3)
     won_from: int          # loser's seat (0-3)
+    dama: bool             # whether it was a dama hand or not
     han: int               # han for the winning hand
     fu: int                # fu for the winning hand
     limit_name: str        # e.g. "mangan", or empty string if not a limit hand
@@ -38,6 +39,7 @@ class Tsumo:
     """Parsed version of a tenhou tsumo result"""
     score_delta: List[int] # list of score differences for this round
     winner: int            # winner's seat (0-3)
+    dama: bool             # whether it was a dama hand or not
     han: int               # han for the winning hand
     fu: int                # fu for the winning hand
     limit_name: str        # e.g. "mangan", or empty string if not a limit hand

@@ -149,7 +149,8 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 visible_tiles.append(called_tile)
             elif event_type == "end_game":
                 unparsed_result = event_data[0]
-                kyoku.result = parse_result(unparsed_result, metadata.num_players, kyoku.kita_counts)
+                hand_is_hidden = [len(hand.open_part) == 0 for hand in kyoku.hands]
+                kyoku.result = parse_result(unparsed_result, metadata.num_players, hand_is_hidden, kyoku.kita_counts)
                 # emit events for placement changes
                 placement_before = to_placement(kyoku.start_scores)
                 new_scores = apply_delta_scores(kyoku.start_scores, kyoku.result[1].score_delta)
@@ -187,7 +188,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
         # debug_yaku(kyoku)
     return kyokus
 
-def parse_result(result: List[Any], num_players: int, kita_counts: List[int]) -> Tuple[Any, ...]:
+def parse_result(result: List[Any], num_players: int, hand_is_hidden: List[bool], kita_counts: List[int]) -> Tuple[Any, ...]:
     """
     Given a Tenhou game result list, parse it into a list of tuples where the
     first element is either "ron", "tsumo", or "draw"; the remainder of the tuple
@@ -239,6 +240,7 @@ def parse_result(result: List[Any], num_players: int, kita_counts: List[int]) ->
     if result_type == "和了":
         rons: List[Ron] = []
         for [score_delta, [w, won_from, _, score_string, *yaku]] in scores:
+            translated_yaku = list(map(translate_tenhou_yaku, yaku))
             below_mangan = "符" in score_string
             if below_mangan: # e.g. "30符1飜1000点", "50符3飜1600-3200点"
                 [fu, rest] = score_string.split("符")
@@ -250,8 +252,9 @@ def parse_result(result: List[Any], num_players: int, kita_counts: List[int]) ->
             else: # e.g. "倍満16000点", "満貫4000点∀"
                 pts = "".join(c for c in score_string if c in "0123456789-∀")
                 limit_name = TRANSLATE[score_string.split(pts[0])[0]]
-                han = sum(translate_tenhou_yaku(y)[1] for y in yaku)
+                han = sum(value for _, value in translated_yaku)
             assert han > 0, f"somehow got a {han} han win"
+            dama = hand_is_hidden[w] and ("riichi", 1) not in translated_yaku
             if w == won_from: # tsumo
                 if "-" in pts:
                     score_ko, score_oya = map(int, pts.split("-"))
@@ -263,6 +266,7 @@ def parse_result(result: List[Any], num_players: int, kita_counts: List[int]) ->
                     assert False, f"unable to parse tsumo score {pts} from score string {score_string}"
                 return ("tsumo", Tsumo(score_delta = score_delta,
                                        winner = w,
+                                       dama = dama,
                                        han = han,
                                        fu = fu if below_mangan else 0,
                                        limit_name = limit_name,
@@ -276,6 +280,7 @@ def parse_result(result: List[Any], num_players: int, kita_counts: List[int]) ->
                 rons.append(Ron(score_delta = score_delta,
                                 winner = w,
                                 won_from = won_from,
+                                dama = dama,
                                 han = han,
                                 fu = fu if below_mangan else 0,
                                 limit_name = limit_name,
