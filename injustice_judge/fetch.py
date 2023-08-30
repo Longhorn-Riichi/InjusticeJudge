@@ -527,7 +527,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                         point_string = f"{h.point_zimo_xian}-{h.point_zimo_qin}点"
                     else:
                         point_string = f"{h.point_zimo_xian}点∀"
-                yakus = [name for _, name in sorted((fan.id, f"{YAKU_NAMES[fan.id]}({fan.val}飜)") for fan in h.fans)]
+                yakus = [name for _, name in sorted((fan.id, f"{YAKU_NAMES[fan.id]}({fan.val}飜)") for fan in h.fans if fan.val)]
                 result.append(list(action.delta_scores))
                 result.append([h.seat, last_seat, h.seat, score_string+point_string, *yakus])
                 dora_indicators = majsoul_hand_to_tenhou(h.doras)

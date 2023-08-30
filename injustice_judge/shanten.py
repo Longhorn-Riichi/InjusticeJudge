@@ -2,7 +2,7 @@ import functools
 import itertools
 from .constants import PRED, SUCC, YAOCHUUHAI
 from typing import *
-from .utils import pt, ph, remove_red_five, remove_red_fives, sorted_hand, try_remove_all_tiles, remove_some, remove_all, fix
+from .utils import get_waits, pt, ph, remove_red_five, remove_red_fives, sorted_hand, try_remove_all_tiles, remove_some, remove_all, fix
 from pprint import pprint
 
 # This file details a shanten algorithm. It's not super efficient, but the
@@ -30,14 +30,6 @@ remove_all_taatsus = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus), 
 make_pairs = lambda tile: ((tile, tile),)
 remove_some_pairs = lambda hands: fix(lambda hs: remove_some(hs, make_pairs), hands)
 remove_all_pairs = lambda hands: fix(lambda hs: remove_all(hs, make_pairs), hands)
-
-def get_waits(hand: Tuple[int, ...]) -> Set[int]:
-    """Get all waits resulting from each pair of consecutive tiles, excluding pair waits"""
-    hand = sorted_hand(hand)
-    def get_taatsu_wait(taatsu: Tuple[int, int]) -> Set[int]:
-        t1, t2 = remove_red_fives(taatsu)
-        return {PRED[t1], SUCC[t2]} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
-    return set().union(*map(get_taatsu_wait, zip(hand[:-1], hand[1:]))) - {0}
 
 # note: ctr = Counter(remove_red_fives(starting_hand))
 # passed in so you only have to construct it once

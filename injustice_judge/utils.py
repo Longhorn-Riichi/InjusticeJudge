@@ -143,3 +143,11 @@ def calculate_delta_scores(han: int, fu: int, is_tsumo: bool, winner: int, deale
     return delta_scores
 
 apply_delta_scores = lambda scores, delta_score:  [score + delta for score, delta in zip(scores, delta_score)]
+
+def get_taatsu_wait(taatsu: Tuple[int, int]) -> Set[int]:
+    t1, t2 = remove_red_fives(taatsu)
+    return {PRED[t1], SUCC[t2]} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
+def get_waits(hand: Tuple[int, ...]) -> Set[int]:
+    """Get all waits resulting from each pair of consecutive tiles, excluding pair waits"""
+    hand = sorted_hand(hand)
+    return set().union(*map(get_taatsu_wait, zip(hand[:-1], hand[1:]))) - {0}

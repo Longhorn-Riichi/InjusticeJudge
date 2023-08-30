@@ -5,7 +5,7 @@ from typing import *
 from .classes import CallInfo, Event, Hand, Kyoku, YakuForWait, Score, Interpretation
 from .constants import KO_RON_SCORE, LIMIT_HANDS, OYA_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, PRED, SUCC, YAOCHUUHAI
 from .shanten import get_tenpai_waits
-from .utils import fix, get_score, is_mangan, pt, ph, print_hand_details_seat, remove_red_five, remove_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles
+from .utils import fix, get_score, get_taatsu_wait, is_mangan, pt, ph, print_hand_details_seat, remove_red_five, remove_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles
 from pprint import pprint
 
 # This file details some algorithms for checking the yaku of a given `Hand` object.
@@ -266,6 +266,17 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
     sequences = tuple(tuple(remove_red_fives(seq)) for seq in sequences)
     triplets = tuple(tuple(remove_red_fives(tri)) for tri in triplets)
     pair_tile = None if pair is None else remove_red_five(pair[0])
+
+    # filter for only waits that satisfy this interpretation
+    if len(taatsu) == 1: # tanki
+        waits &= set(taatsu)
+    elif len(taatsu) == 2:
+        if taatsu[0] == taatsu[1] and pair_tile is not None: # shanpon
+            waits &= {taatsu[0], pair_tile}
+        else: # penchan, kanchan, ryanmen
+            waits &= get_taatsu_wait(taatsu)
+    if len(waits) == 0:
+        return {}
 
     # get the full hand (for checking chiitoitsu)
     full_hand = (*taatsu,
@@ -552,9 +563,8 @@ def get_yaku(hand: Hand,
             han = sum(b for _, b in yaku[wait])
             fixed_fu = 25 if ("chiitoitsu", 2) in yaku[wait] else None
             if check_rons:
+                fixed_fu = fixed_fu or (30 if ("pinfu", 1) in yaku[wait] else None) # open pinfu ron = 30
                 ron_fu = fixed_fu or round_fu(interpretation.ron_fu)
-                if ron_fu == 20 and not is_closed_hand:
-                    ron_fu = 30 # open pinfu ron = 30
                 best_score[wait] = max(best_score[wait], Score(yaku[wait], han, ron_fu, False, interpretation, hand))
             if check_tsumos:
                 if is_closed_hand:
