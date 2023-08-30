@@ -14,6 +14,8 @@ import os
 def pt_unicode(tile: int) -> str:
     """print tile (2-char representation)"""
     TILE_REPRS = "🀇🀈🀉🀊🀋🀌🀍🀎🀏🀙🀚🀛🀜🀝🀞🀟🀠🀡🀐🀑🀒🀓🀔🀕🀖🀗🀘🀀🀁🀂🀃🀆🀅🀄︎"
+    if tile == 0:
+        return "??"
     if tile < 20:
         return TILE_REPRS[tile - 11] + " "
     elif tile < 30:

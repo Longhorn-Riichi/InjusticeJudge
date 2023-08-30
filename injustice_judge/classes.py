@@ -191,7 +191,7 @@ class Interpretation:
         return hash(self.unpack())
     def __str__(self):
         full_hand = (*self.sequences, *self.triplets, self.pair, self.hand) if self.pair is not None else (*self.sequences, *self.triplets, self.hand)
-        return " ".join(map(ph, full_hand))
+        return " ".join(map(ph, full_hand)) + f" ron {self.ron_fu} tsumo {self.tsumo_fu}"
 
 YakuForWait = Dict[int, List[Tuple[str, int]]]
 @dataclass
@@ -205,9 +205,12 @@ class Score:
         return hash((self.fu, tuple(self.yaku)))
     def __lt__(self, other):
         return (self.han, self.fu) < (other.han, other.fu)
+    def __str__(self):
+        return f"{self.han}/{self.fu} {self.yaku} ({self.interpretation!s})"
     # these fields are only for debug use
     interpretation: Interpretation # the interpretation used to calculate yaku and fu
     hand: Hand                     # the original hand
+
 
 Event = Tuple[Any, ...]
 @dataclass
