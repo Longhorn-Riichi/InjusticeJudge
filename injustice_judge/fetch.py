@@ -5,7 +5,7 @@ from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
-from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Tsumo, YakuList, GameMetadata, Dir
+from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Tsumo, ResultYakuList, GameMetadata, Dir
 from .constants import DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
 from .utils import ph, pt, apply_delta_scores, round_name, sorted_hand, to_placement, translate_tenhou_yaku
 from .shanten import calculate_shanten
@@ -145,7 +145,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 # save final waits and ukeire
                 for seat in range(kyoku.num_players):
                     ukeire = kyoku.hands[seat].ukeire(visible_tiles + dora_indicators[:num_doras])
-                    kyoku.final_waits.append(kyoku.hands[seat].shanten[1])
                     kyoku.final_ukeire.append(ukeire)
             # emit dora event, and increment doras for kans
             if event_type in {"minkan", "ankan", "kakan"}:
@@ -177,10 +176,10 @@ def parse_result(result: List[Any], num_players: int, kita_counts: List[int]) ->
     result_type, *scoring = result
     ret: List[Tuple[str, Any]] = []
     scores = [scoring[i*2:i*2+2] for i in range((len(scoring)+1)//2)]
-    def process_yaku(yaku: List[str],  kita_count: int) -> YakuList:
+    def process_yaku(yaku: List[str],  kita_count: int) -> ResultYakuList:
         # for subtracting kita count from dora count in Tenhou sanma
         dora_index: Optional[int] = None
-        ret = YakuList(yaku_strs = yaku)
+        ret = ResultYakuList(yaku_strs = yaku)
         for i, y in enumerate(yaku):
             if "役満" in y: # skip yakuman since they don't specify 飜
                 continue
@@ -228,7 +227,7 @@ def parse_result(result: List[Any], num_players: int, kita_counts: List[int]) ->
                 limit_name = "" # not a limit hand
             else: # e.g. "倍満16000点", "満貫4000点∀"
                 pts = "".join(c for c in score_string if c in "0123456789-∀")
-                limit_name = score_string.split(pts[0])[0]
+                limit_name = TRANSLATE[score_string.split(pts[0])[0]]
                 han = sum(translate_tenhou_yaku(y)[1] for y in yaku)
             assert han > 0, f"somehow got a {han} han win"
             if w == won_from: # tsumo

@@ -5,7 +5,7 @@ from typing import *
 from .classes import CallInfo, Event, Hand, Kyoku, YakuForWait, Score, Interpretation
 from .constants import KO_RON_SCORE, LIMIT_HANDS, OYA_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, PRED, SUCC, YAOCHUUHAI
 from .shanten import get_tenpai_waits
-from .utils import fix, get_score, is_mangan, pt, ph, print_final_hand_seat, remove_red_five, remove_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles
+from .utils import fix, get_score, is_mangan, pt, ph, print_hand_details_seat, remove_red_five, remove_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles
 from pprint import pprint
 
 # all of these functions assume the passed-in hand is a 13-tile tenpai hand
@@ -632,7 +632,7 @@ def debug_yaku(kyoku):
         y = get_seat_yaku(kyoku, w)
         ron_takame_tiles, ron_han, ron_fu, ron_yaku = get_takame(y, tsumo=False)
         tsumo_takame_tiles, tsumo_han, tsumo_fu, tsumo_yaku = get_takame(y, tsumo=True)
-        print(f"{round_name(kyoku.round, kyoku.honba)} | seat {w} {print_final_hand_seat(kyoku, w)} | dora {ph(kyoku.doras)} ura {ph(kyoku.uras)}")
+        print(f"{round_name(kyoku.round, kyoku.honba)} | seat {w} {print_hand_details_seat(kyoku, w)} | dora {ph(kyoku.doras)} ura {ph(kyoku.uras)}")
         if kyoku.result[0] == "ron":
             for t in ron_takame_tiles:
                 score = get_score(ron_hand, ron_fu, is_dealer, False, kyoku.num_players)

@@ -38,9 +38,9 @@ pt = lambda tile: DISCORD_TILES[tile] if os.getenv("use_discord_tile_emoji") == 
 pt_sideways = lambda tile: DISCORD_CALLED_TILES[tile] if os.getenv("use_discord_tile_emoji") == "True" else f"₍{pt_unicode(tile)}₎"
 pt_dora = lambda tile: DISCORD_DORA_TILES[tile] if os.getenv("use_discord_tile_emoji") == "True" else f"{pt_unicode(tile)}̷"
 
-def print_final_hand_seat(kyoku, seat, print_final_tile=False):
+def print_hand_details_seat(kyoku, seat, print_final_tile=False):
     final_tile = None if not print_final_tile else kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw
-    return kyoku.hands[seat].final_hand(
+    return kyoku.hands[seat].print_hand_details(
             ukeire=kyoku.final_ukeire[seat],
             final_tile=final_tile,
             furiten=kyoku.furiten[seat])

@@ -2,9 +2,25 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 from typing import *
 
-###
-### lookup tables
-###
+# This file contains every lookup table used in InjusticeJudge.
+# A summary:
+#   SHANTEN_NAMES: the printed name for each number internally representing of a type of shanten
+#      PLACEMENTS: the printed name of a placement (1 -> "1st")
+#      YAKU_NAMES: maps mahjong soul yaku IDs to tenhou yaku names
+#         YAKUMAN: the yakuman subset of YAKU_NAMES
+#     LIMIT_HANDS: a mapping from han to tenhou's limit hand name
+#       TRANSLATE: a big maps from all Japanese terms to English terms
+#       PRED/SUCC: get the predecessor/successor of a number tile, 0 if nonexistent
+#  DORA_INDICATOR: map from a dora to its indicator
+#            DORA: map from a dora indicator to its indicated dora
+# TOGGLE_RED_FIVE: maps a five to its red equivalent and vice versa
+#      YAOCHUUHAI: a set of all terminal and honor tiles
+#    KO_RON_SCORE: nondealer ron score for a given han and fu
+#   OYA_RON_SCORE: dealer ron score for a given han and fu
+#  KO_TSUMO_SCORE: tsumo points paid by nondealers for a given han and fu
+# OYA_TSUMO_SCORE: tsumo points paid by the dealer for a given han and fu
+#   DISCORD_TILES: Discord emoji representation of each tile, used for the Discord bot
+#                  There is also DISCORD_CALLED_TILES which is for sideways tiles
 
 SHANTEN_NAMES = {
     0: "tenpai",

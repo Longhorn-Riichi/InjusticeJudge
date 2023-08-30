@@ -278,7 +278,7 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
 
                 # check if we are mangan+ tenpai
                 if han >= 5 or is_mangan(han, fu):
-                    hand_str = hand.final_hand(ukeire=ukeire, final_tile=None, furiten=furiten)
+                    hand_str = hand.print_hand_details(ukeire=ukeire, final_tile=None, furiten=furiten)
                     add_flag(seat, Flags.YOU_HAD_LIMIT_TENPAI,
                                    {"hand_str": hand_str,
                                     "takame": takame,
@@ -374,15 +374,14 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
 
             # Add potentially several WINNER flags depending on the limit hand
             # e.g. haneman wins will get WINNER_GOT_HANEMAN plus all the flags before that
-            assert len(kyoku.final_waits) > 0, "forgot to set kyoku.final_waits after processing event list"
             limit_hand_flags = [Flags.WINNER, Flags.WINNER_GOT_MANGAN,
                                 Flags.WINNER_GOT_HANEMAN, Flags.WINNER_GOT_BAIMAN,
                                 Flags.WINNER_GOT_SANBAIMAN, Flags.WINNER_GOT_YAKUMAN]
-            limit_hand_names = ["", "満貫", "跳満", "倍満", "三倍満", "役満"]
+            limit_hand_names = ["", "mangan", "haneman", "baiman", "sanbaiman", "yakuman"]
             assert result.limit_name in limit_hand_names, f"unknown limit hand name {result.limit_name}"
             limit_hand_flags = limit_hand_flags[0:limit_hand_names.index(result.limit_name)+1]
             winner_data = {"seat": result.winner,
-                           "wait": kyoku.final_waits[result.winner],
+                           "wait": kyoku.hands[result.winner].shanten[1],
                            "ukeire": kyoku.final_ukeire[result.winner],
                            "score": result.score,
                            "han": han,
@@ -426,7 +425,6 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
         for ron in results:
             assert isinstance(ron, Ron), f"result tagged ron got non-Ron object: {ron}"
             # check deal-ins
-            assert len(kyoku.final_waits[ron.winner]) > 0, f"in {round_name(kyoku.round, kyoku.honba)}, seat {ron.winner} won with hand {ph(sorted_hand(kyoku.hands[ron.winner]))}, but has no waits saved in kyoku.final_waits"
             add_flag(ron.winner, Flags.YOU_RONNED_SOMEONE, {"from": ron.won_from})
             add_flag(ron.won_from, Flags.YOU_DEALT_IN, {"to": ron.winner})
             for seat in range(num_players):
@@ -453,7 +451,7 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
         if kyoku.furiten[tsumo.winner]:
             add_global_flag(Flags.WINNER_WAS_FURITEN,
                             {"seat": tsumo.winner,
-                             "wait": kyoku.final_waits[tsumo.winner],
+                             "wait": kyoku.hands[tsumo.winner].shanten[1],
                              "ukeire": kyoku.final_ukeire[tsumo.winner]})
         # check ippatsu tsumo
         if tsumo.yaku.ippatsu:
