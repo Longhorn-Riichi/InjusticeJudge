@@ -3,8 +3,8 @@ from .constants import LIMIT_HANDS, SHANTEN_NAMES, TRANSLATE, YAOCHUUHAI
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
-from .utils import is_mangan, ph, pt, relative_seat_name, remove_red_five, round_name, shanten_name, sorted_hand, try_remove_all_tiles, translate_tenhou_yaku
-from .yaku import get_yaku, get_final_yaku, get_score
+from .utils import is_mangan, ph, pt, relative_seat_name, remove_red_five, round_name, shanten_name, sorted_hand, to_placement, try_remove_all_tiles, translate_tenhou_yaku
+from .yaku import get_yaku, get_final_yaku, get_score, get_takame_score
 from pprint import pprint
 
 ###
@@ -23,6 +23,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " GAME_ENDED_WITH_TSUMO"
     " IISHANTEN_HAIPAI_ABORTED"
     " LAST_DISCARD_WAS_RIICHI"
+    " FINAL_ROUND"
     " LOST_POINTS_TO_FIRST_ROW_WIN"
     " NINE_DRAWS_NO_IMPROVEMENT"
     " SEVEN_TERMINAL_START"
@@ -64,6 +65,10 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_TENPAI_FIRST"
     " YOU_TSUMOED"
     " YOU_WAITED_ON_WINNING_TILE"
+    " YOU_WERE_FIRST"
+    " YOU_WERE_SECOND"
+    " YOU_WERE_THIRD"
+    " YOU_WERE_FOURTH"
     " YOUR_LAST_DISCARD_ENDED_NAGASHI"
     " YOUR_LAST_NAGASHI_TILE_CALLED"
     " YOUR_TENPAI_TILE_DEALT_IN"
@@ -93,6 +98,15 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
 
     # give dealer a flag saying that they're dealer
     add_flag(kyoku.round % 4, Flags.YOU_ARE_DEALER)
+
+    # give everyone a flag for their placement
+    placement_flags = [Flags.YOU_WERE_FIRST, Flags.YOU_WERE_SECOND, Flags.YOU_WERE_THIRD, Flags.YOU_WERE_FOURTH]
+    for seat, placement in enumerate(to_placement(kyoku.start_scores)):
+        add_flag(seat, placement_flags[placement])
+
+    # add final round flag (NOT all last)
+    if (kyoku.round, kyoku.honba) == metadata.last_round:
+        add_global_flag(seat, Flags.FINAL_ROUND)
 
     # add the flag that's the end of the game
     if kyoku.result[0] == "ron":
@@ -251,24 +265,17 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
                     del flags[seat][ix]
                     del data[seat][ix]
 
-                # get takame data
-                # if no calls, use tsumo score. else, get ron score
-                # note, this only checks calls present at the end of the game
-                # but it is not too important which score we use
-                calls_present = len(hand.calls) > 0
-                assert hand.shanten[0] == 0
-
-                scores: Dict[int, Score] = get_yaku(hand = hand,
-                                                    events = kyoku.events,
-                                                    doras = kyoku.doras,
-                                                    uras = kyoku.uras,
-                                                    round = kyoku.round,
-                                                    seat = seat,
-                                                    check_rons = calls_present,
-                                                    check_tsumos = not calls_present)
-                best_score, takame = max((score, wait) for wait, score in scores.items())
+                best_score, takame = get_takame_score(hand = hand,
+                                                      events = kyoku.events,
+                                                      doras = kyoku.doras,
+                                                      uras = kyoku.uras,
+                                                      round = kyoku.round,
+                                                      seat = seat)
+                # if seat == 2 and (kyoku.round, kyoku.honba) == (6, 1):
+                #     print(seat, round_name(kyoku.round, kyoku.honba), best_score.yaku)
                 han = best_score.han
                 fu = best_score.fu
+
                 # check if we are mangan+ tenpai
                 if han >= 5 or is_mangan(han, fu):
                     hand_str = hand.final_hand(ukeire=ukeire, final_tile=None, furiten=furiten)
@@ -291,7 +298,7 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
             add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": yakuman_types})
         elif event_type == "placement_change":
             old, new, prev_scores, delta_scores = event_data
-            if old == 4 and (kyoku.round, kyoku.honba) == metadata.last_round:
+            if old == 4 and Flags.FINAL_ROUND in global_flags:
                 add_flag(seat, Flags.YOU_AVOIDED_LAST_PLACE, {})
             if new > old: # dropped placement
                 add_flag(seat, Flags.YOU_DROPPED_PLACEMENT, {"old": old, "new": new, "prev_scores": prev_scores, "delta_scores": delta_scores})
@@ -360,10 +367,10 @@ def determine_flags(kyoku: Kyoku, metadata: GameMetadata) -> Tuple[List[List[Fla
             fu = calculated_yaku[final_tile].fu
             # compare the han values to make sure we calculated it right
             winning_hand = kyoku.hands[result.winner]
-            assert han == expected_han, f"calculated the wrong han ({han}) for a {expected_han} han hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[final_tile]}"
+            assert han == expected_han, f"in {round_name(kyoku.round, kyoku.honba)}, calculated the wrong han ({han}) for a {expected_han} han hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[final_tile]}"
             # compare the resulting score to make sure we calculated it right
             calculated_score = get_score(han, fu, result.winner == kyoku.round % 4, result_type == "tsumo", kyoku.num_players)
-            assert calculated_score == result.score, f"calculated the wrong score ({calculated_score}) for a {result.score} point hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {yaku[final_tile]}"
+            assert calculated_score == result.score, f"in {round_name(kyoku.round, kyoku.honba)}, calculated the wrong score ({calculated_score}) for a {result.score} point hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {yaku[final_tile]}"
 
             # Add potentially several WINNER flags depending on the limit hand
             # e.g. haneman wins will get WINNER_GOT_HANEMAN plus all the flags before that

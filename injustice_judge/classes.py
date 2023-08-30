@@ -18,6 +18,7 @@ class YakuList:
     riichi: bool = False
     ippatsu: bool = False
     haitei: bool = False
+
 @dataclass(frozen = True)
 class Ron:
     score_delta: List[int]
@@ -58,16 +59,6 @@ class GameMetadata:
     ura_indicators: List[List[int]]
     use_red_fives: bool
 
-
-
-
-
-@functools.cache
-def _hidden_part(hand: Tuple[int], calls: Tuple[int]) -> Tuple[int, ...]:
-    ret = try_remove_all_tiles(hand, calls)
-    assert len(ret) + len(calls) == len(hand), f"with hand = {ph(hand)} and calls = {ph(calls)}, somehow closed part is {ph(ret)}"
-    return ret
-
 class Dir(IntEnum):
     SELF = 0
     SHIMOCHA = 1
@@ -101,6 +92,16 @@ class CallInfo:
         elif self.dir == Dir.KAMICHA:
             return sideways + ph(other_tiles)
         # dir == Dir.SELF is only for ankan and is handled above
+
+
+
+
+
+@functools.cache
+def _hidden_part(hand: Tuple[int], calls: Tuple[int]) -> Tuple[int, ...]:
+    ret = try_remove_all_tiles(hand, calls)
+    assert len(ret) + len(calls) == len(hand), f"with hand = {ph(hand)} and calls = {ph(calls)}, somehow closed part is {ph(ret)}"
+    return ret
 
 # main hand class
 @dataclass(frozen=True)
@@ -186,6 +187,9 @@ class Interpretation:
         return (self.hand, self.ron_fu, self.tsumo_fu, self.sequences, self.triplets, self.pair)
     def __hash__(self):
         return hash(self.unpack())
+    def __str__(self):
+        full_hand = (*self.sequences, *self.triplets, self.pair, self.hand) if self.pair is not None else (*self.sequences, *self.triplets, self.hand)
+        return " ".join(map(ph, full_hand))
 YakuForWait = Dict[int, List[Tuple[str, int]]]
 @dataclass
 class Score:
@@ -218,11 +222,11 @@ class Kyoku:
     final_discard: int                            = 0
     final_draw_event_index: List[int]             = field(default_factory=list)
     final_discard_event_index: List[int]          = field(default_factory=list)
-    # doras include the round doras AND the red fives; each appearance means it's +1 han
+    # doras include the round doras AND the red fives; there can be multiple of the same dora tile
     doras: List[int]                              = field(default_factory=list)
     uras: List[int]                               = field(default_factory=list)
     events: List[Event]                           = field(default_factory=list)
-    result: Tuple[Any, ...]                       = field(default_factory=tuple)
+    result: Tuple[Any, ...]                       = ()
     hands: List[Hand]                             = field(default_factory=list)
     pond: List[List[int]]                         = field(default_factory=list)
     furiten: List[bool]                           = field(default_factory=list)

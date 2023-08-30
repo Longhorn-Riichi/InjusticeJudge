@@ -7,7 +7,7 @@ from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
 from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Tsumo, YakuList, GameMetadata, Dir
 from .constants import DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
-from .utils import ph, pt, apply_delta_scores, round_name, sorted_hand, translate_tenhou_yaku
+from .utils import ph, pt, apply_delta_scores, round_name, sorted_hand, to_placement, translate_tenhou_yaku
 from .shanten import calculate_shanten
 from .yaku import get_yakuman_tenpais, debug_yaku
 from pprint import pprint
@@ -129,7 +129,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 unparsed_result = event_data[0]
                 kyoku.result = parse_result(unparsed_result, metadata.num_players, kyoku.kita_counts)
                 # emit events for placement changes
-                to_placement = lambda scores: (ixs := sorted(range(len(scores)), key=lambda x: -scores[x]), [ixs.index(p) for p in range(len(scores))])[1]
                 placement_before = to_placement(kyoku.start_scores)
                 new_scores = apply_delta_scores(kyoku.start_scores, kyoku.result[1].score_delta)
                 placement_after = to_placement(new_scores)

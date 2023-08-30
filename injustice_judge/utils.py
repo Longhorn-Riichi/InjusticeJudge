@@ -53,6 +53,7 @@ round_name = lambda rnd, honba: (f"East {rnd+1}" if rnd <= 3 else f"South {rnd-3
 short_round_name = lambda rnd, honba: (f"E{rnd+1}" if rnd <= 3 else f"S{rnd-3}" if rnd <= 7 else f"W{rnd-7}") + f"-{honba}"
 relative_seat_name = lambda you, other: {0: "self", 1: "shimocha", 2: "toimen", 3: "kamicha"}[(other-you)%4]
 is_mangan = lambda han, fu: han == 5 or (han >= 4 and fu >= 40) or (han >= 3 and fu >= 70)
+to_placement = lambda scores: (ixs := sorted(range(len(scores)), key=lambda x: -scores[x]), [ixs.index(p) for p in range(len(scores))])[1]
 
 # helpers for removing tiles from hand
 @functools.cache
@@ -119,7 +120,7 @@ def get_score(han: int, fu: int, is_dealer: bool, is_tsumo: bool, num_players: i
         oya = OYA_TSUMO_SCORE[han][fu]  # type: ignore[index]
         ko = KO_TSUMO_SCORE[han][fu]  # type: ignore[index]
         return oya + (oya if is_dealer else ko) * (num_players - 2)
-    else: 
+    else:
         return (OYA_RON_SCORE if is_dealer else KO_RON_SCORE)[han][fu]  # type: ignore[index]
 
 def calculate_delta_scores(han: int, fu: int, is_tsumo: bool, winner: int, dealer: int, num_players: int, loser: Optional[int]) -> List[int]:

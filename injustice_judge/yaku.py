@@ -3,9 +3,9 @@ import functools
 import itertools
 from typing import *
 from .classes import CallInfo, Event, Hand, Kyoku, YakuForWait, Score, Interpretation
-from .constants import KO_RON_SCORE, OYA_RON_SCORE, KO_TSUMO_SCORE, OYA_TSUMO_SCORE, PRED, SUCC, YAOCHUUHAI
+from .constants import KO_RON_SCORE, LIMIT_HANDS, OYA_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, PRED, SUCC, YAOCHUUHAI
 from .shanten import get_tenpai_waits
-from .utils import fix, get_score, pt, ph, print_final_hand_seat, remove_red_five, remove_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles
+from .utils import fix, get_score, is_mangan, pt, ph, print_final_hand_seat, remove_red_five, remove_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles
 from pprint import pprint
 
 # all of these functions assume the passed-in hand is a 13-tile tenpai hand
@@ -319,7 +319,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
         if len(remaining) >= 2:
             continue
         for wait in waits:
-            if remaining in [{}, {sorted_hand((*taatsu, wait))}]:
+            if remaining in [set(), {sorted_hand((*taatsu, wait))}]:
                 yaku[wait].append(("iitsu", 2 if is_closed_hand else 1))
 
     # sanshoku: there's only 7 sanshoku groups, so do the same as before
@@ -331,7 +331,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
         if len(remaining) >= 2:
             continue
         for wait in waits:
-            if remaining in [{}, {sorted_hand((*taatsu, wait))}]:
+            if remaining in [set(), {sorted_hand((*taatsu, wait))}]:
                 yaku[wait].append(("sanshoku", 2 if is_closed_hand else 1))
 
     # sanshoku: there's only 9 sanshoku doukou groups, so do the same as before
@@ -343,7 +343,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
         if len(remaining) >= 2:
             continue
         for wait in waits:
-            if remaining in [{}, {sorted_hand((*taatsu, wait))}]:
+            if remaining in [set(), {sorted_hand((*taatsu, wait))}]:
                 yaku[wait].append(("sanshoku doukou", 2))
 
     # junchan: if we remove all junchan groups and we're left with a terminal pair
@@ -351,9 +351,9 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
     TERMINAL_SEQS = set().union(set(zip(range(11,40,10),range(12,40,10),range(13,40,10))),
                                 set(zip(range(21,40,10),range(22,40,10),range(23,40,10))),
                                 set(zip(range(31,40,10),range(32,40,10),range(33,40,10))),
-                                set(zip(range(17,40,10),range(17,40,10),range(17,40,10))),
-                                set(zip(range(28,40,10),range(28,40,10),range(28,40,10))),
-                                set(zip(range(39,40,10),range(39,40,10),range(39,40,10))))
+                                set(zip(range(17,40,10),range(18,40,10),range(19,40,10))),
+                                set(zip(range(27,40,10),range(28,40,10),range(29,40,10))),
+                                set(zip(range(37,40,10),range(38,40,10),range(39,40,10))))
     JUNCHAN_TRIS = {(t,t,t) for t in {11,19,21,29,31,39}}
     JUNCHAN_PAIRS = {(t,t) for t in {11,19,21,29,31,39}}
     CHANTA_TRIS = {(t,t,t) for t in range(41,48)}
@@ -539,12 +539,13 @@ def get_yaku(hand: Hand,
             han = sum(b for _, b in yaku[wait])
             fixed_fu = 25 if ("chiitoitsu", 2) in yaku[wait] else None
             if check_rons:
-
                 ron_fu = fixed_fu or round_fu(interpretation.ron_fu)
+                if ron_fu == 20 and not is_closed_hand:
+                    ron_fu = 30 # open pinfu ron = 30
                 best_score[wait] = max(best_score[wait], Score(yaku[wait], han, ron_fu, False, interpretation, hand))
             if check_tsumos:
                 if is_closed_hand:
-                    fixed_fu = fixed_fu or (20 if ("pinfu", 1) in yaku[wait] else None)
+                    fixed_fu = fixed_fu or (20 if ("pinfu", 1) in yaku[wait] else None) # closed pinfu tsumo = 20
                     tsumo_fu = fixed_fu or round_fu(interpretation.tsumo_fu)
                     best_score[wait] = max(best_score[wait], Score(yaku[wait] + [("tsumo", 1)], han + 1, tsumo_fu, True, interpretation, hand))
                 else:
@@ -580,6 +581,49 @@ def test_get_stateless_yaku():
     print(test_hand((11,11,12,12,13,31,23,24,25,26,27,28,31))) # iipeikou
     print(test_hand((11,12,12,13,13,14,15,16,21,22,23,24,24))) # pinfu, iipeikou
     print(test_hand((11,12,12,13,13,22,22,23,23,24,24,33,33))) # pinfu, ryanpeikou
+
+def get_takame_score(hand: Hand,
+                     events: List[Event],
+                     doras: List[int],
+                     uras: List[int],
+                     round: int,
+                     seat: int) -> Tuple[Score, int]:
+    assert hand.shanten[0] == 0
+    
+    # if no calls, use tsumo score. else, get ron score
+    calls_present = len(hand.calls) > 0
+    scores: Dict[int, Score] = get_yaku(hand = hand,
+                                        events = events,
+                                        doras = doras,
+                                        uras = uras,
+                                        round = round,
+                                        seat = seat,
+                                        check_rons = calls_present,
+                                        check_tsumos = not calls_present)
+    best_score, takame = max((score, wait) for wait, score in scores.items())
+    han = best_score.han
+    fu = best_score.fu   
+    # if we added tsumo, then we might not need the extra han from menzentsumo
+    # (e.g. 6 han + tsumo -> 7 han, still haneman, no need for tsumo)
+    # recalculate fu for a ron, and return that score if it results in the same limit hand
+    recalculate = han in {7, 9, 10, 12} or (han == 5 and fu >= 40) or (han == 4 and fu >= 70)
+    if recalculate and not calls_present:
+        ron_scores: Dict[int, Score] = get_yaku(hand = hand,
+                                                events = events,
+                                                doras = doras,
+                                                uras = uras,
+                                                round = round,
+                                                seat = seat,
+                                                check_rons = True,
+                                                check_tsumos = False)
+        best_ron_score, ron_takame = max((score, wait) for wait, score in ron_scores.items())
+        ron_han = best_score.han
+        ron_fu = best_score.fu
+        if LIMIT_HANDS[ron_han] == LIMIT_HANDS[han] or (is_mangan(han, fu) and is_mangan(ron_han, ron_fu)):
+            best_score = best_ron_score
+            takame = ron_takame
+    return best_score, takame
+
 
 def debug_yaku(kyoku):
     if kyoku.result[0] in {"ron", "tsumo"}:
