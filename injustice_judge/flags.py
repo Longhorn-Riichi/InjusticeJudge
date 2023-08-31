@@ -379,19 +379,24 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                 expected_han += han
             # then calculate yaku, han, and fu of the winning hand
             calculated_yaku = get_final_yaku(kyoku, result.winner, check_rons=(result_type=="ron"), check_tsumos=(result_type=="tsumo"))
+
+            # we already take into account if the wait is dora
+            #   but we don't check if the winning tile is aka
+            #   let's fix it here
             final_tile = kyoku.final_discard if result_type == "ron" else kyoku.final_draw
-            final_tile_is_dora = final_tile in set(kyoku.doras)
+            final_tile_is_aka = final_tile in set(kyoku.doras) and final_tile in {51,52,53}
             final_tile = remove_red_five(final_tile)
-            if final_tile_is_dora:
-                calculated_yaku[final_tile].add_dora("aka" if final_tile in {51,52,53} else "dora", 1)
+            if final_tile_is_aka:
+                calculated_yaku[final_tile].add_dora("aka", 1)
+
             han = calculated_yaku[final_tile].han
             fu = calculated_yaku[final_tile].fu
             # compare the han values to make sure we calculated it right
             winning_hand = kyoku.hands[result.winner]
-            # assert han == expected_han, f"in {round_name(kyoku.round, kyoku.honba)}, calculated the wrong han ({han}) for a {expected_han} han hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[final_tile]}"
+            assert han == expected_han, f"in {round_name(kyoku.round, kyoku.honba)}, calculated the wrong han ({han}) for a {expected_han} han hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[final_tile]}"
             # compare the resulting score to make sure we calculated it right
             calculated_score = get_score(han, fu, result.winner == kyoku.round % 4, result_type == "tsumo", kyoku.num_players)
-            # assert calculated_score == result.score, f"in {round_name(kyoku.round, kyoku.honba)}, calculated the wrong score ({calculated_score}) for a {result.score} point hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[final_tile]}"
+            assert calculated_score == result.score, f"in {round_name(kyoku.round, kyoku.honba)}, calculated the wrong score ({calculated_score}) for a {result.score} point hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[final_tile]}"
 
             # Add potentially several WINNER flags depending on the limit hand
             # e.g. haneman wins will get WINNER_GOT_HANEMAN plus all the flags before that
