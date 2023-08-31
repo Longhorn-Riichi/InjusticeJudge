@@ -453,7 +453,7 @@ def add_stateful_yaku(yaku: YakuForWait,
     # second state machine checks for kans and draws and discards
     # - chankan: check if there is any kakan and no draw after it
     # - rinshan: check if there is any kan, then a draw, and no discard after it
-    self_discard_event_exists = False
+    double_riichi_eligible = True
     is_ippatsu = False
     is_chankan = False
     is_rinshan = False
@@ -463,21 +463,23 @@ def add_stateful_yaku(yaku: YakuForWait,
                 is_ippatsu = False # kakan call succeeded
             is_chankan = False
         elif event_seat == seat and event_type == "discard": # self discard
-            self_discard_event_exists = True
+            double_riichi_eligible = False
             is_ippatsu = False
             is_rinshan = False
         elif is_closed_hand and event_seat == seat and event_type == "riichi": # self riichi
             is_ippatsu = True
             for wait in waits:
-                if self_discard_event_exists:
-                    yaku[wait].append(("riichi", 1))
-                else:
+                if double_riichi_eligible:
                     yaku[wait].append(("double riichi", 2))
+                else:
+                    yaku[wait].append(("riichi", 1))
         elif event_seat != seat and event_type == "kakan": # someone kakans
             is_chankan = True # only handle ippatsu cancellation if a draw happens next
         elif event_seat != seat and event_type in {"chii", "pon", "minkan", "ankan", "kita"}: # any non-kakan call
+            double_riichi_eligible = False
             is_ippatsu = False
         elif event_seat == seat and event_type in {"minkan", "ankan", "kakan", "kita"}: # self kan
+            double_riichi_eligible = False
             is_rinshan = True
     if is_ippatsu:
         for wait in waits:
