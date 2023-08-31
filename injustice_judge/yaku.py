@@ -601,7 +601,7 @@ def get_yaku(hand: Hand,
             fixed_fu = 25 if ("chiitoitsu", 2) in yaku[wait] else None
             if check_rons:
                 han = sum(b for _, b in yaku[wait])
-                fixed_fu = fixed_fu or (30 if ("pinfu", 1) in yaku[wait] else None) # open pinfu ron = 30
+                fixed_fu = fixed_fu or (30 if interpretation.ron_fu == 20 else None) # open pinfu ron = 30
                 ron_fu = fixed_fu or round_fu(interpretation.ron_fu)
                 add_best_score(wait, Score(yaku[wait], han, ron_fu, False, interpretation, hand))
             if check_tsumos:
@@ -700,6 +700,8 @@ def debug_yaku(kyoku):
         ron_score = get_final_yaku(kyoku, w, True, False)
         tsumo_score = get_final_yaku(kyoku, w, False, True)
         print(f"{round_name(kyoku.round, kyoku.honba)} | seat {w} {print_hand_details_seat(kyoku, w)} | dora {ph(kyoku.doras)} ura {ph(kyoku.uras)}")
+        final_tile = kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw
+        print(f"actual    | {kyoku.result[0]} {pt(final_tile)} giving {kyoku.result[1].score} with yaku {kyoku.result[1].yaku.yaku_strs}")
         if kyoku.result[0] == "ron":
             for t in ron_score.keys():
                 assert (ron_score[t].han, ron_score[t].fu) != (0, 0), f"somehow got a 0/0 score: {ron_score}"
@@ -712,6 +714,4 @@ def debug_yaku(kyoku):
                 score = get_score(tsumo_score[t].han, tsumo_score[t].fu, is_dealer, True, kyoku.num_players)
                 han_fu_string = f"{tsumo_score[t].han}/{tsumo_score[t].fu}={score} (tsumo)"
                 print(f"predicted | {pt(t)} giving {han_fu_string} with yaku {tsumo_score[t].yaku}")
-        final_tile = kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw
-        print(f"actual    | {kyoku.result[0]} {pt(final_tile)} giving {kyoku.result[1].score} with yaku {kyoku.result[1].yaku.yaku_strs}")
         print("")
