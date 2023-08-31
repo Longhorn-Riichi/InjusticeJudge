@@ -448,9 +448,9 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             for seat in range(num_players):
                 if ron.score_delta[seat] < 0:
                     if not opened_hand[ron.winner] and not in_riichi[ron.winner]:
-                        add_flag(seat, Flags.YOU_DEALT_INTO_DAMA, {"seat": ron.winner, "score": -ron.score_delta[seat]})
+                        add_flag(seat, Flags.YOU_DEALT_INTO_DAMA, {"seat": ron.winner, "score": ron.score})
                     if ron.yaku.ippatsu:
-                        add_flag(seat, Flags.YOU_DEALT_INTO_IPPATSU, {"seat": ron.winner, "score": -ron.score_delta[seat]})
+                        add_flag(seat, Flags.YOU_DEALT_INTO_IPPATSU, {"seat": ron.winner, "score": ron.score})
                     if len(results) > 1:
                         add_flag(seat, Flags.YOU_DEALT_INTO_DOUBLE_RON, {"number": len(results)})
         if Flags.YOU_GOT_CHASED in flags[ron.won_from]:
