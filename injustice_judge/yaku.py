@@ -596,23 +596,36 @@ def get_yaku(hand: Hand,
         if check_tsumos:
             tsumo_yaku = add_tsumo_yaku(yaku.copy(), interpretation, is_closed_hand)
         # pprint(yaku)
+
+        # if `interpretations.hand` is a pair, it's a shanpon wait
+        # if it's a terminal pair then it's +4 fu for ron and +8 for tsumo
+        # otherwise it's +2 fu for ron and +4 for tsumo
+        is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
+        shanpon_tiles = set()
+        shanpon_fu = {wait: 0 for wait in yaku.keys()} # times 2 for tsumo
+        if is_pair(interpretation.hand) and interpretation.pair is not None:
+            shanpon_tiles = {interpretation.hand[0], interpretation.pair[0]}
+            for tile in shanpon_tiles:
+                shanpon_fu[tile] = 4 if tile in YAOCHUUHAI else 2
+
+        # now total up the fu for each wait
         round_fu = lambda fu: (((fu-1)//10)+1)*10
         for wait in yaku.keys():
             fixed_fu = 25 if ("chiitoitsu", 2) in yaku[wait] else None
             if check_rons:
                 han = sum(b for _, b in yaku[wait])
-                fixed_fu = fixed_fu or (30 if interpretation.ron_fu == 20 else None) # open pinfu ron = 30
-                ron_fu = fixed_fu or round_fu(interpretation.ron_fu)
-                add_best_score(wait, Score(yaku[wait], han, ron_fu, False, interpretation, hand))
+                ron_fu = interpretation.ron_fu + shanpon_fu[wait]
+                fixed_fu = fixed_fu or (30 if ron_fu == 20 else None) # open pinfu ron = 30
+                add_best_score(wait, Score(yaku[wait], han, fixed_fu or round_fu(ron_fu), False, interpretation, hand))
             if check_tsumos:
                 han = sum(b for _, b in tsumo_yaku[wait])
                 if is_closed_hand:
+                    tsumo_fu = interpretation.tsumo_fu + 2*shanpon_fu[wait]
                     fixed_fu = fixed_fu or (20 if ("pinfu", 1) in tsumo_yaku[wait] else None) # closed pinfu tsumo = 20
-                    tsumo_fu = fixed_fu or round_fu(interpretation.tsumo_fu)
-                    add_best_score(wait, Score(tsumo_yaku[wait], han, tsumo_fu, True, interpretation, hand))
+                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), True, interpretation, hand))
                 else:
-                    tsumo_fu = fixed_fu or round_fu(interpretation.tsumo_fu)
-                    add_best_score(wait, Score(tsumo_yaku[wait], han, tsumo_fu, True, interpretation, hand))
+                    tsumo_fu = interpretation.tsumo_fu + 2*shanpon_fu[wait]
+                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), True, interpretation, hand))
         # for k, v in best_score.items():
         #     print(f"{pt(k)}, {v!s}")
         # print("========")
