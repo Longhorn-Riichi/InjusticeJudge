@@ -1,6 +1,6 @@
 import functools
 import itertools
-from .constants import PRED, SUCC, YAOCHUUHAI
+from .constants import PRED, SUCC, TANYAOHAI, YAOCHUUHAI
 from typing import *
 from .utils import get_waits, pt, ph, remove_red_five, remove_red_fives, sorted_hand, try_remove_all_tiles, remove_some, remove_all, fix
 from pprint import pprint
@@ -245,6 +245,14 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
 
     # remove all ankan in hand from the waits
     ankan_tiles = {k for k, v in ctr.items() if v == 4}
+    waits -= ankan_tiles
+    # in the rare case that this removes all our waits
+    #   make it floating iishanten waiting on every tile but that
+    #   (because it's a tanki wait on ankan)
+    if len(waits) == 0:
+        shanten = 1.4
+        waits = (TANYAOHAI | YAOCHUUHAI) - ankan_tiles
+
     return shanten, list(sorted_hand(waits - ankan_tiles))
 
 @functools.cache

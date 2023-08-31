@@ -185,6 +185,7 @@ class Interpretation:
     sequences: Tuple[Tuple[int, ...], ...] = ()     # Sequences taken from the original hand
     triplets: Tuple[Tuple[int, ...], ...] = ()      # Triplets taken from the original hand
     pair: Optional[Tuple[int, int]] = None          # A pair taken from the original hand
+    calls: Tuple[CallInfo, ...] = ()                # A frozen list of calls from the original hand
     def unpack(self):
         return (self.hand, self.ron_fu, self.tsumo_fu, self.sequences, self.triplets, self.pair)
     def __hash__(self):

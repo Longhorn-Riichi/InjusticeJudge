@@ -15,6 +15,7 @@ from typing import *
 #            DORA: map from a dora indicator to its indicated dora
 # TOGGLE_RED_FIVE: maps a five to its red equivalent and vice versa
 #      YAOCHUUHAI: a set of all terminal and honor tiles
+#       TANYAOHAI: a set of all 2-8 tiles
 #    KO_RON_SCORE: nondealer ron score for a given han and fu
 #   OYA_RON_SCORE: dealer ron score for a given han and fu
 #  KO_TSUMO_SCORE: tsumo points paid by nondealers for a given han and fu
@@ -252,6 +253,7 @@ DORA = {0:0,11:12,12:13,13:14,14:15,15:16,16:17,17:18,18:19,19:11, # get dora, g
             41:42,42:43,43:44,44:41,45:46,46:47,47:45,51:16,52:26,53:36}
 TOGGLE_RED_FIVE = {15:51,25:52,35:53,51:15,52:25,53:35}
 YAOCHUUHAI = {11,19,21,29,31,39,41,42,43,44,45,46,47}
+TANYAOHAI = {12,13,14,15,16,17,18,22,23,24,25,26,27,28,32,33,34,35,36,37,38}
 
 # SCORE[han][fu] = score
 KO_RON_SCORE = {
