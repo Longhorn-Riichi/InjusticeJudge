@@ -448,26 +448,37 @@ def add_stateful_yaku(yaku: YakuForWait,
     if is_closed_hand:
         # riichi: check if there is a riichi event
         # ippatsu: check if there is are no calls or self-discards after riichi
+        # chankan: check if there is a kakan and no draw after it
         got_discard_event = False
         got_riichi_event = False
         is_ippatsu = True
-        for event in events:
-            if event[0] == seat and event[1] == "discard": # self discard
+        is_chankan = False
+        for event_seat, event_type, *event_data in events:
+            if event_type == "draw": # any draw
+                if is_chankan:
+                    is_ippatsu = False # the kakan happened, cancel ippatsu
+                is_chankan = False
+            if event_seat == seat and event_type == "discard": # self discard
                 got_discard_event = True
                 if got_riichi_event:
                     is_ippatsu = False
-            elif event[0] == seat and event[1] == "riichi": # self riichi
+            elif event_seat == seat and event_type == "riichi": # self riichi
                 got_riichi_event = True
                 for wait in waits:
                     if got_discard_event:
                         yaku[wait].append(("riichi", 1))
                     else:
                         yaku[wait].append(("double riichi", 2))
-            elif got_riichi_event and event[1] in {"chii", "pon", "minkan", "ankan", "kakan", "kita"}: # any call
+            elif event_type == "kakan": # someone kakans
+                is_chankan = True
+            elif got_riichi_event and event_type in {"chii", "pon", "minkan", "ankan", "kita"}: # any call
                 is_ippatsu = False
         if got_riichi_event and is_ippatsu:
             for wait in waits:
                 yaku[wait].append(("ippatsu", 1))
+        if is_chankan:
+            for wait in waits:
+                yaku[wait].append(("chankan", 1))
 
     # yakuhai: if your tenpai hand has three, then you just have yakuhai for any wait
     # alternatively if your tenpai hand has two, then any wait matching that has yakuhai
