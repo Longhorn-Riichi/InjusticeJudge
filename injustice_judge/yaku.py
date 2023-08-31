@@ -445,40 +445,49 @@ def add_stateful_yaku(yaku: YakuForWait,
     is_closed_hand = len(hand.closed_part) == 13
     ctr = Counter(hand.tiles)
     waits = set(yaku.keys())
-    if is_closed_hand:
-        # riichi: check if there is a riichi event
-        # ippatsu: check if there is are no calls or self-discards after riichi
-        # chankan: check if there is a kakan and no draw after it
-        got_discard_event = False
-        got_riichi_event = False
-        is_ippatsu = True
-        is_chankan = False
-        for event_seat, event_type, *event_data in events:
-            if event_type == "draw": # any draw
-                if is_chankan:
-                    is_ippatsu = False # the kakan happened, cancel ippatsu
-                is_chankan = False
-            if event_seat == seat and event_type == "discard": # self discard
-                got_discard_event = True
-                if got_riichi_event:
-                    is_ippatsu = False
-            elif event_seat == seat and event_type == "riichi": # self riichi
-                got_riichi_event = True
-                for wait in waits:
-                    if got_discard_event:
-                        yaku[wait].append(("riichi", 1))
-                    else:
-                        yaku[wait].append(("double riichi", 2))
-            elif event_type == "kakan": # someone kakans
-                is_chankan = True
-            elif got_riichi_event and event_type in {"chii", "pon", "minkan", "ankan", "kita"}: # any call
-                is_ippatsu = False
-        if got_riichi_event and is_ippatsu:
+    # this is kind of a state machine over the events to figure out five yaku
+    # first state machine checks for self-riichis, self-discards, and all calls
+    # - riichi: check if there is a self-riichi event anywhere
+    # - double riichi: check if no discard event before a self-riichi event
+    # - ippatsu: check if there is are no call events or self-discard events after self-riichi
+    # second state machine checks for kans and draws and discards
+    # - chankan: check if there is any kakan and no draw after it
+    # - rinshan: check if there is any kan, then a draw, and no discard after it
+    self_discard_event_exists = False
+    is_ippatsu = False
+    is_chankan = False
+    is_rinshan = False
+    for event_seat, event_type, *event_data in events:
+        if event_seat != seat and event_type == "draw": # someone draws
+            if is_chankan:
+                is_ippatsu = False # kakan call succeeded
+            is_chankan = False
+        elif event_seat == seat and event_type == "discard": # self discard
+            self_discard_event_exists = True
+            is_ippatsu = False
+            is_rinshan = False
+        elif is_closed_hand and event_seat == seat and event_type == "riichi": # self riichi
+            is_ippatsu = True
             for wait in waits:
-                yaku[wait].append(("ippatsu", 1))
-        if is_chankan:
-            for wait in waits:
-                yaku[wait].append(("chankan", 1))
+                if self_discard_event_exists:
+                    yaku[wait].append(("riichi", 1))
+                else:
+                    yaku[wait].append(("double riichi", 2))
+        elif event_seat != seat and event_type == "kakan": # someone kakans
+            is_chankan = True # only handle ippatsu cancellation if a draw happens next
+        elif event_seat != seat and event_type in {"chii", "pon", "minkan", "ankan", "kita"}: # any non-kakan call
+            is_ippatsu = False
+        elif event_seat == seat and event_type in {"minkan", "ankan", "kakan", "kita"}: # self kan
+            is_rinshan = True
+    if is_ippatsu:
+        for wait in waits:
+            yaku[wait].append(("ippatsu", 1))
+    if is_chankan:
+        for wait in waits:
+            yaku[wait].append(("chankan", 1))
+    if is_rinshan:
+        for wait in waits:
+            yaku[wait].append(("rinshan", 1))
 
     # yakuhai: if your tenpai hand has three, then you just have yakuhai for any wait
     # alternatively if your tenpai hand has two, then any wait matching that has yakuhai
@@ -495,7 +504,8 @@ def add_stateful_yaku(yaku: YakuForWait,
             yaku[wait].append((f"kita {hand.kita_count}" if hand.kita_count > 1 else "dora", hand.kita_count))
 
     # dora: count the dora of the hand, removing red fives (we'll count them next)
-    hand_without_reds = list(remove_red_fives(hand.tiles))
+    full_hand = (*hand.hidden_part, *(tile for call in hand.calls for tile in call.tiles))
+    hand_without_reds = tuple(remove_red_fives(full_hand))
     non_red_dora = [dora for dora in doras if dora not in {51,52,53}]
     dora = sum(non_red_dora.count(tile) for tile in hand_without_reds)
     # kita can be dora too
@@ -513,7 +523,7 @@ def add_stateful_yaku(yaku: YakuForWait,
 
     # aka: simply count the aka
     red_dora = set(doras) & {51,52,53} # might be empty if there's no red dora this game
-    aka = len(set(hand.tiles) & red_dora)
+    aka = len(set(full_hand) & red_dora)
     if aka > 0:
         for wait in waits:
             yaku[wait].append((f"aka {aka}" if aka > 1 else "aka", aka))
@@ -603,8 +613,11 @@ def get_yaku(hand: Hand,
         # for k, v in best_score.items():
         #     print(f"{pt(k)}, {v.hand!s}")
         yaku: YakuForWait = get_stateless_yaku(interpretation, hand.shanten, is_closed_hand)
+
         # pprint(yaku)
         yaku = add_stateful_yaku(yaku, hand, events, doras, uras, round, seat, is_haitei)
+        # print(round_name(round, 0), yaku)
+        # pprint([(a, b) for a, b, *_ in events])
         if check_tsumos:
             tsumo_yaku = add_tsumo_yaku(yaku.copy(), interpretation, is_closed_hand)
         # pprint(yaku)
