@@ -52,7 +52,7 @@ is_chinroutou: CheckYakumanFunc = lambda hand: set(hand.tiles) - {11,19,21,29,31
 # chuuren poutou tenpai if hand is closed and we are missing at most one tile
 #   out of the required 1112345678999
 CHUUREN_TILES = Counter([1,1,1,2,3,4,5,6,7,8,9,9,9])
-is_chuuren: CheckYakumanFunc = lambda hand: len(hand.calls) == 0 and all(tile < 40 for tile in hand.tiles) and (ctr := Counter([t % 10 for t in remove_red_fives(hand.tiles)]), sum((CHUUREN_TILES - (CHUUREN_TILES & ctr)).values()) <= 1)[1]
+is_chuuren: CheckYakumanFunc = lambda hand: len(hand.calls) == 0 and max(hand.tiles) - min(hand.tiles) == 8 and max(hand.tiles) < 40 and (ctr := Counter([t % 10 for t in remove_red_fives(hand.tiles)]), sum((CHUUREN_TILES - (CHUUREN_TILES & ctr)).values()) <= 1)[1]
 
 # suukantsu tenpai if you have 4 kans
 is_suukantsu = lambda hand: list(map(lambda call: "kan" in call.type, hand.calls)).count(True) == 4
@@ -67,7 +67,7 @@ CHECK_YAKUMAN = {"daisangen": is_daisangen,
                  "tsuuiisou": is_tsuuiisou,
                  "ryuuiisou": is_ryuuiisou,
                  "chinroutou": is_chinroutou,
-                 "chuuren": is_chuuren,
+                 "chuurenpoutou": is_chuuren,
                  "suukantsu": is_suukantsu}
 get_yakuman_tenpais = lambda hand: {name for name, func in CHECK_YAKUMAN.items() if func(hand)}
 
@@ -109,9 +109,9 @@ def test_get_yakuman_tenpais():
     assert get_yakuman_tenpais([11,11,11,19,19,21,21,21,29,29,29,31,31], [29,29,29]) == {"chinroutou"}
 
     print("chuurenpoutou:")
-    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,19]) == {"chuuren"}
+    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,19]) == {"chuurenpoutou"}
     assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,19], [19,19,19]) == set()
-    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,11]) == {"chuuren"}
+    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,11]) == {"chuurenpoutou"}
     assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,11,11]) == set()
 
 ###
@@ -578,12 +578,69 @@ def add_tsumo_yaku(yaku: YakuForWait, interpretation: Interpretation, is_closed_
 
     return yaku
 
-def add_yakuman(yaku: YakuForWait, hand: Hand, is_tsumo: bool) -> YakuForWait:
+def add_yakuman(yaku: YakuForWait, hand: Hand, events: List[Event], round: int, seat: int, is_tsumo: bool) -> YakuForWait:
     waits = set(hand.shanten[1])
+    is_dealer = seat == round % 4
+
     yakumans = get_yakuman_tenpais(hand)
+
+    # tenhou, chiihou: tsumo, and we never discarded + no calls happened
+    # renhou: same, but not tsumo
+    tenhou_eligible = True
+    for event_seat, event_type, *event_data in events:
+        if seat == event_seat and event_type == "discard":
+            tenhou_eligible = False
+            break
+        elif event_type in {"chii", "pon", "minkan", "ankan", "kakan", "kita"}:
+            tenhou_eligible = False
+            break
+    if tenhou_eligible:
+        if is_tsumo and is_dealer:
+            yakumans.add("tenhou")
+        elif is_tsumo and not is_dealer:
+            yakumans.add("chiihou")
+        elif not is_tsumo: # renhou
+            # compare our current yaku to renhou
+            # if renhou is equal or better, then we replace it with renhou
+            for wait in waits:
+                if sum(value for name, value in yaku[wait]) <= 5:
+                    yaku[wait] = [("renhou", 5)]
+
     if len(yakumans) > 0:
         for wait in waits:
-            yaku[wait] = [(y, 13) for y in yakumans]
+            actual_yakumans = yakumans.copy()
+
+            # handle yasume possibilities
+
+            # daisangen with 2 dragon triplets, you shanpon wait on the third but get the non-dragon wait
+            num_dragons = sum(min(3, hand.tiles.count(tile)) for tile in {45,46,47})
+            if "daisangen" in actual_yakumans and num_dragons == 8 and wait not in {45,46,47}:
+                actual_yakumans.remove("daisangen")
+
+            # daisuushi with 11 winds, you shanpon wait on the final wind but get the non-wind wait
+            num_winds = sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44})
+            if "daisuushi" in actual_yakumans and num_winds == 11 and wait not in {41,42,43,44}:
+                actual_yakumans.remove("daisuushi")
+                actual_yakumans.add("shousuushi")
+
+            # ryuuisou but you get a wait that is not a green tile
+            if "ryuuisou" in actual_yakumans and wait not in {32,33,34,36,38,46}:
+                actual_yakumans.remove("ryuuisou")
+
+            # suuankou with 3 triplets, you shanpon wait on the fourth but did not tsumo
+            if "suuankou" in actual_yakumans and not is_tsumo and list(Counter(hand.tiles).values()).count(3) == 3:
+                actual_yakumans.remove("suuankou")
+
+            # chuuren poutou but your final wait doesn't complete the set:
+            if "chuurenpoutou" in actual_yakumans:
+                CHUUREN_TILES = Counter([1,1,1,2,3,4,5,6,7,8,9,9,9])
+                chuuren_repr = Counter([t % 10 for t in remove_red_fives(hand.tiles)])
+                [expected_wait] = (CHUUREN_TILES - (CHUUREN_TILES & chuuren_repr)).keys()
+                if wait != expected_wait:
+                    actual_yakumans.remove("chuurenpoutou")
+
+            # finally, add all remaining yakuman to our wait
+            yaku[wait] = [(y, 13) for y in actual_yakumans]
 
     return yaku
 
@@ -632,8 +689,8 @@ def get_yaku(hand: Hand,
         # pprint([(a, b) for a, b, *_ in events])
         if check_tsumos:
             tsumo_yaku = add_tsumo_yaku(yaku.copy(), interpretation, is_closed_hand)
-            tsumo_yaku = add_yakuman(yaku, hand, is_tsumo=True)
-        yaku = add_yakuman(yaku, hand, is_tsumo=False)
+            tsumo_yaku = add_yakuman(yaku, hand, events, round, seat, is_tsumo=True)
+        yaku = add_yakuman(yaku, hand, events, round, seat, is_tsumo=False)
         # pprint(yaku)
 
         # if `interpretations.hand` is a pair, it's a shanpon wait
