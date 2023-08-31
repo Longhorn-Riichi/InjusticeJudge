@@ -531,7 +531,7 @@ def add_tsumo_yaku(yaku: YakuForWait, interpretation: Interpretation, is_closed_
     is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
     if len(triplets) >= 2 and is_pair(taatsu) and pair is not None:
         # check they are all closed
-        num_open_triplets = sum(1 for tri in triplets for call in interpretation.calls if tri == tuple(remove_red_fives(call.tiles[:3])))
+        num_open_triplets = sum(1 for tri in triplets for call in interpretation.calls if tuple(remove_red_fives(tri)) == tuple(remove_red_fives(call.tiles[:3])))
         if len(triplets) - num_open_triplets >= 2:
             for wait in waits & {taatsu[0], pair[0]}:
                 if ("sanankou", 2) not in yaku[wait]:
