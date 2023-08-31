@@ -118,22 +118,10 @@ def test_get_yakuman_tenpais():
 ### yaku calculation
 ###
 
-# checks for:
-# - yakuhai
-# - riichi, double riichi, ippatsu, suukantsu
-# - dora
-# - plus everything in get_stateless_yaku
-
 # doesn't check for:
-# - menzentsumo, haitei, houtei, rinshan, chankan, renhou
-# (these are all dependent on how you get the winning tile, rather than the hand state)
+# - rinshan, chankan, renhou
 
-# in general if you want to estimate the value of a hand, call this and
-# - add 1 if closed (menzentsumo)
-# - add 1 if riichi (ura)
-# - add 1 if you have an open or closed triplet (rinshan)
-
-def get_hand_interpretations(hand: Hand, round: int, seat: int) -> Set[Interpretation]:
+def get_hand_interpretations(hand: Hand, round: int, seat: int, ) -> Set[Interpretation]:
     if hand.shanten[0] != 0:
         return set()
     waits = set(hand.shanten[1])
@@ -463,7 +451,8 @@ def add_stateful_yaku(yaku: YakuForWait,
                       doras: List[int],
                       uras: List[int],
                       round: int,
-                      seat: int):
+                      seat: int,
+                      is_haitei: bool):
     is_closed_hand = len(hand.closed_part) == 13
     ctr = Counter(hand.tiles)
     waits = set(yaku.keys())
@@ -530,10 +519,15 @@ def add_stateful_yaku(yaku: YakuForWait,
             else:
                 if ura > 0:
                     yaku[wait].append((f"ura {ura}" if ura > 1 else "ura", ura))
+
+    # houtei: just need is_haitei passed in
+    if is_haitei:
+        for wait in waits:
+            yaku[wait].append(("houtei", 1))
     return yaku
 
 
-# literally only menzentsumo and sanankou
+# literally only menzentsumo, sanankou, and haitei depend on tsumo to achieve
 def add_tsumo_yaku(yaku: YakuForWait, interpretation: Interpretation, is_closed_hand: bool) -> YakuForWait:
     waits = set(yaku.keys())
 
@@ -552,6 +546,13 @@ def add_tsumo_yaku(yaku: YakuForWait, interpretation: Interpretation, is_closed_
             for wait in waits & {taatsu[0], pair[0]}:
                 if ("sanankou", 2) not in yaku[wait]:
                     yaku[wait].append(("sanankou", 2))
+
+    # haitei: if houtei is there, make it haitei
+    for wait in waits:
+        if ("houtei", 1) in yaku[wait]:
+            yaku[wait].remove(("houtei", 1))
+            yaku[wait].append(("haitei", 1))
+
     return yaku
 
 def get_yaku(hand: Hand,
@@ -560,6 +561,7 @@ def get_yaku(hand: Hand,
              uras: List[int],
              round: int,
              seat: int,
+             is_haitei: bool,
              check_rons: bool = True,
              check_tsumos: bool = True) -> Dict[int, Score]:
     if hand.shanten[0] != 0:
@@ -590,7 +592,7 @@ def get_yaku(hand: Hand,
         #     print(f"{pt(k)}, {v.hand!s}")
         yaku: YakuForWait = get_stateless_yaku(interpretation, hand.shanten, is_closed_hand)
         # pprint(yaku)
-        yaku = add_stateful_yaku(yaku, hand, events, doras, uras, round, seat)
+        yaku = add_stateful_yaku(yaku, hand, events, doras, uras, round, seat, is_haitei)
         if check_tsumos:
             tsumo_yaku = add_tsumo_yaku(yaku.copy(), interpretation, is_closed_hand)
         # pprint(yaku)
@@ -627,6 +629,7 @@ def get_final_yaku(kyoku: Kyoku,
                    uras = kyoku.uras,
                    round = kyoku.round,
                    seat = seat,
+                   is_haitei = kyoku.tiles_in_wall == 0,
                    check_rons = check_rons,
                    check_tsumos = check_tsumos)
     return ret
@@ -646,7 +649,8 @@ def get_takame_score(hand: Hand,
                      doras: List[int],
                      uras: List[int],
                      round: int,
-                     seat: int) -> Tuple[Score, int]:
+                     seat: int,
+                     is_haitei: bool) -> Tuple[Score, int]:
     assert hand.shanten[0] == 0
     
     # if no calls, use tsumo score. else, get ron score
@@ -657,6 +661,7 @@ def get_takame_score(hand: Hand,
                                         uras = uras,
                                         round = round,
                                         seat = seat,
+                                        is_haitei = is_haitei,
                                         check_rons = calls_present,
                                         check_tsumos = not calls_present)
     best_score, takame = max((score, wait) for wait, score in scores.items())
@@ -673,6 +678,7 @@ def get_takame_score(hand: Hand,
                                                 uras = uras,
                                                 round = round,
                                                 seat = seat,
+                                                is_haitei = is_haitei,
                                                 check_rons = True,
                                                 check_tsumos = False)
         best_ron_score, ron_takame = max((score, wait) for wait, score in ron_scores.items())

@@ -87,6 +87,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
             elif event_type == "start_game":
                 kyoku.round, kyoku.honba, kyoku.start_scores = event_data
                 kyoku.num_players = metadata.num_players
+                kyoku.tiles_in_wall = 70 if kyoku.num_players == 4 else 55
                 kyoku.doras = [DORA[d] for d in dora_indicators] + ([51, 52, 53] if metadata.use_red_fives else [])
                 kyoku.uras = [DORA[d] for d in ura_indicators]
                 kyoku.haipai_ukeire = [hand.ukeire(dora_indicators[:num_doras]) for hand in kyoku.hands]
@@ -96,6 +97,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.hands[seat] = kyoku.hands[seat].add(tile)
                 kyoku.final_draw = tile
                 kyoku.final_draw_event_index[seat] = len(kyoku.events) - 1
+                kyoku.tiles_in_wall -= 1
                 assert len(kyoku.hands[seat].tiles) == 14
             elif event_type in {"discard", "riichi"}: # discards
                 tile, *_ = event_data
@@ -185,7 +187,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
         for i in range(metadata.num_players):
             assert len(kyoku.hands[i].tiles) == 13, f"on {round_name(kyoku.round, kyoku.honba)}, player {i}'s hand was length {len(kyoku.hands[i].tiles)} when the round ended, should be 13"
         kyokus.append(kyoku)
-        # debug_yaku(kyoku)
+        debug_yaku(kyoku)
     return kyokus
 
 def parse_result(result: List[Any], num_players: int, hand_is_hidden: List[bool], kita_counts: List[int]) -> Tuple[Any, ...]:

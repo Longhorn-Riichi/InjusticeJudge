@@ -283,12 +283,14 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                     del flags[seat][ix]
                     del data[seat][ix]
 
+                is_haitei = kyoku.tiles_in_wall == 0
                 best_score, takame = get_takame_score(hand = hand,
                                                       events = kyoku.events,
                                                       doras = kyoku.doras,
                                                       uras = kyoku.uras,
                                                       round = kyoku.round,
-                                                      seat = seat)
+                                                      seat = seat,
+                                                      is_haitei = is_haitei)
                 # if seat == 2 and (kyoku.round, kyoku.honba) == (6, 1):
                 #     print(seat, round_name(kyoku.round, kyoku.honba), best_score.yaku)
                 han = best_score.han
