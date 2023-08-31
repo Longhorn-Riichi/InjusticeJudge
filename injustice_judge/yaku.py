@@ -501,7 +501,7 @@ def add_stateful_yaku(yaku: YakuForWait,
     # kita: just check the number of kita in hand
     if hand.kita_count > 0:
         for wait in waits:
-            yaku[wait].append((f"kita {hand.kita_count}" if hand.kita_count > 1 else "dora", hand.kita_count))
+            yaku[wait].append((f"kita {hand.kita_count}" if hand.kita_count > 1 else "kita", hand.kita_count))
 
     # dora: count the dora of the hand, removing red fives (we'll count them next)
     full_hand = (*hand.hidden_part, *(tile for call in hand.calls for tile in call.tiles))
@@ -530,6 +530,9 @@ def add_stateful_yaku(yaku: YakuForWait,
 
     # ura: same as dora, except our hand has to have riichi in order to have ura
     ura = sum(uras.count(tile) for tile in hand_without_reds)
+    # kita can be ura too
+    if 44 in uras:
+        ura += hand.kita_count * uras.count(44)
     for wait in waits:
         if ("riichi", 1) in yaku[wait]:
             if wait in uras:
@@ -572,6 +575,15 @@ def add_tsumo_yaku(yaku: YakuForWait, interpretation: Interpretation, is_closed_
         if ("houtei", 1) in yaku[wait]:
             yaku[wait].remove(("houtei", 1))
             yaku[wait].append(("haitei", 1))
+
+    return yaku
+
+def add_yakuman(yaku: YakuForWait, hand: Hand, is_tsumo: bool) -> YakuForWait:
+    waits = set(hand.shanten[1])
+    yakumans = get_yakuman_tenpais(hand)
+    if len(yakumans) > 0:
+        for wait in waits:
+            yaku[wait] = [(y, 13) for y in yakumans]
 
     return yaku
 
@@ -620,6 +632,8 @@ def get_yaku(hand: Hand,
         # pprint([(a, b) for a, b, *_ in events])
         if check_tsumos:
             tsumo_yaku = add_tsumo_yaku(yaku.copy(), interpretation, is_closed_hand)
+            tsumo_yaku = add_yakuman(yaku, hand, is_tsumo=True)
+        yaku = add_yakuman(yaku, hand, is_tsumo=False)
         # pprint(yaku)
 
         # if `interpretations.hand` is a pair, it's a shanpon wait

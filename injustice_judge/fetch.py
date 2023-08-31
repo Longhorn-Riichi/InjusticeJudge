@@ -204,8 +204,10 @@ def parse_result(result: List[Any], num_players: int, hand_is_hidden: List[bool]
         # for subtracting kita count from dora count in Tenhou sanma
         dora_index: Optional[int] = None
         ret = ResultYakuList(yaku_strs = yaku)
+        has_yakuman = False
         for i, y in enumerate(yaku):
             if "役満" in y: # skip yakuman since they don't specify 飜
+                has_yakuman = True
                 continue
             name = TRANSLATE[y.split("(")[0]]
             value = int(y.split("(")[1].split("飜")[0])
@@ -224,8 +226,8 @@ def parse_result(result: List[Any], num_players: int, hand_is_hidden: List[bool]
                 ret.kita = value
             elif name in {"haitei", "houtei"}:
                 ret.haitei = True
-        if kita_count > 0 and ret.kita == 0:
-            assert dora_index is not None, f"somehow we know there's {kita_count} kita, but tenhou doesn't count it as dora or kita?"
+        if not has_yakuman and kita_count > 0 and ret.kita == 0:
+            assert dora_index is not None, f"somehow we know there's {kita_count} kita, but tenhou doesn't count it as dora?"
             # must be a Tenhou sanma game hand with kita because
             # it counts kita as regular dora (not "抜きドラ")
             non_kita_dora_count = ret.dora - kita_count
@@ -528,7 +530,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                         point_string = f"{h.point_zimo_xian}-{h.point_zimo_qin}点"
                     else:
                         point_string = f"{h.point_zimo_xian}点∀"
-                yakus = [name for _, name in sorted((fan.id, f"{YAKU_NAMES[fan.id]}({fan.val}飜)") for fan in h.fans if fan.val)]
+                yakus = [name for _, name in sorted((fan.id, f"{YAKU_NAMES[fan.id]}({'役満' if fan.id in YAKUMAN.keys() else str(fan.val)+'飜'})") for fan in h.fans if fan.val)]
                 result.append(list(action.delta_scores))
                 result.append([h.seat, last_seat, h.seat, score_string+point_string, *yakus])
                 dora_indicators = majsoul_hand_to_tenhou(h.doras)

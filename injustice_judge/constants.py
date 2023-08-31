@@ -9,7 +9,7 @@ from typing import *
 #      YAKU_NAMES: maps mahjong soul yaku IDs to tenhou yaku names
 #         YAKUMAN: the yakuman subset of YAKU_NAMES
 #     LIMIT_HANDS: a mapping from han to tenhou's limit hand name
-#       TRANSLATE: a big maps from all Japanese terms to English terms
+#       TRANSLATE: a big map from all Japanese terms to English terms
 #       PRED/SUCC: get the predecessor/successor of a number tile, 0 if nonexistent
 #  DORA_INDICATOR: map from a dora to its indicator
 #            DORA: map from a dora indicator to its indicated dora

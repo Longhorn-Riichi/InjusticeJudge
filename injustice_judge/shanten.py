@@ -249,7 +249,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     # in the rare case that this removes all our waits
     #   make it floating iishanten waiting on every tile but that
     #   (because it's a tanki wait on ankan)
-    if len(waits) == 0:
+    if len(waits) == 0 and len(ankan_tiles) > 0:
         shanten = 1.4
         waits = (TANYAOHAI | YAOCHUUHAI) - ankan_tiles
 
