@@ -94,6 +94,7 @@ def remove_all(hands: Set[Tuple[int, ...]], tile_to_groups: Callable[[int], Tupl
     if len(hands) == 0:
         return hands
     result = remove_some(hands, tile_to_groups)
+    assert len(result) > 0
     min_length = min(map(len, result), default=0)
     ret = set(filter(lambda hand: len(hand) == min_length, result))
     assert len(ret) > 0
