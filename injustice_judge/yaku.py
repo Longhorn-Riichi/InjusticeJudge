@@ -505,15 +505,17 @@ def add_stateful_yaku(yaku: YakuForWait,
                 yaku[wait].append((f"dora {dora}" if dora > 1 else "dora", dora))
 
     # ura: simply count the ura
+    # our hand has to have riichi in order to have ura
     ura = sum(hand.tiles.count(ura) for ura in uras)
     for wait in waits:
-        if wait in uras:
-            wait_ura = ura + uras.count(wait)
-            if wait_ura > 0:
-                yaku[wait].append((f"ura {wait_ura}" if wait_ura > 1 else "ura", wait_ura))
-        else:
-            if ura > 0:
-                yaku[wait].append((f"ura {ura}" if ura > 1 else "ura", ura))
+        if ("riichi", 1) in yaku[wait]:
+            if wait in uras:
+                wait_ura = ura + uras.count(wait)
+                if wait_ura > 0:
+                    yaku[wait].append((f"ura {wait_ura}" if wait_ura > 1 else "ura", wait_ura))
+            else:
+                if ura > 0:
+                    yaku[wait].append((f"ura {ura}" if ura > 1 else "ura", ura))
     return yaku
 
 
