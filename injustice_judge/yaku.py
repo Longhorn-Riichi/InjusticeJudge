@@ -370,8 +370,8 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
                                 set(zip(range(37,40,10),range(38,40,10),range(39,40,10))))
     JUNCHAN_TRIS = {(t,t,t) for t in {11,19,21,29,31,39}}
     JUNCHAN_PAIRS = {(t,t) for t in {11,19,21,29,31,39}}
-    CHANTA_TRIS = {(t,t,t) for t in range(41,48)}
-    CHANTA_PAIRS = {(t,t) for t in range(41,48)}
+    CHANTA_TRIS = {(t,t,t) for t in range(41,48)} | JUNCHAN_TRIS
+    CHANTA_PAIRS = {(t,t) for t in range(41,48)} | JUNCHAN_PAIRS
     # check that every existing group is junchan
     if set(sequences) - TERMINAL_SEQS == set():
         if set(triplets) - JUNCHAN_TRIS == set() and (pair_tile is None or pair_tile in {11,19,21,29,31,39}):
@@ -493,8 +493,9 @@ def add_stateful_yaku(yaku: YakuForWait,
             if ctr[tile] == 3 or (ctr[tile] == 2 and wait == tile):
                 yaku[wait].append((YAKUHAI_NAMES[tile], 1))
 
-    # dora: simply count the dora
-    dora = sum(hand.tiles.count(dora) for dora in doras)
+    # dora: count the dora of the hand, removing red fives (we'll count them next)
+    hand_without_reds = list(remove_red_fives(hand.tiles))
+    dora = sum(hand_without_reds.count(dora) for dora in set(doras) - {51,52,53})
     for wait in waits:
         if wait in doras:
             wait_dora = dora + doras.count(wait)
@@ -504,9 +505,15 @@ def add_stateful_yaku(yaku: YakuForWait,
             if dora > 0:
                 yaku[wait].append((f"dora {dora}" if dora > 1 else "dora", dora))
 
-    # ura: simply count the ura
-    # our hand has to have riichi in order to have ura
-    ura = sum(hand.tiles.count(ura) for ura in uras)
+    # aka: simply count the aka
+    # waits are always not red so we skip checking if the wait is in dora
+    aka = sum(hand.tiles.count(aka) for aka in set(doras) & {51,52,53})
+    if aka > 0:
+        for wait in waits:
+            yaku[wait].append((f"aka {aka}" if aka > 1 else "aka", aka))
+
+    # ura: same as dora, except our hand has to have riichi in order to have ura
+    ura = sum(hand_without_reds.count(ura) for ura in uras)
     for wait in waits:
         if ("riichi", 1) in yaku[wait]:
             if wait in uras:
