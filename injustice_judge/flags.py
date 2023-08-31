@@ -380,9 +380,10 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             # then calculate yaku, han, and fu of the winning hand
             calculated_yaku = get_final_yaku(kyoku, result.winner, check_rons=(result_type=="ron"), check_tsumos=(result_type=="tsumo"))
             final_tile = kyoku.final_discard if result_type == "ron" else kyoku.final_draw
-            if final_tile in {51,52,53}:
-                final_tile = remove_red_five(final_tile)
-                calculated_yaku[final_tile].han += 1
+            final_tile_is_dora = final_tile in set(kyoku.doras)
+            final_tile = remove_red_five(final_tile)
+            if final_tile_is_dora:
+                calculated_yaku[final_tile].add_dora("aka" if final_tile in {51,52,53} else "dora", 1)
             han = calculated_yaku[final_tile].han
             fu = calculated_yaku[final_tile].fu
             # compare the han values to make sure we calculated it right

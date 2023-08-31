@@ -478,10 +478,19 @@ def add_stateful_yaku(yaku: YakuForWait,
             if ctr[tile] == 3 or (ctr[tile] == 2 and wait == tile):
                 yaku[wait].append((YAKUHAI_NAMES[tile], 1))
 
+    # kita: just check the number of kita in hand
+    if hand.kita_count > 0:
+        for wait in waits:
+            yaku[wait].append((f"kita {hand.kita_count}" if hand.kita_count > 1 else "dora", hand.kita_count))
+
     # dora: count the dora of the hand, removing red fives (we'll count them next)
     hand_without_reds = list(remove_red_fives(hand.tiles))
     non_red_dora = [dora for dora in doras if dora not in {51,52,53}]
     dora = sum(non_red_dora.count(tile) for tile in hand_without_reds)
+    # kita can be dora too
+    if 44 in doras:
+        dora += hand.kita_count * doras.count(44)
+    # now add dora to the yaku list
     for wait in waits:
         if wait in doras:
             wait_dora = dora + doras.count(wait)
@@ -492,8 +501,8 @@ def add_stateful_yaku(yaku: YakuForWait,
                 yaku[wait].append((f"dora {dora}" if dora > 1 else "dora", dora))
 
     # aka: simply count the aka
-    red_dora = [dora for dora in doras if dora in {51,52,53}] # might be empty if there's no red dora this game
-    aka = sum(red_dora.count(tile) for tile in hand.tiles)
+    red_dora = set(doras) & {51,52,53} # might be empty if there's no red dora this game
+    aka = len(set(hand.tiles) & red_dora)
     if aka > 0:
         for wait in waits:
             yaku[wait].append((f"aka {aka}" if aka > 1 else "aka", aka))

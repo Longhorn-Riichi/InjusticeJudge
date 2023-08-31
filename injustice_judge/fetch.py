@@ -83,7 +83,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.haipai.append(hand)
                 kyoku.final_draw_event_index.append(-1)
                 kyoku.final_discard_event_index.append(-1)
-                kyoku.kita_counts.append(0)
             elif event_type == "start_game":
                 kyoku.round, kyoku.honba, kyoku.start_scores = event_data
                 kyoku.num_players = metadata.num_players
@@ -143,7 +142,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 elif event_type == "ankan":
                     kyoku.hands[seat] = kyoku.hands[seat].add_call(CallInfo("ankan", called_tile, Dir.SELF, [called_tile]*4))
                 elif event_type == "kita":
-                    kyoku.kita_counts[seat] += 1
+                    kyoku.hands[seat] = kyoku.hands[seat].kita()
                 kyoku.hands[seat] = kyoku.hands[seat].remove(called_tile)
                 kyoku.final_discard = called_tile
                 kyoku.final_discard_event_index[seat] = len(kyoku.events) - 1
@@ -152,7 +151,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
             elif event_type == "end_game":
                 unparsed_result = event_data[0]
                 hand_is_hidden = [len(hand.open_part) == 0 for hand in kyoku.hands]
-                kyoku.result = parse_result(unparsed_result, metadata.num_players, hand_is_hidden, kyoku.kita_counts)
+                kyoku.result = parse_result(unparsed_result, metadata.num_players, hand_is_hidden, [h.kita_count for h in kyoku.hands])
                 # emit events for placement changes
                 placement_before = to_placement(kyoku.start_scores)
                 new_scores = apply_delta_scores(kyoku.start_scores, kyoku.result[1].score_delta)

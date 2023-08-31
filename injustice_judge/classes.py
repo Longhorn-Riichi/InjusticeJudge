@@ -112,6 +112,7 @@ class Hand:
     shanten: Tuple[float, List[int]] = (-1, [])         # shanten for the hand, or -1 if the hand is 14 tiles
                                                         # (like when it's in the middle of a draw or call)
     prev_shanten: Tuple[float, List[int]] = (-1, [])    # shanten for the hand right before said draw or call
+    kita_count: int = 0                                 # number of kita calls for this hand
     def __post_init__(self):
         """You only need to provide `tiles` (and `calls`, if any), this calculates the rest"""
         super().__setattr__("tiles", sorted_hand(self.tiles))
@@ -135,15 +136,15 @@ class Hand:
 
     def add(self, tile: int) -> "Hand":
         """Immutable update for drawing a tile"""
-        return Hand((*self.tiles, tile), [*self.calls], prev_shanten=self.shanten)
+        return Hand((*self.tiles, tile), [*self.calls], prev_shanten=self.shanten, kita_count=self.kita_count)
     def add_call(self, calls: CallInfo) -> "Hand":
         """Immutable update for calling a tile"""
-        return Hand(self.tiles, [*self.calls, calls], prev_shanten=self.shanten)
+        return Hand(self.tiles, [*self.calls, calls], prev_shanten=self.shanten, kita_count=self.kita_count)
     def remove(self, tile: int) -> "Hand":
         """Immutable update for discarding a tile"""
         tiles = list(self.tiles)
         tiles.remove(tile)
-        return Hand(tuple(tiles), [*self.calls], prev_shanten=self.shanten)
+        return Hand(tuple(tiles), [*self.calls], prev_shanten=self.shanten, kita_count=self.kita_count)
     def kakan(self, called_tile):
         """Immutable update for adding a tile to an existing pon call (kakan)"""
         pon_index = next((i for i, calls in enumerate(self.calls) if calls.type == "pon" and calls.tile == called_tile), None)
@@ -152,7 +153,10 @@ class Hand:
         orig_tiles = [*self.calls[pon_index].tiles, called_tile]
         calls_copy = [*self.calls]
         calls_copy[pon_index] = CallInfo("kakan", called_tile, orig_direction, orig_tiles)
-        return Hand(self.tiles, calls_copy, prev_shanten=self.shanten)
+        return Hand(self.tiles, calls_copy, prev_shanten=self.shanten, kita_count=self.kita_count)
+    def kita(self):
+        """Immutable update for adding kita"""
+        return Hand(self.tiles, self.calls, prev_shanten=self.prev_shanten, kita_count=self.kita_count+1)
     def print_hand_details(self, ukeire: int, final_tile: Optional[int] = None, furiten: bool = False) -> str:
         """print this hand + calls + optional final tile + furiten state + shanten/waits + number of ukeire"""
         wait_string = ""
@@ -208,6 +212,24 @@ class Score:
         return (self.han, self.fu) < (other.han, other.fu)
     def __str__(self):
         return f"{self.han}/{self.fu} {self.yaku} ({self.interpretation!s})"
+    def add_dora(self, dora_type: str, amount: 0):
+        # get the current amount
+        new_value = amount
+        for i, (name, value) in enumerate(self.yaku):
+            if name.startswith(dora_type):
+                new_value = value + amount
+                break
+        # apply the change
+        if new_value == 0:
+            if new_value != amount: # there was some preexisting dora
+                del self.yaku[i]
+        else:
+            new_dora = (dora_type + (f" {new_value}" if new_value > 1 else ""), new_value)
+            if new_value != amount: # there was some preexisting dora
+                self.yaku[i] = new_dora
+            else:
+                self.yaku.append(new_dora)
+        self.han += amount
     # these fields are only for debug use
     interpretation: Interpretation # the interpretation used to calculate yaku and fu
     hand: Hand                     # the original hand
@@ -259,8 +281,6 @@ class Kyoku:
     pond: List[List[int]]                         = field(default_factory=list)
     # `furiten` keeps track of whether a player is in furiten
     furiten: List[bool]                           = field(default_factory=list)
-    # `kita_counts` keeps track of how many times one has called kita
-    kita_counts: List[int]                        = field(default_factory=list)
 
     # we also keep track of some facts for each player
     # store the scores of each player at the beginning of the kyoku
