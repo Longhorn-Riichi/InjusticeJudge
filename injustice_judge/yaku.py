@@ -121,7 +121,7 @@ def test_get_yakuman_tenpais():
 # doesn't check for:
 # - rinshan, chankan, renhou
 
-def get_hand_interpretations(hand: Hand, round: int, seat: int, ) -> Set[Interpretation]:
+def get_hand_interpretations(hand: Hand, yakuhai: Set[int]) -> Set[Interpretation]:
     if hand.shanten[0] != 0:
         return set()
     waits = set(hand.shanten[1])
@@ -160,9 +160,6 @@ def get_hand_interpretations(hand: Hand, round: int, seat: int, ) -> Set[Interpr
                                             triplets=tuple(called_triplets),
                                             calls=frozen_hand_calls)
 
-    # get the set of all yakuhai tiles for us (dragons, round wind, seat wind)
-    YAKUHAI = [45,46,47,(round//4)+41,((seat-round)%4)+41]
-
     # let's get all the interpretations of the hand
     # (fu, sequences, triplets, remainder)
     interpretations: Set[Interpretation] = set()
@@ -193,7 +190,7 @@ def get_hand_interpretations(hand: Hand, round: int, seat: int, ) -> Set[Interpr
 
             # remove a pair, if we haven't yet
             if pair is None:
-                yakuhai_fu = 2 if tile in YAKUHAI else 0
+                yakuhai_fu = 2 if tile in yakuhai else 0
                 # print(f"add {yakuhai_fu} for yakuhai pair {pt(tile)}, {ph(unprocessed_part)}")
                 removed_pair = try_remove_all_tiles(unprocessed_part, (tile, tile))
                 if removed_pair != unprocessed_part: # removal was a success
@@ -213,21 +210,34 @@ def get_hand_interpretations(hand: Hand, round: int, seat: int, ) -> Set[Interpr
                 tsumo_fu = base_tsumo_fu + fu + single_wait_fu
                 interpretations.add(Interpretation(unprocessed_part, ron_fu, tsumo_fu, sequences, triplets, pair, calls=frozen_hand_calls))
         elif len(unprocessed_part) == 1:
-            # tanki wait
+            # either a tanki or aryanmen wait for pinfu
+            # first take care of the tanki possibility:
             # print(f"add 2 for single wait {pt(unprocessed_part[0])}")
-            yakuhai_fu = 2 if unprocessed_part[0] in YAKUHAI else 0
+            tanki = unprocessed_part[0]
+            yakuhai_fu = 2 if tanki in yakuhai else 0
             ron_fu = base_ron_fu + fu + yakuhai_fu + 2
             tsumo_fu = base_tsumo_fu + fu + yakuhai_fu + 2
             interpretations.add(Interpretation(unprocessed_part, ron_fu, tsumo_fu, sequences, triplets, calls=frozen_hand_calls))
-    return interpretations
+            # then take care of the pinfu aryanmen possibility:
+            if len(triplets) == 0: # all sequences
+                # check that it's a tanki overlapping a sequence
+                has_pair = False
+                for t1,t2,t3 in sequences:
+                    if tanki == t1 and PRED[t1] != 0:
+                        ryanmen = (t2,t3)
+                    elif tanki == t3 and SUCC[t3] != 0:
+                        ryanmen = (t1,t2)
+                    else:
+                        continue
+                    if tanki not in yakuhai:
+                        has_pair = True
+                        break
+                if has_pair == True:
+                    interpretations.add(Interpretation(ryanmen, 30, 22, sequences, triplets, (tanki, tanki), calls=frozen_hand_calls))
 
-def test_get_hand_interpretations():
-    pprint(get_hand_interpretations(Hand((11,12,13,14,15,16,17,18,19,22,21,21,21)), 0, 0))
-    print("===")
-    pprint(get_hand_interpretations(Hand((11,11,11,12,13,14,15,16,17,18,19,19,19)), 0, 0))
+            
 
-    [interpretation] = get_hand_interpretations(Hand((11,12,13,14,15,16,17,18,19,22,21,21,21)), 0, 0)
-    print(get_stateless_yaku(interpretation, (0, [21, 24]), True))
+    return interpretations if len(interpretations) > 0 else {initial_interpretation}
 
 # checks for:
 # - tanyao, honroutou, toitoi, chinitsu, honitsu, shousangen,
@@ -241,7 +251,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
     assert len(waits) > 0, "hand is tenpai, but has no waits?"
 
     # remove all red fives from the interpretation
-    taatsu, _, _, sequences, triplets, pair = interpretation.unpack()
+    taatsu, ron_fu, tsumo_fu, sequences, triplets, pair = interpretation.unpack()
     taatsu = tuple(tuple(remove_red_fives(taatsu)))
     sequences = tuple(tuple(remove_red_fives(seq)) for seq in sequences)
     triplets = tuple(tuple(remove_red_fives(tri)) for tri in triplets)
@@ -287,31 +297,10 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
             elif iipeikou_count == 1:
                 yaku[wait].append(("iipeikou", 1))
 
-        # pinfu: no triplets and the remaining hand is a pair + ryanmen
-        # since the pair could overlap with the ryanmen creating a tanki + sequence,
-        # also check for that
-        if len(triplets) == 0 and len(taatsu) in {1,2}:
-            has_pair = pair is not None
-            ryanmen = taatsu
-            # set has_pair if it's a tanki overlapping a sequence
-            if not has_pair and len(sequences) == 4 and len(ryanmen) == 1:
-                tanki = ryanmen[0]
-                for t1,t2,t3 in sequences:
-                    if tanki == t1:
-                        ryanmen = (t2,t3)
-                        has_pair = True
-                        break
-                    elif tanki == t3:
-                        ryanmen = (t1,t2)
-                        has_pair = True
-                        break
-            if has_pair:
-                tile1, tile2 = sorted_hand(ryanmen)
-                outside = {PRED[tile1], SUCC[tile2]}
-                # check that it's a ryanmen and not a penchan
-                if SUCC[tile1] == tile2 and 0 not in outside:
-                    for wait in waits & outside:
-                        yaku[wait].append(("pinfu", 1))
+        # pinfu: has 22 tsumo fu and 30 ron fu
+        if (tsumo_fu, ron_fu) == (22, 30):
+            for wait in waits:
+                yaku[wait].append(("pinfu", 1))
 
     # iitsu: just check if all 3 sequences are there for every suit
     # or if adding each wait to the remaining hand gives the 3rd sequence
@@ -491,7 +480,8 @@ def add_stateful_yaku(yaku: YakuForWait,
 
     # dora: count the dora of the hand, removing red fives (we'll count them next)
     hand_without_reds = list(remove_red_fives(hand.tiles))
-    dora = sum(hand_without_reds.count(dora) for dora in set(doras) - {51,52,53})
+    non_red_dora = [dora for dora in doras if dora not in {51,52,53}]
+    dora = sum(non_red_dora.count(tile) for tile in hand_without_reds)
     for wait in waits:
         if wait in doras:
             wait_dora = dora + doras.count(wait)
@@ -502,14 +492,14 @@ def add_stateful_yaku(yaku: YakuForWait,
                 yaku[wait].append((f"dora {dora}" if dora > 1 else "dora", dora))
 
     # aka: simply count the aka
-    # waits are always not red so we skip checking if the wait is in dora
-    aka = sum(hand.tiles.count(aka) for aka in set(doras) & {51,52,53})
+    red_dora = [dora for dora in doras if dora in {51,52,53}] # might be empty if there's no red dora this game
+    aka = sum(red_dora.count(tile) for tile in hand.tiles)
     if aka > 0:
         for wait in waits:
             yaku[wait].append((f"aka {aka}" if aka > 1 else "aka", aka))
 
     # ura: same as dora, except our hand has to have riichi in order to have ura
-    ura = sum(hand_without_reds.count(ura) for ura in uras)
+    ura = sum(uras.count(tile) for tile in hand_without_reds)
     for wait in waits:
         if ("riichi", 1) in yaku[wait]:
             if wait in uras:
@@ -572,7 +562,9 @@ def get_yaku(hand: Hand,
     assert len(waits) > 0, f"hand {hand!s} is tenpai, but has no waits?"
 
     # now for each of the waits we calculate their possible yaku
-    interpretations = get_hand_interpretations(hand, round, seat)
+    interpretations = get_hand_interpretations(hand, yakuhai={45,46,47,(round//4)+41,((seat-round)%4)+41})
+
+    assert len(interpretations) > 0, f"tenpai hand {hand!s} had no interpretations?"
     # best_score[wait] = the Score value representing the best interpretation for that wait
     best_score: Dict[int, Score] = {}
     def add_best_score(wait, new_score):
@@ -647,15 +639,29 @@ def get_final_yaku(kyoku: Kyoku,
                    check_tsumos = check_tsumos)
     return ret
 
-def test_get_stateless_yaku():
+def test_get_yaku():
     from .shanten import calculate_shanten
-    test_hand = lambda hand: get_stateless_yaku(hand, calculate_shanten(hand), True)
+    def test_hand(hand):
+        return get_yaku(hand = Hand(hand),
+                   events = [],
+                   doras = [],
+                   uras = [],
+                   round = 0,
+                   seat = 0,
+                   is_haitei = False,
+                   check_rons = True,
+                   check_tsumos = True)
 
+    pprint(test_hand((13,14,14,15,51,16,25,26,31,32,33,46,46)))
+    
+    
+    
+    
     # print(test_hand((11,12,13,21,22,23,31,32,33,38,37,25,25))) # pinfu, sansuoku
-    print(test_hand((11,11,12,12,13,13,23,24,25,26,27,28,31))) # iipeikou
-    print(test_hand((11,11,12,12,13,31,23,24,25,26,27,28,31))) # iipeikou
-    print(test_hand((11,12,12,13,13,14,15,16,21,22,23,24,24))) # pinfu, iipeikou
-    print(test_hand((11,12,12,13,13,22,22,23,23,24,24,33,33))) # pinfu, ryanpeikou
+    # print(test_hand((11,11,12,12,13,13,23,24,25,26,27,28,31))) # iipeikou
+    # print(test_hand((11,11,12,12,13,31,23,24,25,26,27,28,31))) # iipeikou
+    # print(test_hand((11,12,12,13,13,14,15,16,21,22,23,24,24))) # pinfu, iipeikou
+    # print(test_hand((11,12,12,13,13,22,22,23,23,24,24,33,33))) # pinfu, ryanpeikou
 
 def get_takame_score(hand: Hand,
                      events: List[Event],

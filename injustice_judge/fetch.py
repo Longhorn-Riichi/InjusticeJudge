@@ -187,7 +187,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
         for i in range(metadata.num_players):
             assert len(kyoku.hands[i].tiles) == 13, f"on {round_name(kyoku.round, kyoku.honba)}, player {i}'s hand was length {len(kyoku.hands[i].tiles)} when the round ended, should be 13"
         kyokus.append(kyoku)
-        debug_yaku(kyoku)
+        # debug_yaku(kyoku)
     return kyokus
 
 def parse_result(result: List[Any], num_players: int, hand_is_hidden: List[bool], kita_counts: List[int]) -> Tuple[Any, ...]:

@@ -18,8 +18,8 @@ if __name__ == "__main__":
     # from injustice_judge.yaku import test_get_yakuman_tenpais
     # test_get_yakuman_tenpais()
     
-    # from injustice_judge.yaku import test_get_stateless_yaku
-    # test_get_stateless_yaku()
+    # from injustice_judge.yaku import test_get_yaku
+    # test_get_yaku()
     
     # from injustice_judge.yaku import test_get_hand_interpretations
     # test_get_hand_interpretations()
