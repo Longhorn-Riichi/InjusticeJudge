@@ -73,15 +73,20 @@ class CallInfo:
     tiles: List[int] # the 3 or 4 tiles set aside after calling
     def __post_init__(self):
         super().__setattr__("tiles", sorted_hand(self.tiles))
-    def __str__(self):
+    def to_str(self, doras=[], uras=[]):
+        as_dora = lambda tile: tile + (100 if tile in doras or tile in uras else 0)
+        tiles = tuple(map(as_dora, self.tiles))
+        tile = as_dora(self.tile)
         # other_tiles is all the non-called tiles in the call
-        other_tiles = try_remove_all_tiles(self.tiles, (self.tile,))
-        sideways = pt_sideways(self.tile)
+        other_tiles = try_remove_all_tiles(tiles, (tile,))
+        if tile is None:
+            print("Nnsdosd")
+        sideways = pt_sideways(tile)
         if self.type == "ankan":
-            if any(tile in {51,52,53} for tile in self.tiles):
-                return ph((50, TOGGLE_RED_FIVE[self.tile], self.tile, 50))
+            if any(tile in {51,52,53} for tile in tiles):
+                return ph((50, TOGGLE_RED_FIVE[tile], tile, 50))
             else:
-                return ph((50, self.tile, self.tile, 50))
+                return ph((50, tile, tile, 50))
         elif self.type == "kakan": # print two consecutive sideways tiles
             sideways = pt_sideways(other_tiles[0]) + sideways
             other_tiles = other_tiles[1:]
@@ -92,6 +97,9 @@ class CallInfo:
         elif self.dir == Dir.KAMICHA:
             return sideways + ph(other_tiles)
         # dir == Dir.SELF is only for ankan and is handled above
+    def __str__(self):
+        return self.to_str()
+    
 
 @functools.cache
 def _hidden_part(hand: Tuple[int], calls: Tuple[int]) -> Tuple[int, ...]:
@@ -128,9 +136,14 @@ class Hand:
             super().__setattr__("shanten", calculate_shanten(self.hidden_part))
         else:
             super().__setattr__("shanten", self.prev_shanten)
+    def to_str(self, doras, uras):
+        to_str = lambda call: call.to_str(doras, uras)
+        call_string = "" if len(self.calls) == 0 else "⠀" + "⠀".join(map(to_str, reversed(self.calls)))
+        as_dora = lambda tile: tile + (100 if tile in doras or tile in uras else 0)
+        hidden_part = tuple(map(as_dora, self.hidden_part))
+        return f"{ph(hidden_part)}{call_string}"
     def __str__(self):
-        call_string = "" if len(self.calls) == 0 else "⠀" + "⠀".join(map(str, reversed(self.calls)))
-        return f"{ph(self.hidden_part)}{call_string}"
+        return self.to_str()
     def __hash__(self):
         return hash((self.open_part, self.closed_part))
 
@@ -157,16 +170,22 @@ class Hand:
     def kita(self):
         """Immutable update for adding kita"""
         return Hand(self.tiles, self.calls, prev_shanten=self.prev_shanten, kita_count=self.kita_count+1)
-    def print_hand_details(self, ukeire: int, final_tile: Optional[int] = None, furiten: bool = False) -> str:
+    def print_hand_details(self,
+                           ukeire: int,
+                           final_tile: Optional[int] = None,
+                           furiten: bool = False,
+                           doras: List[int] = [],
+                           uras: List[int] = []) -> str:
         """print this hand + calls + optional final tile + furiten state + shanten/waits + number of ukeire"""
         wait_string = ""
         win_string = ""
+        as_dora = lambda tile: tile + (100 if tile in doras or tile in uras else 0)
         if self.shanten[0] == 0:
             wait_string = f"{' (furiten) ' if furiten else ' '}waits: {ph(sorted_hand(self.shanten[1]))} ({ukeire} out{'s' if ukeire > 1 else ''})"
-            win_string = f"⠀{pt(final_tile)}" if final_tile is not None else ""
+            win_string = f"⠀{pt(as_dora(final_tile))}" if final_tile is not None else ""
         elif self.shanten[0] > 0:
             wait_string = f" ({shanten_name(self.shanten)})"
-        return f"{self!s}{win_string}{wait_string}"
+        return f"{self.to_str(doras, uras)}{win_string}{wait_string}"
     def ukeire(self, visible: Iterable[int]):
         """
         Pass in all the visible tiles on board (not including hand).

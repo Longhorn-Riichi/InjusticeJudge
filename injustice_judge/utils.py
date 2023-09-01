@@ -14,34 +14,49 @@ import os
 def pt_unicode(tile: int) -> str:
     """print tile (2-char representation)"""
     TILE_REPRS = "🀇🀈🀉🀊🀋🀌🀍🀎🀏🀙🀚🀛🀜🀝🀞🀟🀠🀡🀐🀑🀒🀓🀔🀕🀖🀗🀘🀀🀁🀂🀃🀆🀅🀄︎"
-    if tile == 0:
-        return "??"
+    is_dora = tile >= 100
+    if is_dora:
+        tile -= 100
+    ret = "??"
     if tile < 20:
-        return TILE_REPRS[tile - 11] + " "
+        ret = TILE_REPRS[tile - 11] + " "
     elif tile < 30:
-        return TILE_REPRS[tile - 21 + 9] + " "
+        ret = TILE_REPRS[tile - 21 + 9] + " "
     elif tile < 40:
-        return TILE_REPRS[tile - 31 + 18] + " "
+        ret = TILE_REPRS[tile - 31 + 18] + " "
     elif tile < 47:
-        return TILE_REPRS[tile - 41 + 27] + " "
+        ret = TILE_REPRS[tile - 41 + 27] + " "
     elif tile == 47:
         # need to specially output 🀄︎ so it's not an emoji
-        return TILE_REPRS[-2:]
+        ret = TILE_REPRS[-2:]
     elif tile == 50:
-        return "🀫 "
+        ret = "🀫 "
     elif tile == 51:
-        return "🀋·"
+        ret = "🀋·"
     elif tile == 52:
-        return "🀝·"
+        ret = "🀝·"
     elif tile == 53:
-        return "🀔·"
-    else:
-        return "??"
+        ret = "🀔·"
+    if is_dora:
+        return ret + "\u20f0" # combining asterisk
+    return ret
+
+def pt_discord(tile: int, sideways=False) -> str:
+    is_dora = tile >= 100
+    if is_dora:
+        tile -= 100
+    ret = ""
+    if sideways:
+        ret = DISCORD_CALLED_TILES[tile]
+    else: 
+        ret = DISCORD_TILES[tile]
+    if is_dora:
+        return ret + "\u20f0" # combining asterisk
+    return ret
 
 DISCORD_DORA_TILES = DISCORD_TILES # temp
-pt = lambda tile: DISCORD_TILES[tile] if os.getenv("use_discord_tile_emoji") == "True" else pt_unicode(tile)
-pt_sideways = lambda tile: DISCORD_CALLED_TILES[tile] if os.getenv("use_discord_tile_emoji") == "True" else f"₍{pt_unicode(tile)}₎"
-pt_dora = lambda tile: DISCORD_DORA_TILES[tile] if os.getenv("use_discord_tile_emoji") == "True" else f"{pt_unicode(tile)}̷"
+pt = lambda tile: pt_discord(tile) if os.getenv("use_discord_tile_emoji") == "True" else pt_unicode(tile)
+pt_sideways = lambda tile: pt_discord(tile, True) if os.getenv("use_discord_tile_emoji") == "True" else f"₍{pt_unicode(tile)}₎"
 
 def print_hand_details_seat(kyoku, seat, print_final_tile=False):
     final_tile = None if not print_final_tile else kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw

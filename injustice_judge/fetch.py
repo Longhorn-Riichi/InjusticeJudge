@@ -7,7 +7,7 @@ from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
 from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Tsumo, ResultYakuList, GameMetadata, Dir
 from .constants import DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
-from .utils import is_mangan, ph, pt, apply_delta_scores, round_name, sorted_hand, to_placement, translate_tenhou_yaku
+from .utils import is_mangan, ph, pt, apply_delta_scores, remove_red_five, round_name, sorted_hand, to_placement, translate_tenhou_yaku
 from .shanten import calculate_shanten
 from .yaku import get_yakuman_tenpais, debug_yaku
 from pprint import pprint
@@ -618,6 +618,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
     all_events: List[List[Event]] = []
     all_dora_indicators: List[List[int]] = []
     all_ura_indicators: List[List[int]] = []
+    use_red_fives = "aka51" in metadata["rule"] and metadata["rule"]["aka51"]
     # check to see if the name of the fourth player is empty; Sanma if yes, Yonma if no.
     num_players: int = 3 if metadata["name"][3] == "" else 4
     @functools.cache
@@ -655,6 +656,22 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         # need to be 4, NOT num_players
         curr_seat = round % 4
         i = [0] * num_players
+
+        # if we don't use red fives, turn all red fives to non red fives
+        # (tenhou keeps 51,52,53 in these lists and just displays them as normal fives)
+        if not use_red_fives:
+            lists: List[List[int]] = \
+                [haipai0, draws0, discards0,
+                 haipai1, draws1, discards1,
+                 haipai2, draws2, discards2,
+                 haipai3, draws3, discards3,
+                 dora_indicators, ura_indicators]
+            for lst in lists:
+                lst = cast(List[int], lst)
+                for j, value in enumerate(lst):
+                    lst[j] = remove_red_five(lst[j])
+
+        # setup lists for number of players
         haipai   = [haipai0,   haipai1,   haipai2,   haipai3][:num_players]
         draws    = [draws0,    draws1,    draws2,    draws3][:num_players]
         discards = [discards0, discards1, discards2, discards3][:num_players]
@@ -758,7 +775,6 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         all_events.append(events)
 
     # parse metadata
-    use_red_fives = "aka51" in metadata["rule"] and metadata["rule"]["aka51"]
     parsed_metadata = GameMetadata(num_players = num_players,
                                    name = metadata["name"],
                                    game_score = metadata["sc"][::2],
