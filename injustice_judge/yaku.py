@@ -118,9 +118,6 @@ def test_get_yakuman_tenpais():
 ### yaku calculation
 ###
 
-# doesn't check for:
-# - rinshan, chankan, renhou
-
 def get_hand_interpretations(hand: Hand, yakuhai: Set[int]) -> Set[Interpretation]:
     if hand.shanten[0] != 0:
         return set()
@@ -642,7 +639,8 @@ def add_yakuman(yaku_for_wait: YakuForWait, hand: Hand, events: List[Event], rou
                     actual_yakumans.remove("chuurenpoutou")
 
             # finally, add all remaining yakuman to our wait
-            yaku_for_wait[wait] = [(y, 13) for y in actual_yakumans]
+            if len(actual_yakumans) > 0:
+                yaku_for_wait[wait] = [(y, 13) for y in actual_yakumans]
 
     return yaku_for_wait
 
