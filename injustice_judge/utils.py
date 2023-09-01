@@ -1,6 +1,6 @@
 import functools
 import itertools
-from .constants import DISCORD_TILES, DISCORD_CALLED_TILES, PRED, SHANTEN_NAMES, SUCC, TOGGLE_RED_FIVE, TRANSLATE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, OYA_RON_SCORE, KO_RON_SCORE
+from .constants import DISCORD_TILES, DISCORD_CALLED_TILES, DISCORD_DORA_TILES, DISCORD_CALLED_DORA_TILES, PRED, SHANTEN_NAMES, SUCC, TOGGLE_RED_FIVE, TRANSLATE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, OYA_RON_SCORE, KO_RON_SCORE
 from typing import *
 import os
 
@@ -41,20 +41,21 @@ def pt_unicode(tile: int) -> str:
         return ret + "\u20f0" # combining asterisk
     return ret
 
-def pt_discord(tile: int, sideways=False) -> str:
+def pt_discord(tile: int, is_sideways=False) -> str:
     is_dora = tile >= 100
     if is_dora:
         tile -= 100
-    ret = ""
-    if sideways:
-        ret = DISCORD_CALLED_TILES[tile]
-    else: 
-        ret = DISCORD_TILES[tile]
     if is_dora:
-        return ret + "\u20f0" # combining asterisk
-    return ret
+        if is_sideways:
+            return DISCORD_CALLED_DORA_TILES[tile]
+        else: 
+            return DISCORD_DORA_TILES[tile]
+    else:
+        if is_sideways:
+            return DISCORD_CALLED_TILES[tile]
+        else: 
+            return DISCORD_TILES[tile]
 
-DISCORD_DORA_TILES = DISCORD_TILES # temp
 pt = lambda tile: pt_discord(tile) if os.getenv("use_discord_tile_emoji") == "True" else pt_unicode(tile)
 pt_sideways = lambda tile: pt_discord(tile, True) if os.getenv("use_discord_tile_emoji") == "True" else f"₍{pt_unicode(tile)}₎"
 
