@@ -151,7 +151,7 @@ def get_taatsu_wait(taatsu: Tuple[int, int]) -> Set[int]:
     t1, t2 = remove_red_fives(taatsu)
     return {PRED[t1], SUCC[t2]} - {0} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
 def get_waits(hand: Tuple[int, ...]) -> Set[int]:
-    """Get all waits in a hand full of taatsus, excluding pair waits"""
+    """Get all waits in a hand full of taatsus and no floating tiles, excluding pair waits"""
     hand = sorted_hand(hand)
 
     # parse out all the taatsus
