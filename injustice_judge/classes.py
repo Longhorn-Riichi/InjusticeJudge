@@ -138,7 +138,7 @@ class Hand:
             super().__setattr__("shanten", self.prev_shanten)
     def to_str(self, doras, uras):
         to_str = lambda call: call.to_str(doras, uras)
-        call_string = "" if len(self.calls) == 0 else "⠀" + "⠀".join(map(to_str, reversed(self.calls)))
+        call_string = "" if len(self.calls) == 0 else "\u2007" + "\u2007".join(map(to_str, reversed(self.calls)))
         as_dora = lambda tile: tile + (100 if tile in doras or tile in uras else 0)
         hidden_part = tuple(map(as_dora, self.hidden_part))
         return f"{ph(hidden_part)}{call_string}"
@@ -182,7 +182,7 @@ class Hand:
         as_dora = lambda tile: tile + (100 if tile in doras or tile in uras else 0)
         if self.shanten[0] == 0:
             wait_string = f"{' (furiten) ' if furiten else ' '}waits: {ph(sorted_hand(self.shanten[1]))} ({ukeire} out{'s' if ukeire > 1 else ''})"
-            win_string = f"⠀{pt(as_dora(final_tile))}" if final_tile is not None else ""
+            win_string = f"\u2007{pt(as_dora(final_tile))}" if final_tile is not None else ""
         elif self.shanten[0] > 0:
             wait_string = f" ({shanten_name(self.shanten)})"
         return f"{self.to_str(doras, uras)}{win_string}{wait_string}"
