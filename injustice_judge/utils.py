@@ -149,8 +149,25 @@ apply_delta_scores = lambda scores, delta_score:  [score + delta for score, delt
 
 def get_taatsu_wait(taatsu: Tuple[int, int]) -> Set[int]:
     t1, t2 = remove_red_fives(taatsu)
-    return {PRED[t1], SUCC[t2]} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
+    return {PRED[t1], SUCC[t2]} - {0} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
 def get_waits(hand: Tuple[int, ...]) -> Set[int]:
-    """Get all waits resulting from each pair of consecutive tiles, excluding pair waits"""
+    """Get all waits in a hand full of taatsus and no floating tiles, excluding pair waits"""
     hand = sorted_hand(hand)
-    return set().union(*map(get_taatsu_wait, zip(hand[:-1], hand[1:]))) - {0}
+
+    # parse out all the taatsus
+    waits = set()
+    to_update: Set[Tuple[Tuple[int, ...], Tuple[Tuple[int, int], ...]]] = {(hand, ())}
+    while len(to_update) > 0:
+        hand, taatsus = to_update.pop()
+        if len(hand) <= 1: # done
+            waits |= set().union(*map(get_taatsu_wait, taatsus))
+            continue
+        for tile in hand:
+            if SUCC[tile] in hand:
+                taatsu = (tile, SUCC[tile])
+                to_update.add((try_remove_all_tiles(hand, taatsu), (*taatsus, taatsu)))
+            if SUCC[SUCC[tile]] in hand:
+                taatsu = (tile, SUCC[SUCC[tile]])
+                to_update.add((try_remove_all_tiles(hand, taatsu), (*taatsus, taatsu)))
+    return waits
+
