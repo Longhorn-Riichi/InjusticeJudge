@@ -71,13 +71,14 @@ def calculate_kokushi_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> T
 
 count_floating = lambda hand: len(next(iter(remove_all_pairs(remove_all_taatsus({hand})))))
 
-def get_floating_waits(hands: Set[Tuple[int, ...]], floating_tiles: Set[int]) -> Set[int]:
+def get_floating_waits(hands: Set[Tuple[int, ...]], floating_tiles: Set[int]) -> Tuple[Set[int], Set[int]]:
     # For each hand in hands, calculate its waits:
     # - remove every combination of one pair and one floating tile
     # - if the result is composed of taatsus, add the wait of every taatsu
     # - if 2+ distinct pairs were able to add waits, add those pairs as a shanpon wait
     # Return the combined wait of every hand in hands
     waits: Set[int] = set()
+    shanpon_waits: Set[int] = set()
     for hand in hands:
         hand = tuple(remove_red_fives(hand))
         floating, *more = next(iter(remove_all_pairs(remove_all_taatsus({hand}))))
@@ -93,8 +94,8 @@ def get_floating_waits(hands: Set[Tuple[int, ...]], floating_tiles: Set[int]) ->
                     pairs.add(tile)
                     waits |= get_waits(nofloat)
         if len(pairs) >= 2:
-            waits |= pairs
-    return waits
+            shanpon_waits |= pairs
+    return waits, shanpon_waits
 
 def check_headless_perfect_iishanten(starting_hand: Tuple[int, ...]) -> bool:
     # check for headless perfect iishanten, given a headless iishanten hand
@@ -127,13 +128,12 @@ def check_complete_perfect_iishanten(starting_hand):
 
 def get_iishanten_waits(starting_hand: Tuple[int, ...], groups_needed: int) -> Tuple[float, Set[int]]:
     shanten = 1.0
-    waits = set()
 
     def sequence_exists(seq):
         # check if, after removing the sequence, we still have headless/kutsuki iishanten
         removed_sequence = try_remove_all_tiles(starting_hand, seq)
         if len(removed_sequence) < len(starting_hand):
-            return count_floating(next(iter(remove_all_groups({removed_sequence})))) <= 19
+            return count_floating(next(iter(remove_all_groups({removed_sequence})))) <= 2
         return False
 
     def extend_waits(waits):
@@ -149,6 +149,22 @@ def get_iishanten_waits(starting_hand: Tuple[int, ...], groups_needed: int) -> T
                 # print(f"  extended {pt(tile)} right to {pt(SUCC[SUCC[SUCC[tile]]])}")
                 waits.add(SUCC[SUCC[SUCC[tile]]])
         return waits
+
+    # tanki waits and shanpon waits are the only waits relying on having
+    #   the waited tile in hand, which is bad since extend_waits relies on
+    #   being able to choose an arbitrary sequence in hand which might
+    #   include those tiles necessary for the tanki or shanpon.
+    # tanki isn't an issue since whenever we find tanki as part of a sequence
+    #   like 4 -> 456, we can always interpret it as a group and move on
+    # shanpon is an issue since whenever we find shanpon as part of a sequence
+    #   like 44 -> 4456, we can't always extend the shanpon 4 wait to 7
+    #   since it's not always true that the 56 can be used as a ryanmen.
+    #   example: in the hand 344566m345p1178s, we have a shanpon wait on 6m1s
+    #   but the 4566m shape doesn't extend the 6m wait to 3m.
+    # so we treat shanpon waits as separate so that we only call extend_waits
+    #   on the non-shanpon waits.
+    waits: Set[int] = set()
+    shanpon_waits: Set[int] = set()
 
     # first handle kutsuki and headless iishanten
     if groups_needed == 1:
@@ -187,7 +203,6 @@ def get_iishanten_waits(starting_hand: Tuple[int, ...], groups_needed: int) -> T
                 headless_waits = get_waits(tuple(headless_iishanten_tiles - floating_tiles)).union(floating_tiles)
             # print(f"{ph(sorted_hand(starting_hand))} is headless iishanten with tiles {ph(headless_iishanten_tiles)}, waits {ph(headless_waits)}")
             waits |= headless_waits
-            waits = fix(extend_waits, waits)
 
     # handle floating/complete iishanten
     # floating iishanten is when you have a floating tile + a pair + 2 taatsus/pairs
@@ -199,11 +214,8 @@ def get_iishanten_waits(starting_hand: Tuple[int, ...], groups_needed: int) -> T
     subhands = set(filter(lambda hand: len(hand) == 7, remove_some_groups({starting_hand})))
     without_head = set(filter(lambda hand: len(hand) == 5, remove_some_pairs(subhands))) # remove a pair
     floating_iishanten_tiles = set().union(*filter(lambda hand: len(hand) == 1, remove_some_pairs(remove_some_taatsus(without_head))))
+    floating_waits, floating_shanpon_waits = get_floating_waits(subhands, floating_iishanten_tiles) if len(floating_iishanten_tiles) > 0 else (set(), set())
 
-    # floating_subhands = set()
-    # without_floating = remove_all(subhands, lambda _: tuple((tile,) for tile in floating_iishanten_tiles))
-    # floating_subhands |= set(filter(lambda hand: count_floating(hand) == 0, without_floating))
-    floating_waits = get_floating_waits(subhands, floating_iishanten_tiles) if len(floating_iishanten_tiles) > 0 else set()
     # get waits for complete iishanten
     # look for a complex group after removing a pair and a taatsu/pair
     complex_candidates = set(filter(lambda hand: len(hand) == 3, remove_some_pairs(remove_some_taatsus(without_head)))) # remove a taatsu/pair
@@ -211,36 +223,39 @@ def get_iishanten_waits(starting_hand: Tuple[int, ...], groups_needed: int) -> T
     complete_iishanten_shapes = complex_candidates & {shape for hand in complex_candidates for shape in to_complex_shapes(hand[0])}
     is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
     get_complex_wait = lambda s: get_taatsu_wait(s[0:2]) | get_taatsu_wait(s[1:3]) | ({s[0]} if is_pair(s[0:2]) else set()) | ({s[1]} if is_pair(s[1:3]) else set())
+    get_complex_shanpon_wait = lambda s: ({s[0]} if is_pair(s[0:2]) else set()) | ({s[1]} if is_pair(s[1:3]) else set())
     complete_waits = floating_waits.union(*map(get_complex_wait, complete_iishanten_shapes)) if len(complete_iishanten_shapes) > 0 else set()
+    complete_shanpon_waits = floating_shanpon_waits.union(*map(get_complex_shanpon_wait, complete_iishanten_shapes)) if len(complete_iishanten_shapes) > 0 else set()
+
+    # add complete/floating waits to the overall wait, and set the shanten number accordingly
     if shanten >= 1.001: # either kutsuki (1.01) or headless (1.001) or both (1.011)
         if check_headless_perfect_iishanten(starting_hand):
             # print(f"{ph(sorted_hand(starting_hand))} is also perfect {'kutsuki' if shanten >= 1.01 else 'headless'} with shapes {flexible_shapes}")
             shanten += 0.0003
-        if len(complete_waits - waits) > 0: # check for complete iishanten
+        elif len(complete_waits - waits) > 0 or len(complete_shanpon_waits - shanpon_waits - waits) > 0: # check for complete iishanten
             # print(f"{ph(sorted_hand(starting_hand))} is {'kutsuki' if shanten >= 1.01 else 'headless'} complete iishanten with complex shapes {list(map(ph, complete_iishanten_shapes))}, adding extra waits {ph(complete_waits - waits)}")
             shanten += 0.0002
             waits |= complete_waits
-        if len(floating_waits - waits) > 0: # check for floating iishanten
+            shanpon_waits |= complete_shanpon_waits
+        elif len(floating_waits - waits) > 0 or len(floating_shanpon_waits - shanpon_waits - waits) > 0: # check for floating iishanten
             # print(f"{ph(sorted_hand(starting_hand))} is {'kutsuki' if shanten >= 1.01 else 'headless'} floating iishanten with floating tiles {ph(floating_iishanten_tiles)}, adding extra waits {ph(floating_waits - waits)}")
             shanten += 0.0001
             waits |= floating_waits
+            shanpon_waits |= floating_shanpon_waits
     else:
-        if len(complete_waits - waits) > 0:
+        if len(complete_waits - waits) > 0 or len(complete_shanpon_waits - shanpon_waits - waits) > 0:
             # print(f"{ph(sorted_hand(starting_hand))} is complete iishanten, with complex shapes {list(map(ph, complete_iishanten_shapes))}")
             shanten += 0.0003 if check_complete_perfect_iishanten(starting_hand) else 0.0002
             waits |= complete_waits
-        if len(floating_waits - waits) > 0:
+            shanpon_waits |= complete_shanpon_waits
+        elif len(floating_waits - waits) > 0 or len(floating_shanpon_waits - shanpon_waits - waits) > 0:
             # print(f"{ph(sorted_hand(starting_hand))} is floating tile iishanten, with floating tile(s) {ph(floating_iishanten_tiles)}")
             shanten += 0.0001 # floating
             waits |= floating_waits
+            shanpon_waits |= floating_shanpon_waits
+
+    waits = fix(extend_waits, (waits - shanpon_waits)) | shanpon_waits
     return round(shanten, 4), waits
-
-
-
-
-
-
-
 
 
 
