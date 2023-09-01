@@ -357,9 +357,8 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             for seat in range(num_players):
                 # check if we lost points to a first row win
                 if result.score_delta[seat] < 0:
-                    num_winner_discards = len(kyoku.pond[result.winner])
-                    if num_winner_discards <= 6:
-                        add_flag(seat, Flags.LOST_POINTS_TO_FIRST_ROW_WIN, {"seat": result.winner, "turn": num_winner_discards})
+                    if len(kyoku.pond[seat]) <= 6:
+                        add_flag(seat, Flags.LOST_POINTS_TO_FIRST_ROW_WIN, {"seat": result.winner, "turn": len(kyoku.pond[seat])})
                 # if tenpai, check if the winning tile is in our waits
                 # this is useful to find missed/skipped wins, or head bumps
                 if kyoku.hands[seat].shanten[0] == 0:
