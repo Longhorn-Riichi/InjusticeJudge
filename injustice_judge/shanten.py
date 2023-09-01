@@ -30,11 +30,11 @@ remove_all_taatsus = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus), 
 make_pairs = lambda tile: ((tile, tile),)
 remove_some_pairs = lambda hands: fix(lambda hs: remove_some(hs, make_pairs), hands)
 remove_all_pairs = lambda hands: fix(lambda hs: remove_all(hs, make_pairs), hands)
+count_floating = lambda hand: len(next(iter(remove_all_pairs(remove_all_taatsus({hand})))))
 
-# note: ctr = Counter(remove_red_fives(starting_hand))
-# passed in so you only have to construct it once
 def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
     # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
+    # note: ctr = Counter(remove_red_fives(starting_hand))
     shanten = 6 - len([v for v in ctr.values() if v > 1])
     waits: Tuple[int, ...] = ()
     if shanten <= 1:
@@ -44,6 +44,7 @@ def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -
 
 def calculate_kokushi_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
     # get kokushi waits (iishanten or tenpai) and label iishanten type
+    # note: ctr = Counter(remove_red_fives(starting_hand))
     has_pair = len([v for v in ctr.values() if v > 1]) >= 1
     shanten = (12 if has_pair else 13) - len(YAOCHUUHAI.intersection(starting_hand))
     waits: Tuple[int, ...] = ()
@@ -51,32 +52,12 @@ def calculate_kokushi_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> T
         waits = sorted_hand(YAOCHUUHAI if not has_pair else YAOCHUUHAI.difference(starting_hand))
     return shanten, list(waits)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-count_floating = lambda hand: len(next(iter(remove_all_pairs(remove_all_taatsus({hand})))))
-
 def get_floating_waits(hands: Set[Tuple[int, ...]], floating_tiles: Set[int]) -> Tuple[Set[int], Set[int]]:
-    # For each hand in hands, calculate its waits:
+    # For each hand in `hands`, calculate its waits:
     # - remove every combination of one pair and one floating tile
     # - if the result is composed of taatsus, add the wait of every taatsu
     # - if 2+ distinct pairs were able to add waits, add those pairs as a shanpon wait
-    # Return the combined wait of every hand in hands
+    # Return the combined wait of every hand in `hands`
     waits: Set[int] = set()
     shanpon_waits: Set[int] = set()
     for hand in hands:
@@ -84,7 +65,6 @@ def get_floating_waits(hands: Set[Tuple[int, ...]], floating_tiles: Set[int]) ->
         floating, *more = next(iter(remove_all_pairs(remove_all_taatsus({hand}))))
         if len(more) != 0:
             continue
-
         pairs = set()
         for tile in (tile for tile, count in Counter(hand).items() if count >= 2):
             nopair = try_remove_all_tiles(hand, (tile, tile))
@@ -282,29 +262,6 @@ def get_iishanten_type(starting_hand: Tuple[int, ...]) -> Tuple[float, Set[int]]
 
     return round(shanten, 3), waits | shanpon_waits
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @functools.cache
 def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]]:
     """
@@ -318,7 +275,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     # 2. Count floating tiles
     # 3. Calculate shanten
     # 4. Check for iishanten/tenpai
-    # 5. If iishanten or tenpai, output the waits
+    # 5. If iishanten or tenpai, calculate the waits
     # 6. Do 3-5 for chiitoitsu and kokushi
 
     # remove as many groups as possible
