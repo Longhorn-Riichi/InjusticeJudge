@@ -468,6 +468,16 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
         all_dora_indicators.append(dora_indicators)
         all_ura_indicators.append(ura_indicators)
         events = []
+    
+    def same_tile(tile1: str, tile2: str):
+        # check if two tiles are equal, counting red
+        # five as equal to regular fives
+        if tile1[1] == tile2[1]:
+            number1, number2 = tile1[0], tile2[0]
+            if number1 == number2: return True
+            if number1 == '0': return number2 == '5'
+            if number1 == '5': return number2 == '0'
+        return False
 
     for name, action in actions:
         if name == "RecordNewRound":
@@ -497,7 +507,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             called_tile = call_tiles[-1]
             if len(action.tiles) == 4:
                 call_type = "minkan"
-            elif action.tiles[0] == action.tiles[1]:
+            elif same_tile(action.tiles[0], action.tiles[1]):
                 call_type = "pon"
             else:
                 call_type = "chii"
