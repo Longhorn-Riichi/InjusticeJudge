@@ -1,10 +1,9 @@
-from .classes import Hand, Kyoku, Ron, Score, Tsumo
-from .constants import LIMIT_HANDS, SHANTEN_NAMES, TRANSLATE, YAOCHUUHAI
-from dataclasses import dataclass
+from .classes import Hand, Kyoku, Ron, Tsumo
+from .constants import TRANSLATE, YAOCHUUHAI
 from enum import Enum
 from typing import *
-from .utils import is_mangan, ph, pt, relative_seat_name, remove_red_five, round_name, shanten_name, sorted_hand, to_placement, try_remove_all_tiles, translate_tenhou_yaku
-from .yaku import get_yaku, get_final_yaku, get_score, get_takame_score
+from .utils import is_mangan, remove_red_five, round_name, to_placement, translate_tenhou_yaku, limit_hands
+from .yaku import get_final_yaku, get_score, get_takame_score
 from pprint import pprint
 
 # This file provides a `Flags` enum and a single function, `determine_flags`,
@@ -302,7 +301,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                     add_flag(seat, Flags.YOU_HAD_LIMIT_TENPAI,
                                    {"hand_str": hand_str,
                                     "takame": takame,
-                                    "limit_name": TRANSLATE[LIMIT_HANDS[han]],
+                                    "limit_name": TRANSLATE[limit_hands(han)],
                                     "yaku_str": ", ".join(name for name, value in best_score.yaku),
                                     "han": han,
                                     "fu": fu})

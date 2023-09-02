@@ -8,7 +8,6 @@ from typing import *
 #      PLACEMENTS: the printed name of a placement (1 -> "1st")
 #      YAKU_NAMES: maps mahjong soul yaku IDs to tenhou yaku names
 #         YAKUMAN: the yakuman subset of YAKU_NAMES
-#     LIMIT_HANDS: a mapping from han to tenhou's limit hand name
 #       TRANSLATE: a big map from all Japanese terms to English terms
 #       PRED/SUCC: get the predecessor/successor of a number tile, 0 if nonexistent
 #  DORA_INDICATOR: map from a dora to its indicator
@@ -199,11 +198,6 @@ YAKUMAN = {
     63: "石の上にも三年",      # Ishinouenimosannen
     64: "大七星",            # Big Seven Star
 }
-LIMIT_HANDS = {2: "満貫", 3: "満貫", 4: "満貫", 5: "満貫",
-               6: "跳満", 7: "跳満",
-               8: "倍満", 9: "倍満", 10: "倍満",
-               11: "三倍満", 12: "三倍満",
-               13: "役満", 14: "役満", 15: "役満", 16: "役満", 17: "役満", 18: "役満"}
 TRANSLATE = {
     "流局": "ryuukyoku",
     "全員聴牌": "ryuukyoku",

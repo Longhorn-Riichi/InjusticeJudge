@@ -6,9 +6,8 @@ from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
 from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Tsumo, ResultYakuList, GameMetadata, Dir
-from .constants import DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
-from .utils import is_mangan, ph, pt, apply_delta_scores, remove_red_five, round_name, sorted_hand, to_placement, translate_tenhou_yaku
-from .shanten import calculate_shanten
+from .constants import DORA, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
+from .utils import is_mangan, ph, apply_delta_scores, remove_red_five, round_name, sorted_hand, to_placement, translate_tenhou_yaku, limit_hands
 from .yaku import get_yakuman_tenpais, debug_yaku
 from pprint import pprint
 
@@ -532,8 +531,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 if any(fan.id in YAKUMAN.keys() for fan in h.fans):
                     score_string = "役満"
                 elif han >= 6 or is_mangan(han, h.fu):
-                    assert han in LIMIT_HANDS, f"limit hand with {han} han is not in LIMIT_HANDS"
-                    score_string = LIMIT_HANDS[han]
+                    score_string = limit_hands(han)
                 point_string = f"{h.point_rong}点"
                 if h.zimo:
                     if h.point_zimo_qin > 0:
