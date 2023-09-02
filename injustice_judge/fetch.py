@@ -7,7 +7,7 @@ from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
 from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Tsumo, ResultYakuList, GameMetadata, Dir
 from .constants import DORA, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
-from .utils import is_mangan, ph, apply_delta_scores, remove_red_five, round_name, sorted_hand, to_placement, translate_tenhou_yaku, limit_hands
+from .utils import is_mangan, ph, apply_delta_scores, normalize_red_five, round_name, sorted_hand, to_placement, translate_tenhou_yaku, limit_hands
 from .yaku import get_yakuman_tenpais, debug_yaku
 from pprint import pprint
 
@@ -98,8 +98,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.tiles_in_wall -= 1
                 assert len(kyoku.hands[seat].tiles) == 14
             elif event_type in {"discard", "riichi"}: # discards
-                print(seat, kyoku.hands[seat])
-                print(event_type, event_data)
                 tile, *_ = event_data
                 old_shanten = kyoku.hands[seat].shanten
                 kyoku.hands[seat] = kyoku.hands[seat].remove(tile)
@@ -648,7 +646,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         """
         returns the called tile as the first tile;
         this matters when the call contains a red five.
-        Will also remove red five if necessary.
+        Will also normalize red five if necessary.
         """
         for c in call:
             if c.isalpha():
@@ -657,7 +655,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 for i in range(0, len(call_tiles_str), 2):
                     call_tile = int(call_tiles_str[i:i+2])
                     if not use_red_fives:
-                        call_tile = remove_red_five(call_tile)
+                        call_tile = normalize_red_five(call_tile)
                     call_tiles.append(call_tile)
                 return call_tiles
         assert False, f"unable to extract the call tiles from call {call}"
@@ -678,7 +676,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 [haipai0, haipai1, haipai2, haipai3, dora_indicators, ura_indicators]
             for lst in lists:
                 for j, value in enumerate(lst):
-                    lst[j] = remove_red_five(value)
+                    lst[j] = normalize_red_five(value)
         # setup lists for number of players
         haipai   = [haipai0,   haipai1,   haipai2,   haipai3][:num_players]
         draws    = [draws0,    draws1,    draws2,    draws3][:num_players]
@@ -746,7 +744,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 continue
             else:
                 if not use_red_fives:
-                    draw = remove_red_five(draw)
+                    draw = normalize_red_five(draw)
                 events.append((curr_seat, "draw", draw))
 
             # if you tsumo, there's no next discard, so we jump out here
@@ -770,7 +768,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                     discard = draw
                 elif not use_red_fives:
                     # tedashi -- removes the five if necessary
-                    discard = remove_red_five(discard)
+                    discard = normalize_red_five(discard)
                 events.append((curr_seat, "discard", discard))
 
             i[curr_seat] += 1 # done processing the ith draw/discard for this player

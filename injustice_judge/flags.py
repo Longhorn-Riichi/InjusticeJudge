@@ -2,7 +2,7 @@ from .classes import Hand, Kyoku, Ron, Tsumo
 from .constants import TRANSLATE, YAOCHUUHAI
 from enum import Enum
 from typing import *
-from .utils import is_mangan, remove_red_five, round_name, to_placement, translate_tenhou_yaku, limit_hands
+from .utils import is_mangan, normalize_red_five, round_name, to_placement, translate_tenhou_yaku, limit_hands
 from .yaku import get_final_yaku, get_score, get_takame_score
 from pprint import pprint
 
@@ -362,7 +362,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                 # this is useful to find missed/skipped wins, or head bumps
                 if kyoku.hands[seat].shanten[0] == 0:
                     winning_tile = kyoku.final_discard if result_type == "ron" else kyoku.final_draw
-                    if remove_red_five(winning_tile) in kyoku.hands[seat].shanten[1]:
+                    if normalize_red_five(winning_tile) in kyoku.hands[seat].shanten[1]:
                         add_flag(seat, Flags.YOU_WAITED_ON_WINNING_TILE, {"tile": winning_tile, "wait": kyoku.hands[seat].shanten[1]})
 
             # calculate the yaku, han, and fu for the winning hand
@@ -383,7 +383,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             #   let's fix it here
             final_tile = kyoku.final_discard if result_type == "ron" else kyoku.final_draw
             final_tile_is_aka = final_tile in set(kyoku.doras) and final_tile in {51,52,53}
-            final_tile = remove_red_five(final_tile)
+            final_tile = normalize_red_five(final_tile)
             if final_tile_is_aka:
                 calculated_yaku[final_tile].add_dora("aka", 1)
 

@@ -4,7 +4,7 @@ import functools
 from typing import *
 
 from .constants import TOGGLE_RED_FIVE
-from .utils import ph, pt, pt_sideways, remove_red_five, remove_red_fives, shanten_name, sorted_hand, try_remove_all_tiles
+from .utils import ph, pt, pt_sideways, normalize_red_five, normalize_red_fives, shanten_name, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten
 
 # This file contains most of the classes used in InjusticeJudge.
@@ -79,8 +79,7 @@ class CallInfo:
         tile = as_dora(self.tile)
         # other_tiles is all the non-called tiles in the call
         other_tiles = try_remove_all_tiles(tiles, (tile,))
-        if tile is None:
-            print("Nnsdosd")
+        assert tile is not None, "CallInfo has a `None` tile??"
         sideways = pt_sideways(tile)
         if self.type == "ankan":
             if any(tile in {51,52,53} for tile in tiles):
@@ -194,8 +193,8 @@ class Hand:
         shanten, waits = self.shanten
         if shanten > 0:
             return 0
-        relevant_tiles = set(remove_red_fives(waits))
-        visible = list(remove_red_fives(list(self.tiles) + list(visible)))
+        relevant_tiles = set(normalize_red_fives(waits))
+        visible = list(normalize_red_fives(list(self.tiles) + list(visible)))
         return 4 * len(relevant_tiles) - sum(visible.count(wait) for wait in relevant_tiles)
 
 # hand interpretations and yaku

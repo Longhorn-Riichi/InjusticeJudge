@@ -2,7 +2,7 @@ from typing import *
 from .classes import Event, Hand, Kyoku, YakuForWait, Score, Interpretation
 from .constants import PRED, SUCC, YAOCHUUHAI
 from .shanten import get_tenpai_waits
-from .utils import fix, get_score, get_taatsu_wait, is_mangan, pt, ph, print_hand_details_seat, remove_red_five, remove_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles, limit_hands
+from .utils import fix, get_score, get_taatsu_wait, is_mangan, pt, ph, print_hand_details_seat, normalize_red_five, normalize_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles, limit_hands
 from pprint import pprint
 
 # This file details some algorithms for checking the yaku of a given `Hand` object.
@@ -31,11 +31,11 @@ is_suuankou: CheckYakumanFunc = lambda hand: len(hand.calls) == 0 and (mults := 
 
 # shousuushi if we have exactly 10 winds (counting each wind at most 3 times)
 # OR 11 tiles of winds + no pair (i.e. only 6 kinds of tiles in hand)
-is_shousuushi: CheckYakumanFunc = lambda hand: (count := sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44}), count == 10 or count == 11 and len(set(remove_red_fives(hand.tiles))) == 6)[1]
+is_shousuushi: CheckYakumanFunc = lambda hand: (count := sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44}), count == 10 or count == 11 and len(set(normalize_red_fives(hand.tiles))) == 6)[1]
 
 # daisuushi if we have 12 tiles of winds (counting each wind at most 3 times)
 # OR 11 tiles of winds + a pair (i.e. only 5 kinds of tiles in hand)
-is_daisuushi: CheckYakumanFunc = lambda hand: (count := sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44}), count == 12 or count == 11 and len(set(remove_red_fives(hand.tiles))) == 5)[1]
+is_daisuushi: CheckYakumanFunc = lambda hand: (count := sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44}), count == 12 or count == 11 and len(set(normalize_red_fives(hand.tiles))) == 5)[1]
 
 # tsuuiisou tenpai if all the tiles are honor tiles
 is_tsuuiisou: CheckYakumanFunc = lambda hand: set(hand.tiles) - {41,42,43,44,45,46,47} == set()
@@ -49,7 +49,7 @@ is_chinroutou: CheckYakumanFunc = lambda hand: set(hand.tiles) - {11,19,21,29,31
 # chuuren poutou tenpai if hand is closed and we are missing at most one tile
 #   out of the required 1112345678999
 CHUUREN_TILES = Counter([1,1,1,2,3,4,5,6,7,8,9,9,9])
-is_chuuren: CheckYakumanFunc = lambda hand: len(hand.calls) == 0 and max(hand.tiles) - min(hand.tiles) == 8 and max(hand.tiles) < 40 and (ctr := Counter([t % 10 for t in remove_red_fives(hand.tiles)]), sum((CHUUREN_TILES - (CHUUREN_TILES & ctr)).values()) <= 1)[1]
+is_chuuren: CheckYakumanFunc = lambda hand: len(hand.calls) == 0 and max(hand.tiles) - min(hand.tiles) == 8 and max(hand.tiles) < 40 and (ctr := Counter([t % 10 for t in normalize_red_fives(hand.tiles)]), sum((CHUUREN_TILES - (CHUUREN_TILES & ctr)).values()) <= 1)[1]
 
 # suukantsu tenpai if you have 4 kans
 is_suukantsu = lambda hand: list(map(lambda call: "kan" in call.type, hand.calls)).count(True) == 4
@@ -192,7 +192,7 @@ def get_hand_interpretations(hand: Hand, yakuhai: Set[int]) -> Set[Interpretatio
             
         if len(unprocessed_part) == 2:
             # now evaluate the remaining taatsu
-            tile1, tile2 = sorted_hand(remove_red_fives(unprocessed_part))
+            tile1, tile2 = sorted_hand(normalize_red_fives(unprocessed_part))
             is_shanpon = tile1 == tile2
             is_penchan = SUCC[tile1] == tile2 and 0 in {PRED[tile1], SUCC[tile2]}
             is_ryanmen = SUCC[tile1] == tile2 and 0 not in {PRED[tile1], SUCC[tile2]}
@@ -246,10 +246,10 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
 
     # remove all red fives from the interpretation
     taatsu, ron_fu, tsumo_fu, sequences, triplets, pair = interpretation.unpack()
-    taatsu = tuple(tuple(remove_red_fives(taatsu)))
-    sequences = tuple(tuple(remove_red_fives(seq)) for seq in sequences)
-    triplets = tuple(tuple(remove_red_fives(tri)) for tri in triplets)
-    pair_tile = None if pair is None else remove_red_five(pair[0])
+    taatsu = tuple(tuple(normalize_red_fives(taatsu)))
+    sequences = tuple(tuple(normalize_red_fives(seq)) for seq in sequences)
+    triplets = tuple(tuple(normalize_red_fives(tri)) for tri in triplets)
+    pair_tile = None if pair is None else normalize_red_five(pair[0])
 
     # filter for only waits that satisfy this interpretation
     if len(taatsu) == 1: # tanki
@@ -411,7 +411,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
     #   is handled in add_tsumo_yaku
     if len(triplets) >= 3:
         # check they are all closed
-        num_open_triplets = sum(1 for tri in triplets for call in interpretation.calls if tri == tuple(remove_red_fives(call.tiles[:3])))
+        num_open_triplets = sum(1 for tri in triplets for call in interpretation.calls if tri == tuple(normalize_red_fives(call.tiles[:3])))
         if len(triplets) - num_open_triplets >= 3:
             for wait in waits:
                 yaku_for_wait[wait].append(("sanankou", 2))
@@ -501,7 +501,7 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
 
     # dora: count the dora of the hand, removing red fives (we'll count them next)
     full_hand = (*hand.hidden_part, *(tile for call in hand.calls for tile in call.tiles))
-    hand_without_reds = tuple(remove_red_fives(full_hand))
+    hand_without_reds = tuple(normalize_red_fives(full_hand))
     non_red_dora = [dora for dora in doras if dora not in {51,52,53}]
     dora = sum(non_red_dora.count(tile) for tile in hand_without_reds)
     # kita can be dora too
@@ -560,7 +560,7 @@ def add_tsumo_yaku(yaku_for_wait: YakuForWait, interpretation: Interpretation, i
     is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
     if len(triplets) >= 2 and is_pair(taatsu) and pair is not None:
         # check they are all closed
-        num_open_triplets = sum(1 for tri in triplets for call in interpretation.calls if tuple(remove_red_fives(tri)) == tuple(remove_red_fives(call.tiles[:3])))
+        num_open_triplets = sum(1 for tri in triplets for call in interpretation.calls if tuple(normalize_red_fives(tri)) == tuple(normalize_red_fives(call.tiles[:3])))
         if len(triplets) - num_open_triplets >= 2:
             for wait in waits & {taatsu[0], pair[0]}:
                 if ("sanankou", 2) not in yaku_for_wait[wait]:
@@ -630,7 +630,7 @@ def add_yakuman(yaku_for_wait: YakuForWait, hand: Hand, events: List[Event], rou
             # chuuren poutou but your final wait doesn't complete the set:
             if "chuurenpoutou" in actual_yakumans:
                 CHUUREN_TILES = Counter([1,1,1,2,3,4,5,6,7,8,9,9,9])
-                chuuren_repr = Counter([t % 10 for t in remove_red_fives(hand.tiles)])
+                chuuren_repr = Counter([t % 10 for t in normalize_red_fives(hand.tiles)])
                 [expected_wait] = (CHUUREN_TILES - (CHUUREN_TILES & chuuren_repr)).keys()
                 if wait != expected_wait:
                     actual_yakumans.remove("chuurenpoutou")

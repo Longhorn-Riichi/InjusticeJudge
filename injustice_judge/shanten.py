@@ -2,7 +2,7 @@ import functools
 import itertools
 from .constants import PRED, SUCC, TANYAOHAI, YAOCHUUHAI
 from typing import *
-from .utils import get_taatsu_wait, get_waits, pt, ph, remove_red_five, remove_red_fives, sorted_hand, try_remove_all_tiles, remove_some, remove_all, fix
+from .utils import get_taatsu_wait, get_waits, pt, ph, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles, remove_some, remove_all, fix
 from pprint import pprint
 
 # This file details a shanten algorithm. It's not super efficient, but the
@@ -34,7 +34,7 @@ count_floating = lambda hand: len(next(iter(remove_all_pairs(remove_all_taatsus(
 
 def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
     # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
-    # note: ctr = Counter(remove_red_fives(starting_hand))
+    # note: ctr = Counter(normalize_red_fives(starting_hand))
     shanten = 6 - len([v for v in ctr.values() if v > 1])
     waits: Tuple[int, ...] = ()
     if shanten <= 1:
@@ -44,7 +44,7 @@ def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -
 
 def calculate_kokushi_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
     # get kokushi waits (iishanten or tenpai) and label iishanten type
-    # note: ctr = Counter(remove_red_fives(starting_hand))
+    # note: ctr = Counter(normalize_red_fives(starting_hand))
     has_pair = len([v for v in ctr.values() if v > 1]) >= 1
     shanten = (12 if has_pair else 13) - len(YAOCHUUHAI.intersection(starting_hand))
     waits: Tuple[int, ...] = ()
@@ -61,7 +61,7 @@ def get_floating_waits(hands: Set[Tuple[int, ...]], floating_tiles: Set[int]) ->
     waits: Set[int] = set()
     shanpon_waits: Set[int] = set()
     for hand in hands:
-        hand = tuple(remove_red_fives(hand))
+        hand = tuple(normalize_red_fives(hand))
         # check after removing all taatsus and pairs that there is only 1 floating tile
         # TODO: optimize?
         post_removal_possibilities = remove_all_pairs(remove_all_taatsus({hand})).union(remove_all_taatsus(remove_all_pairs({hand})))
@@ -175,7 +175,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...]) -> Tuple[float, Set[int]]
             shanten += 0.02
             # for each kuttsuki tile, its waits are {tile-2,tile-1,tile,tile+1,tile+2}
             for tile in kuttsuki_iishanten_tiles:
-                waits |= {PRED[PRED[tile]], PRED[tile], remove_red_five(tile), SUCC[tile], SUCC[SUCC[tile]]} - {0}
+                waits |= {PRED[PRED[tile]], PRED[tile], normalize_red_five(tile), SUCC[tile], SUCC[SUCC[tile]]} - {0}
             # print(f"{ph(sorted_hand(starting_hand))} is kuttsuki iishanten with tiles {ph(kuttsuki_iishanten_tiles)}, waits {ph(waits)}")
 
         # if there's headless tiles, then it's headless iishanten
@@ -207,7 +207,6 @@ def get_iishanten_type(starting_hand: Tuple[int, ...]) -> Tuple[float, Set[int]]
     # somewhat of an assertion; it should be guaranteed that there remains only 1 tile
     floating_iishanten_tiles = set().union(*filter(lambda hand: len(hand) == 1, without_taatsus))
     floating_waits, floating_shanpon_waits = get_floating_waits(subhands, floating_iishanten_tiles) if len(floating_iishanten_tiles) > 0 else (set(), set())
-    print(floating_waits, floating_shanpon_waits)
     # for each of these length 5 hands, remove pairs/taatsus to get length 3 hands
     # the idea is to check if these length 3 hands are complex shapes
     # check if each length 3 hand is in the set of all possible complex shapes
@@ -318,7 +317,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
         assert len(waits) > 0, f"tenpai hand {ph(sorted_hand(starting_hand))} has no waits?"
 
     # compare with chiitoitsu and kokushi shanten
-    ctr = Counter(remove_red_fives(starting_hand))
+    ctr = Counter(normalize_red_fives(starting_hand))
     (c_shanten, c_waits) = calculate_chiitoitsu_shanten(starting_hand, ctr)
     (k_shanten, k_waits) = calculate_kokushi_shanten(starting_hand, ctr)
     if c_shanten <= shanten:
@@ -353,7 +352,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
 
 @functools.cache
 def get_tenpai_waits(hand: Tuple[int, ...]) -> Set[int]:
-    hand_copy = tuple(remove_red_fives(hand))
+    hand_copy = tuple(normalize_red_fives(hand))
     possible_winning_tiles = {t for tile in hand_copy for t in (PRED[tile], tile, SUCC[tile])} - {0}
     is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
     makes_winning_hand = lambda tile: any(map(is_pair, remove_all_groups({(*hand_copy, tile)})))
@@ -361,4 +360,4 @@ def get_tenpai_waits(hand: Tuple[int, ...]) -> Set[int]:
 
 def calculate_shanten(starting_hand: Iterable[int]) -> Tuple[float, List[int]]:
     """This just converts the input to a sorted tuple so it can be serialized as a cache key"""
-    return _calculate_shanten(tuple(sorted(remove_red_fives(starting_hand))))
+    return _calculate_shanten(tuple(sorted(normalize_red_fives(starting_hand))))

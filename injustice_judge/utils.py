@@ -79,9 +79,9 @@ def print_hand_details_seat(kyoku, seat, print_final_tile=False):
             furiten=kyoku.furiten[seat])
 
 ph = lambda hand: "".join(map(pt, hand)) # print hand
-remove_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else tile
-remove_red_fives = lambda hand: map(remove_red_five, hand)
-sorted_hand = lambda hand: tuple(sorted(hand, key=remove_red_five))
+normalize_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else tile
+normalize_red_fives = lambda hand: map(normalize_red_five, hand)
+sorted_hand = lambda hand: tuple(sorted(hand, key=normalize_red_five))
 round_name = lambda rnd, honba: (f"East {rnd+1}" if rnd <= 3 else f"South {rnd-3}" if rnd <= 7 else f"West {rnd-7}") + ("" if honba == 0 else f"-{honba}")
 short_round_name = lambda rnd, honba: (f"E{rnd+1}" if rnd <= 3 else f"S{rnd-3}" if rnd <= 7 else f"W{rnd-7}") + f"-{honba}"
 relative_seat_name = lambda you, other: {0: "self", 1: "shimocha", 2: "toimen", 3: "kamicha"}[(other-you)%4]
@@ -176,7 +176,7 @@ def calculate_delta_scores(han: int, fu: int, is_tsumo: bool, winner: int, deale
 apply_delta_scores = lambda scores, delta_score:  [score + delta for score, delta in zip(scores, delta_score)]
 
 def get_taatsu_wait(taatsu: Tuple[int, int]) -> Set[int]:
-    t1, t2 = remove_red_fives(taatsu)
+    t1, t2 = normalize_red_fives(taatsu)
     return {PRED[t1], SUCC[t2]} - {0} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
 def get_waits(hand: Tuple[int, ...]) -> Set[int]:
     """Get all waits in a hand full of taatsus and no floating tiles, excluding pair waits"""
