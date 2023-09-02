@@ -351,7 +351,7 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
     Fetch a raw majsoul log from a given link, returning a parsed log and the seat of the player specified through `_a...` or `_a..._[0-3]`
     Example link: https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203
     """
-    identifier_pattern = r'\?paipu=([^_]+)'
+    identifier_pattern = r'\?paipu=([0-9a-zA-Z-]+)'
     identifier_match = re.search(identifier_pattern, link)
     if identifier_match is None:
         raise Exception(f"Invalid Mahjong Soul link: {link}")
@@ -592,8 +592,7 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
     Example link: https://tenhou.net/0/?log=2023072712gm-0089-0000-eff781e1&tw=1&ts=4
     """
     import json
-
-    identifier_pattern = r'\?log=([^&]+)'
+    identifier_pattern = r'\?log=([0-9a-zA-Z-]+)'
     identifier_match = re.search(identifier_pattern, link)
     if identifier_match is None:
         raise Exception(f"Invalid Tenhou link: {link}")
