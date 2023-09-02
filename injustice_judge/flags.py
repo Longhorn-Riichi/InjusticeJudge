@@ -427,7 +427,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                 if hidden_dora_han >= 3:
                     add_global_flag(Flags.WINNER_GOT_HIDDEN_DORA_3, {"seat": result.winner, "value": hidden_dora_han})
             # check for 3+ ura
-            elif result.yaku.ura >= 3:
+            if result.yaku.ura >= 3:
                 add_global_flag(Flags.WINNER_GOT_URA_3, {"seat": result.winner, "value": result.yaku.ura})
             # check for dora bomb
             if Flags.YOU_FLIPPED_DORA_BOMB in flags[result.winner]:
