@@ -98,6 +98,8 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.tiles_in_wall -= 1
                 assert len(kyoku.hands[seat].tiles) == 14
             elif event_type in {"discard", "riichi"}: # discards
+                print(seat, kyoku.hands[seat])
+                print(event_type, event_data)
                 tile, *_ = event_data
                 old_shanten = kyoku.hands[seat].shanten
                 kyoku.hands[seat] = kyoku.hands[seat].remove(tile)
@@ -627,7 +629,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
     all_dora_indicators: List[List[int]] = []
     all_ura_indicators: List[List[int]] = []
     use_red_fives = "aka51" in metadata["rule"] and metadata["rule"]["aka51"]
-    # check to see if the name of the fourth player is empty; Sanma if yes, Yonma if no.
+    # check to see if the name of the fourth player is empty; Sanma if empty, Yonma if not empty.
     num_players: int = 3 if metadata["name"][3] == "" else 4
     @functools.cache
     def get_call_dir(call: str):
@@ -642,50 +644,53 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         assert ret is not None, f"couldn't figure out direction of {draw}"
         return ret
     @functools.cache
-    def extract_call_tiles(call: str) -> List[int]:
+    def extract_call_tiles(call: str, use_red_fives: bool) -> List[int]:
         """
         returns the called tile as the first tile;
         this matters when the call contains a red five.
+        Will also remove red five if necessary.
         """
         for c in call:
             if c.isalpha():
-                call_tiles = "".join(reversed(call.split(c)))
-                return [int(call_tiles[i:i+2]) for i in range(0, len(call_tiles), 2)]
+                call_tiles_str = "".join(reversed(call.split(c)))
+                call_tiles = []
+                for i in range(0, len(call_tiles_str), 2):
+                    call_tile = int(call_tiles_str[i:i+2])
+                    if not use_red_fives:
+                        call_tile = remove_red_five(call_tile)
+                    call_tiles.append(call_tile)
+                return call_tiles
         assert False, f"unable to extract the call tiles from call {call}"
 
-    for [[round, honba, num_riichis],
+    for raw_kyoku in raw_kyokus:
+        [[round, honba, num_riichis],
          scores, dora_indicators, ura_indicators,
          haipai0, draws0, discards0,
          haipai1, draws1, discards1,
          haipai2, draws2, discards2,
-         haipai3, draws3, discards3, result] in raw_kyokus:
-        # print("========", round_name(round, honba), "========")
-        events: List[Event] = []
-        # need to be 4, NOT num_players
-        curr_seat = round % 4
-        i = [0] * num_players
-
-        # if we don't use red fives, turn all red fives to non red fives
+         haipai3, draws3, discards3, result] = raw_kyoku
+        # if we don't use red fives, turn all red fives to non red fives in haipai
         # (tenhou keeps 51,52,53 in these lists and just displays them as normal fives)
+        # note that draws and discards can have strings, in which the red fives are handled
+        # later
         if not use_red_fives:
             lists: List[List[int]] = \
-                [haipai0, draws0, discards0,
-                 haipai1, draws1, discards1,
-                 haipai2, draws2, discards2,
-                 haipai3, draws3, discards3,
-                 dora_indicators, ura_indicators]
+                [haipai0, haipai1, haipai2, haipai3, dora_indicators, ura_indicators]
             for lst in lists:
-                lst = cast(List[int], lst)
                 for j, value in enumerate(lst):
-                    lst[j] = remove_red_five(lst[j])
-
+                    lst[j] = remove_red_five(value)
         # setup lists for number of players
         haipai   = [haipai0,   haipai1,   haipai2,   haipai3][:num_players]
         draws    = [draws0,    draws1,    draws2,    draws3][:num_players]
         discards = [discards0, discards1, discards2, discards3][:num_players]
         all_dora_indicators.append(dora_indicators)
         all_ura_indicators.append(ura_indicators)
-
+        # print("========", round_name(round, honba), "========")
+        
+        events: List[Event] = []
+        # need to be 4, NOT num_players
+        curr_seat = round % 4
+        i = [0] * num_players
         for seat in range(num_players):
             events.append((seat, "haipai", sorted_hand(haipai[seat])))
         events.append((seat, "start_game", round, honba, scores))
@@ -696,8 +701,12 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         while i[curr_seat] < len(draws[curr_seat]):
             keep_curr_seat = False
             def handle_call(call: str) -> int:
-                """Called every time a call happens. Returns the called tile"""
-                call_tiles = extract_call_tiles(call)
+                """
+                Called every time a call happens. Returns the called tile.
+                Removes red fives when they are not in the ruleset
+                (through `extract_call_tiles()`)
+                """
+                call_tiles = extract_call_tiles(call, use_red_fives)
                 called_tile = call_tiles[0]
 
                 call_type = "chii"   if "c" in call else \
@@ -727,7 +736,8 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             # can be either a draw, [c]hii, [p]on, or dai[m]inkan event
             draw = draws[curr_seat][i[curr_seat]]
             if type(draw) is str:
-                # extract the called tile from the string
+                # extract the called tile from the string, removing red five
+                # if necessary inside handle_call()
                 draw = handle_call(draw)
             elif draw == 0:
                 # skip this draw/discard
@@ -735,6 +745,8 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 i[curr_seat] += 1
                 continue
             else:
+                if not use_red_fives:
+                    draw = remove_red_five(draw)
                 events.append((curr_seat, "draw", draw))
 
             # if you tsumo, there's no next discard, so we jump out here
@@ -748,11 +760,17 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             if discard == "r60": # tsumogiri riichi
                 events.append((curr_seat, "riichi", draw, [draw], 0))
             elif type(discard) is str:
+                # `handle_call()` removes the red five if necessary
                 discard = handle_call(discard)
             elif discard == 0: # the draw earlier was daiminkan, so no discard happens
                 pass
             else:
-                discard = discard if discard != 60 else draw # 60 = tsumogiri
+                if discard == 60:
+                    # tsumogiri
+                    discard = draw
+                elif not use_red_fives:
+                    # tedashi -- removes the five if necessary
+                    discard = remove_red_five(discard)
                 events.append((curr_seat, "discard", discard))
 
             i[curr_seat] += 1 # done processing the ith draw/discard for this player
@@ -769,7 +787,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                     if type(next_draw := draws[seat][i[seat]]) is str and ("p" in next_draw or "m" in next_draw):
                         # check that it's calling from us, and that it's the same tile we discarded
                         same_dir = get_call_dir(next_draw) == Dir((curr_seat - seat) % 4)
-                        same_tile = extract_call_tiles(next_draw)[0] == discard
+                        same_tile = extract_call_tiles(next_draw, use_red_fives)[0] == discard
                         if same_dir and same_tile:
                             curr_seat = seat
                             keep_curr_seat = True # don't increment turn after this

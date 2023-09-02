@@ -136,7 +136,7 @@ class Hand:
             super().__setattr__("shanten", calculate_shanten(self.hidden_part))
         else:
             super().__setattr__("shanten", self.prev_shanten)
-    def to_str(self, doras, uras):
+    def to_str(self, doras=[], uras=[]):
         to_str = lambda call: call.to_str(doras, uras)
         call_string = "" if len(self.calls) == 0 else "\u2007" + "\u2007".join(map(to_str, reversed(self.calls)))
         as_dora = lambda tile: tile + (100 if tile in doras or tile in uras else 0)

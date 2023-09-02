@@ -55,10 +55,9 @@ def pt_unicode(tile: int) -> str:
     return ret
 
 def pt_discord(tile: int, is_sideways=False) -> str:
-    is_dora = tile >= 100
-    if is_dora:
+    if tile >= 100:
+        # tile is dora
         tile -= 100
-    if is_dora:
         if is_sideways:
             return DISCORD_CALLED_DORA_TILES[tile]
         else: 
