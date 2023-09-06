@@ -197,7 +197,7 @@ def get_hand_interpretations(hand: Hand, yakuhai: Set[int]) -> Set[Interpretatio
             is_penchan = SUCC[tile1] == tile2 and 0 in {PRED[tile1], SUCC[tile2]}
             is_ryanmen = SUCC[tile1] == tile2 and 0 not in {PRED[tile1], SUCC[tile2]}
             is_kanchan = SUCC[SUCC[tile1]] == tile2
-            single_wait_fu = 2 if is_shanpon or is_penchan or is_kanchan else 0
+            single_wait_fu = 2 if is_penchan or is_kanchan else 0
             # print(f"add {single_wait_fu} for single wait {pt(tile1)pt(tile2)}, {ph(unprocessed_part)}")
             if True in {is_ryanmen, is_shanpon, is_penchan, is_kanchan}:
                 ron_fu = base_ron_fu + fu + single_wait_fu
@@ -291,8 +291,9 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
             elif iipeikou_count == 1:
                 yaku_for_wait[wait].append(("iipeikou", 1))
 
-        # pinfu: has 22 tsumo fu and 30 ron fu
-        if (tsumo_fu, ron_fu) == (22, 30):
+        # pinfu: has 22 tsumo fu and 30 ron fu, and not a shanpon wait
+        is_shanpon = pair is not None and len(taatsu) == 2 and taatsu[0] == taatsu[1]
+        if (tsumo_fu, ron_fu) == (22, 30) and not is_shanpon:
             for wait in waits:
                 yaku_for_wait[wait].append(("pinfu", 1))
 

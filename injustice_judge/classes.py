@@ -157,9 +157,9 @@ class Hand:
         tiles = list(self.tiles)
         tiles.remove(tile)
         return Hand(tuple(tiles), [*self.calls], prev_shanten=self.shanten, kita_count=self.kita_count)
-    def kakan(self, called_tile):
+    def kakan(self, called_tile: int):
         """Immutable update for adding a tile to an existing pon call (kakan)"""
-        pon_index = next((i for i, calls in enumerate(self.calls) if calls.type == "pon" and calls.tile == called_tile), None)
+        pon_index = next((i for i, calls in enumerate(self.calls) if calls.type == "pon" and normalize_red_five(calls.tile) == normalize_red_five(called_tile)), None)
         assert pon_index is not None, f"unable to find previous pon in calls: {self.calls}"
         orig_direction = self.calls[pon_index].dir
         orig_tiles = [*self.calls[pon_index].tiles, called_tile]

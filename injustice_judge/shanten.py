@@ -35,7 +35,7 @@ count_floating = lambda hand: len(next(iter(remove_all_pairs(remove_all_taatsus(
 def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
     # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
     # note: ctr = Counter(normalize_red_fives(starting_hand))
-    shanten = 6 - len([v for v in ctr.values() if v > 1])
+    shanten = 6 - len([v for v in ctr.values() if v == 2])
     waits: Tuple[int, ...] = ()
     if shanten <= 1:
         # since chiitoitsu can't repeat pairs, take only the single tiles in hand
