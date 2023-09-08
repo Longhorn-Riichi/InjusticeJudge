@@ -425,21 +425,21 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             if kyoku.final_ukeire[result.winner] <= 4:
                 add_global_flag(Flags.WINNER_HAD_BAD_WAIT, winner_data)
             # check for 3+ han from hidden dora
-            if result.yaku.dora >= 3:
+            if result.yaku.to_score().count_dora() >= 3:
                 hidden_hand = (*kyoku.hands[result.winner].hidden_part, final_tile)
                 hidden_dora_han = sum(hidden_hand.count(dora) for dora in kyoku.doras)
                 if hidden_dora_han >= 3:
                     add_global_flag(Flags.WINNER_GOT_HIDDEN_DORA_3, {"seat": result.winner, "value": hidden_dora_han})
             # check for 3+ ura
-            if result.yaku.ura >= 3:
+            if result.yaku.to_score().count_ura() >= 3:
                 add_global_flag(Flags.WINNER_GOT_URA_3, {"seat": result.winner, "value": result.yaku.ura})
             # check for dora bomb
             if Flags.YOU_FLIPPED_DORA_BOMB in flags[result.winner]:
                 add_global_flag(Flags.WINNER_GOT_KAN_DORA_BOMB, {"seat": result.winner, "value": result.yaku.dora})
             # check for haitei/houtei
-            if result.yaku.haitei:
-                haitei_type = "haitei" if "海底摸月(1飜)" in result.yaku.yaku_strs \
-                         else "houtei" if "河底撈魚(1飜)" in result.yaku.yaku_strs \
+            if result.yaku.to_score().has_haitei():
+                haitei_type = "haitei" if ("haitei", 1) in result.yaku.yaku \
+                         else "houtei" if ("houtei", 1) in result.yaku.yaku \
                          else ""
                 assert haitei_type != "", f"unknown haitei type for yaku {result.yaku.yaku_strs}"
                 add_global_flag(Flags.WINNER_GOT_HAITEI, {"seat": result.winner, "yaku": haitei_type})
@@ -463,7 +463,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                 if ron.score_delta[seat] < 0:
                     if not opened_hand[ron.winner] and not in_riichi[ron.winner]:
                         add_flag(seat, Flags.YOU_DEALT_INTO_DAMA, {"seat": ron.winner, "score": ron.score})
-                    if ron.yaku.ippatsu:
+                    if ron.yaku.to_score().has_ippatsu():
                         add_flag(seat, Flags.YOU_DEALT_INTO_IPPATSU, {"seat": ron.winner, "score": ron.score})
                     if len(results) > 1:
                         add_flag(seat, Flags.YOU_DEALT_INTO_DOUBLE_RON, {"number": len(results)})
@@ -486,7 +486,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                              "wait": kyoku.hands[tsumo.winner].shanten[1],
                              "ukeire": kyoku.final_ukeire[tsumo.winner]})
         # check ippatsu tsumo
-        if tsumo.yaku.ippatsu:
+        if tsumo.yaku.to_score().has_ippatsu():
             add_flag(seat, Flags.WINNER_IPPATSU_TSUMO, {"seat": tsumo.winner})
 
 
