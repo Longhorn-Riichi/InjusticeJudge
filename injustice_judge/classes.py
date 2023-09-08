@@ -3,59 +3,12 @@ from enum import IntEnum
 import functools
 from typing import *
 
-from .constants import TOGGLE_RED_FIVE
+from .constants import TOGGLE_RED_FIVE, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
 from .utils import ph, pt, pt_sideways, normalize_red_five, normalize_red_fives, shanten_name, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten
 
 # This file contains most of the classes used in InjusticeJudge.
 # It also contains some printing logic in the form of __str__ overloads.
-
-@dataclass
-class ResultYakuList:
-    """Parsed version of tenhou's game result yaku list"""
-    yaku_strs: List[str]   # the raw list of yaku
-    dora: int = 0          # count of all round dora and aka
-    ura: int = 0           # count of ura
-    kita: int = 0          # count of kita (sanma)
-    riichi: bool = False   # is riichi in the list?
-    ippatsu: bool = False  # is ippatsu in the list?
-    haitei: bool = False   # is haitei/houtei in the list?
-
-@dataclass(frozen = True)
-class Ron:
-    """Parsed version of a single tenhou ron result"""
-    score_delta: List[int] # list of score differences for this round
-    winner: int            # winner's seat (0-3)
-    won_from: int          # loser's seat (0-3)
-    dama: bool             # whether it was a dama hand or not
-    han: int               # han for the winning hand
-    fu: int                # fu for the winning hand
-    limit_name: str        # e.g. "mangan", or empty string if not a limit hand
-    score_string: str      # raw score string, e.g. "30符1飜1000点"
-    score: int             # parsed score; e.g. 1000 for the above string
-    yaku: ResultYakuList   # parsed yaku list
-@dataclass(frozen = True)
-class Tsumo:
-    """Parsed version of a tenhou tsumo result"""
-    score_delta: List[int] # list of score differences for this round
-    winner: int            # winner's seat (0-3)
-    dama: bool             # whether it was a dama hand or not
-    han: int               # han for the winning hand
-    fu: int                # fu for the winning hand
-    limit_name: str        # e.g. "mangan", or empty string if not a limit hand
-    score_string: str      # raw score string, e.g. "50符3飜1600-3200点"
-    score_oya: int         # parsed oya score; e.g. 3200 for the above string
-    score_ko: int          # parsed ko score; e.g. 1600 for the above string
-    score: int             # total score; e.g. 6400 for the above string (if it's yonma)
-    yaku: ResultYakuList   # parsed yaku list
-@dataclass(frozen = True)
-class Draw:
-    """Parsed version of a tenhou ryuukyoku or any draw result"""
-    score_delta: List[int] # list of score differences for this round
-    name: str              # name of the draw, e.g. "ryuukyoku"
-
-
-
 
 class Dir(IntEnum):
     """Enum representing a direction, add to a seat mod 4 to get the indicated seat"""
@@ -229,8 +182,11 @@ class Score:
     def __lt__(self, other):
         return (self.han, self.fu) < (other.han, other.fu)
     def __str__(self):
-        return f"{self.han}/{self.fu} {self.yaku} ({self.interpretation!s})"
-    def add_dora(self, dora_type: str, amount: 0):
+        ret = f"{self.han}/{self.fu} {self.yaku}"
+        if self.interpretation is not None:
+            ret += f" ({self.interpretation!s})"
+        return ret
+    def add_dora(self, dora_type: str, amount: int):
         # get the current amount
         new_value = amount
         for i, (name, value) in enumerate(self.yaku):
@@ -248,9 +204,121 @@ class Score:
             else:
                 self.yaku.append(new_dora)
         self.han += amount
+    def get_value(self, num_players: int, is_dealer: bool):
+        if self.tsumo:
+            oya = OYA_TSUMO_SCORE[self.han][self.fu]  # type: ignore[index]
+            ko = oya if is_dealer else KO_TSUMO_SCORE[self.han][self.fu]  # type: ignore[index]
+            return oya + (num_players-2)*ko
+        else:
+            return (OYA_RON_SCORE if is_dealer else KO_RON_SCORE)[self.han][self.fu]  # type: ignore[index]
+    def to_score_deltas(self, round: int, honba: int, num_players: int, winners: List[int], payer: int) -> List[int]:
+        score_deltas = [0]*num_players
+        if self.tsumo:
+            assert len(winners) == 1
+            for payer in {0,1,2,3} - {winners[0]}:
+                oya_payment = (winners[0] == round%4) or (payer == round%4)
+                score_deltas[payer] -= (OYA_TSUMO_SCORE if oya_payment else KO_TSUMO_SCORE)[self.han][self.fu]  # type: ignore[index]
+                score_deltas[payer] -= 100 * honba
+            score_deltas[payer] -= sum(score_deltas)
+        else:
+            for winner in winners:
+                oya_payment = winner == round%4
+                score_deltas[winner] += (OYA_RON_SCORE if oya_payment else KO_RON_SCORE)[self.han][self.fu]  # type: ignore[index]
+                score_deltas[winner] += 300 * honba
+            score_deltas[winner] -= sum(score_deltas)
+        return score_deltas
     # these fields are only for debug use
-    interpretation: Interpretation # the interpretation used to calculate yaku and fu
-    hand: Hand                     # the original hand
+    interpretation: Optional[Interpretation] = None # the interpretation used to calculate yaku and fu
+    hand: Optional[Hand] = None                     # the original hand
+
+@dataclass
+class ResultYakuList:
+    """Parsed version of tenhou's game result yaku list"""
+    yaku_strs: List[str]   # the raw list of yaku
+    kita: int              # count of kita (sanma)
+
+    # these are generated by post_init based on the above:
+    yaku: List[Tuple[str, int]] = field(default_factory=list) # the parsed list of yaku
+    dora: int = 0          # count of all round dora and aka
+    ura: int = 0           # count of ura
+    riichi: bool = False   # is riichi in the list?
+    ippatsu: bool = False  # is ippatsu in the list?
+    haitei: bool = False   # is haitei/houtei in the list?
+    def __post_init__(self) -> None:
+        # this does a couple things:
+        # - convert yaku_strs=["立直(1飜)", "一発(1飜)"] into yaku=[("riichi", 1), ("ippatsu", 1)]
+        # - Tenhou sama counts kita as normal dora, we reverse that
+        # - count total dora and, ura
+        # - check for riichi, ippatsu, and haitei/houtei
+        dora_index: Optional[int] = None
+        has_yakuman = False
+        yaku_kita = 0
+        if not any("役満" in y for y in self.yaku_strs): # not a yakuman hand
+            for i, y in enumerate(self.yaku_strs):
+                name_str, value_str = y.split("(")
+                name = TRANSLATE[name_str]
+                value = int(value_str.split("飜")[0])
+                if name == "riichi":
+                    self.riichi = True
+                elif name == "ippatsu":
+                    self.ippatsu = True
+                elif name in "dora":
+                    dora_index = i # keep track of where "dora" is in the list
+                    self.dora += value
+                elif name == "aka":
+                    self.dora += value
+                elif name == "ura":
+                    self.ura = value
+                elif name == "kita":
+                    yaku_kita = value
+                elif name in {"haitei", "houtei"}:
+                    self.haitei = True
+            if self.kita > 0 and yaku_kita == 0:
+                assert dora_index is not None, f"somehow we know there's {self.kita} kita, but tenhou didn't count it as dora?"
+                # must be a Tenhou sanma game hand with kita because
+                # it counts kita as regular dora (not "抜きドラ")
+                non_kita_dora_count = self.dora - self.kita
+                assert non_kita_dora_count >= 0
+                if non_kita_dora_count == 0:
+                    del self.yaku_strs[dora_index]
+                else:
+                    self.yaku_strs[dora_index] = f"ドラ({non_kita_dora_count}飜)"
+                self.yaku_strs.append(f"抜きドラ({self.kita}飜)")
+                self.kita = self.kita
+                self.dora = non_kita_dora_count
+        for i, y in enumerate(self.yaku_strs):
+            name_str, value_str = y.split("(")
+            name = TRANSLATE[name_str]
+            value = 13 if "役満" in value_str else int(value_str.split("飜")[0])
+            if name in {"dora", "aka", "ura", "kita"} and value > 1:
+                name = f"{name} {value}"
+            self.yaku.append((name, value))
+    def to_score(self, fu, is_tsumo: bool) -> Score:
+        han = sum(value for _, value in self.yaku)
+        return Score(self.yaku, han, fu, is_tsumo)
+
+
+@dataclass(frozen = True)
+class Win:
+    score_delta: List[int]  # list of score differences for this round
+    winner: int             # winner's seat (0-3)
+    dama: bool              # whether it was a dama hand or not
+    limit_name: str         # e.g. "mangan", or empty string if not a limit hand
+    score: Score            # Score object (contains han, fu, score, and yaku)
+    yaku: ResultYakuList    # parsed yaku list
+@dataclass(frozen = True)
+class Ron(Win):
+    """Parsed version of a single tenhou ron result"""
+    won_from: Optional[int] # loser's seat (0-3)
+@dataclass(frozen = True)
+class Tsumo(Win):
+    """Parsed version of a tenhou tsumo result"""
+    pass
+@dataclass(frozen = True)
+class Draw:
+    """Parsed version of a tenhou ryuukyoku or any draw result"""
+    score_delta: List[int] # list of score differences for this round
+    name: str              # name of the draw, e.g. "ryuukyoku"
 
 
 Event = Tuple[Any, ...]

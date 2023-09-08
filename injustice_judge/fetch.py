@@ -5,7 +5,7 @@ from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
-from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Tsumo, ResultYakuList, GameMetadata, Dir
+from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Score, Tsumo, ResultYakuList, GameMetadata, Dir
 from .constants import DORA, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
 from .utils import is_mangan, ph, apply_delta_scores, normalize_red_five, round_name, sorted_hand, to_placement, translate_tenhou_yaku, limit_hands
 from .yaku import get_yakuman_tenpais, debug_yaku
@@ -199,46 +199,6 @@ def parse_result(result: List[Any], num_players: int, hand_is_hidden: List[bool]
     result_type, *scoring = result
     ret: List[Tuple[str, Any]] = []
     scores = [scoring[i*2:i*2+2] for i in range((len(scoring)+1)//2)]
-    def process_yaku(yaku: List[str],  kita_count: int) -> ResultYakuList:
-        # for subtracting kita count from dora count in Tenhou sanma
-        dora_index: Optional[int] = None
-        ret = ResultYakuList(yaku_strs = yaku)
-        has_yakuman = False
-        for i, y in enumerate(yaku):
-            if "役満" in y: # skip yakuman since they don't specify 飜
-                has_yakuman = True
-                continue
-            name = TRANSLATE[y.split("(")[0]]
-            value = int(y.split("(")[1].split("飜")[0])
-            if name == "riichi":
-                ret.riichi = True
-            elif name == "ippatsu":
-                ret.ippatsu = True
-            elif name in "dora":
-                dora_index = i
-                ret.dora += value
-            elif name == "aka":
-                ret.dora += value
-            elif name == "ura":
-                ret.ura = value
-            elif name == "kita":
-                ret.kita = value
-            elif name in {"haitei", "houtei"}:
-                ret.haitei = True
-        if not has_yakuman and kita_count > 0 and ret.kita == 0:
-            assert dora_index is not None, f"somehow we know there's {kita_count} kita, but tenhou doesn't count it as dora?"
-            # must be a Tenhou sanma game hand with kita because
-            # it counts kita as regular dora (not "抜きドラ")
-            non_kita_dora_count = ret.dora - kita_count
-            assert non_kita_dora_count >= 0
-            if non_kita_dora_count == 0:
-                del ret.yaku_strs[dora_index]
-            else:
-                ret.yaku_strs[dora_index] = f"ドラ({non_kita_dora_count}飜)"
-            ret.yaku_strs.append(f"抜きドラ({kita_count}飜)")
-            ret.kita = kita_count
-            ret.dora = non_kita_dora_count
-        return ret
     if result_type == "和了":
         rons: List[Ron] = []
         for [score_delta, [w, won_from, _, score_string, *yaku]] in scores:
@@ -255,6 +215,7 @@ def parse_result(result: List[Any], num_players: int, hand_is_hidden: List[bool]
                 pts = "".join(c for c in score_string if c in "0123456789-∀")
                 limit_name = TRANSLATE[score_string.split(pts[0])[0]]
                 han = sum(value for _, value in translated_yaku)
+                fu = 40 if han == 4 else 70 if han == 3 else 0
             assert han > 0, f"somehow got a {han} han win"
             dama = hand_is_hidden[w] and ("riichi", 1) not in translated_yaku
             if w == won_from: # tsumo
@@ -269,26 +230,20 @@ def parse_result(result: List[Any], num_players: int, hand_is_hidden: List[bool]
                 return ("tsumo", Tsumo(score_delta = score_delta,
                                        winner = w,
                                        dama = dama,
-                                       han = han,
-                                       fu = fu if below_mangan else 0,
                                        limit_name = limit_name,
-                                       score_string = score_string,
-                                       score = score_total,
-                                       score_oya = score_oya,
-                                       score_ko = score_ko,
-                                       yaku = process_yaku(yaku, kita_counts[w])))
+                                       score = Score(yaku, han, fu, tsumo=True),
+                                       # score_oya = score_oya,
+                                       # score_ko = score_ko,
+                                       yaku = ResultYakuList(yaku, kita_counts[w])))
             else:
                 score = int(pts)
                 rons.append(Ron(score_delta = score_delta,
                                 winner = w,
                                 won_from = won_from,
                                 dama = dama,
-                                han = han,
-                                fu = fu if below_mangan else 0,
                                 limit_name = limit_name,
-                                score_string = score_string,
-                                score = score,
-                                yaku = process_yaku(yaku, kita_counts[w])))
+                                score = Score(yaku, han, fu, tsumo=False),
+                                yaku = ResultYakuList(yaku, kita_counts[w])))
         return ("ron", *rons)
     elif result_type in ({"流局", "全員聴牌", "全員不聴", "流し満貫"} # exhaustive draws
                        | {"九種九牌", "四家立直", "三家和了", "四槓散了", "四風連打"}): # abortive draws
