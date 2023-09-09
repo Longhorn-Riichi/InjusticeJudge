@@ -141,7 +141,30 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
     # - starting shanten
     # - tenpais/riichis and chases/folds
     # - slow shanten changes
-
+    # (We add these flags:)
+    # - YOU_DREW_PREVIOUSLY_WAITED_TILE
+    # - NINE_DRAWS_NO_IMPROVEMENT
+    # - YOU_DECLARED_RIICHI
+    # - YOUR_TENPAI_TILE_DEALT_IN
+    # - YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT
+    # - YOUR_LAST_DISCARD_ENDED_NAGASHI
+    # - YOUR_LAST_NAGASHI_TILE_CALLED
+    # - SEVEN_TERMINAL_START
+    # - FIVE_SHANTEN_START
+    # - YOU_FOLDED_FROM_TENPAI
+    # - YOU_TENPAI_FIRST
+    # - YOU_GOT_CHASED
+    # - SOMEONE_REACHED_TENPAI
+    # - YOU_REACHED_TENPAI
+    # - FIRST_ROW_TENPAI
+    # - TENPAI_ON_LAST_DISCARD
+    # - CHANGED_WAIT_ON_LAST_DISCARD
+    # - YOU_HAD_LIMIT_TENPAI
+    # - YOU_REACHED_YAKUMAN_TENPAI
+    # - YOU_FLIPPED_DORA_BOMB
+    # - YOU_AVOIDED_LAST_PLACE
+    # - YOU_DROPPED_PLACEMENT
+    # - LAST_DISCARD_WAS_RIICHI
     shanten: List[Tuple[float, List[int]]] = [(99, [])]*4
     draws_since_shanten_change: List[int] = [0]*num_players
     tiles_in_wall = 70 if num_players == 4 else 55
@@ -347,10 +370,13 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
 
     # here we add flags that pertain to the winning hand(s):
     # - LOST_POINTS_TO_FIRST_ROW_WIN
+    # - YOU_WAITED_ON_WINNING_TILE
+    # - WINNER
     # - WINNER_GOT_MANGAN, WINNER_GOT_HANEMAN, etc
     # - WINNER_HAD_BAD_WAIT
     # - WINNER_GOT_HIDDEN_DORA_3
     # - WINNER_GOT_URA_3
+    # - WINNER_GOT_KAN_DORA_BOMB
     # - WINNER_GOT_HAITEI
     if result_type in {"ron", "tsumo"}:
         for result in results:
@@ -434,10 +460,10 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                     add_global_flag(Flags.WINNER_GOT_HIDDEN_DORA_3, {"seat": result.winner, "value": hidden_dora_han})
             # check for 3+ ura
             if result.score.count_ura() >= 3:
-                add_global_flag(Flags.WINNER_GOT_URA_3, {"seat": result.winner, "value": result.yaku.ura})
+                add_global_flag(Flags.WINNER_GOT_URA_3, {"seat": result.winner, "value": result.score.count_ura()})
             # check for dora bomb
             if Flags.YOU_FLIPPED_DORA_BOMB in flags[result.winner]:
-                add_global_flag(Flags.WINNER_GOT_KAN_DORA_BOMB, {"seat": result.winner, "value": result.yaku.dora})
+                add_global_flag(Flags.WINNER_GOT_KAN_DORA_BOMB, {"seat": result.winner, "value": result.score.count_dora()})
             # check for haitei/houtei
             if result.score.has_haitei():
                 haitei_type = "haitei" if ("haitei", 1) in result.score.yaku \
@@ -452,7 +478,6 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
     # - YOU_DEALT_INTO_DAMA
     # - YOU_DEALT_INTO_IPPATSU
     # - YOU_DEALT_INTO_DOUBLE_RON
-    # - CHASER_GAINED_POINTS
     # - CHASER_GAINED_POINTS
     if result_type == "ron":
         # check winners
