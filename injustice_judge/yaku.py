@@ -1,8 +1,8 @@
 from typing import *
 from .classes import Event, Hand, Kyoku, YakuForWait, Score, Interpretation
-from .constants import PRED, SUCC, YAOCHUUHAI
+from .constants import LIMIT_HANDS, PRED, SUCC, YAOCHUUHAI
 from .shanten import get_tenpai_waits
-from .utils import fix, get_score, get_taatsu_wait, is_mangan, pt, ph, print_hand_details_seat, normalize_red_five, normalize_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles, limit_hands
+from .utils import fix, get_score, get_taatsu_wait, is_mangan, pt, ph, print_hand_details_seat, normalize_red_five, normalize_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles
 from pprint import pprint
 
 # This file details some algorithms for checking the yaku of a given `Hand` object.
@@ -805,7 +805,7 @@ def get_takame_score(hand: Hand,
         best_ron_score, ron_takame = max((score, wait) for wait, score in ron_scores.items())
         ron_han = best_score.han
         ron_fu = best_score.fu
-        if limit_hands(ron_han) == limit_hands(han) or (is_mangan(han, fu) and is_mangan(ron_han, ron_fu)):
+        if LIMIT_HANDS[ron_han] == LIMIT_HANDS[han] or (is_mangan(han, fu) and is_mangan(ron_han, ron_fu)):
             best_score = best_ron_score
             takame = ron_takame
     return best_score, takame

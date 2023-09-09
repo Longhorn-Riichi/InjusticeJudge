@@ -393,7 +393,7 @@ def lost_points_to_ura_3(flags: List[Flags], data: List[Dict[str, Any]], round_n
                             verb="paid",
                             object=f"{relative_seat_name(player, seat)}'s tsumo with ura {value}"))]
 
-# Print if you dealt into haitei
+# Print if you dealt into haitei/houtei
 @injustice(require=[Flags.WINNER_GOT_HAITEI, Flags.GAME_ENDED_WITH_RON, Flags.YOU_LOST_POINTS])
 def dealt_into_haitei(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     seat = data[flags.index(Flags.WINNER_GOT_HAITEI)]["seat"]
@@ -403,7 +403,7 @@ def dealt_into_haitei(flags: List[Flags], data: List[Dict[str, Any]], round_numb
                             object=f"{relative_seat_name(player, seat)}'s houtei{tenpai_status_string(flags)}"))]
 
 # Print if winner drew haitei or got houtei, while you were in tenpai
-@injustice(require=[Flags.WINNER_GOT_HAITEI, Flags.YOU_REACHED_TENPAI], forbid=[Flags.YOU_GAINED_POINTS])
+@injustice(require=[Flags.WINNER_GOT_HAITEI, Flags.YOU_REACHED_TENPAI], forbid=[Flags.YOU_GAINED_POINTS, Flags.YOU_DEALT_IN])
 def winner_haitei_while_tenpai(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     haitei_data = data[flags.index(Flags.WINNER_GOT_HAITEI)]
     seat = haitei_data["seat"]
@@ -411,7 +411,7 @@ def winner_haitei_while_tenpai(flags: List[Flags], data: List[Dict[str, Any]], r
     dealer_string = " as dealer" if Flags.YOU_ARE_DEALER in flags else ""
     return [Injustice(round_number, honba, "Injustice",
             InjusticeClause(subject=relative_seat_name(player, seat),
-                            verb="drew",
+                            verb="drew" if name == "haitei" else "got",
                             object=f"{name}, while you were tenpai{dealer_string}"))]
 
 # Print if winner had 3+ han from dora tiles in the hidden part of hand
@@ -451,7 +451,7 @@ def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], r
     last_subject = "you"
     if Flags.GAME_ENDED_WITH_RON in flags:
         rons = data[flags.index(Flags.GAME_ENDED_WITH_RON)]["objects"]
-        score = sum(ron.score for ron in rons)
+        score = sum(ron.score.get_value() for ron in rons)
         winner = rons[0].winner
         won_from = rons[0].won_from
         if won_from == player:
@@ -512,10 +512,10 @@ def your_mangan_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]],
     else:
         return []
 
-# Print if someone took your points in the last round and you dropped to fourth
+# Print if someone took your points and you dropped placement only because of ura
 @injustice(require=[Flags.FINAL_ROUND, Flags.YOU_DEALT_IN, Flags.YOU_DROPPED_PLACEMENT, Flags.WINNER],
             forbid=[])
-def dropped_to_fourth_in_final_round(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+def dropped_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     # winner = data[flags.index(Flags.WINNER)]["seat"]
     # han = data[flags.index(Flags.WINNER)]["han"]
     # ura = data[flags.index(Flags.WINNER)]["ura"]

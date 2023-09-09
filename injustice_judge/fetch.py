@@ -6,8 +6,8 @@ from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
 from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Score, Tsumo, GameMetadata, Dir
-from .constants import DORA, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
-from .utils import is_mangan, ph, apply_delta_scores, normalize_red_five, round_name, sorted_hand, to_placement, translate_tenhou_yaku, limit_hands
+from .constants import DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
+from .utils import is_mangan, ph, apply_delta_scores, normalize_red_five, round_name, sorted_hand, to_placement, translate_tenhou_yaku
 from .yaku import get_yakuman_tenpais, debug_yaku
 from pprint import pprint
 
@@ -190,51 +190,39 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
 
 def parse_result(result: List[Any], round: int, num_players: int, hand_is_hidden: List[bool], kita_counts: List[int]) -> Tuple[Any, ...]:
     """
-    Given a Tenhou game result list, parse it into a list of tuples where the
-    first element is either "ron", "tsumo", or "draw"; the remainder of the tuple
+    Given a Tenhou game result list, parse it into a tuple where the first
+    element is either "ron", "tsumo", or "draw"; the remainder of the tuple
     consists of "Ron" object(s), a "Tsumo" object, or a "Draw" object.
-
-    Mahjong Soul game result is converted into a Tenhou game result and parsed here.
+    These objects store all the relevant information about the win.
+    (score changes, who won from who, was it dama, and yaku)
     """
     result_type, *scoring = result
     ret: List[Tuple[str, Any]] = []
     scores = [scoring[i*2:i*2+2] for i in range((len(scoring)+1)//2)]
     if result_type == "和了":
         rons: List[Ron] = []
-        for [score_delta, [w, won_from, _, score_string, *yaku]] in scores:
-            is_dealer = w == round % 4
-            below_mangan = "符" in score_string
-            if below_mangan: # e.g. "30符1飜1000点", "50符3飜1600-3200点"
-                [fu, rest] = score_string.split("符")
-                [han, rest] = rest.split("飜")
-                pts = "".join(rest.split("点"))
-                fu = int(fu)
-                limit_name = "" # not a limit hand
-            else: # e.g. "倍満16000点", "満貫4000点∀"
-                pts = "".join(c for c in score_string if c in "0123456789-∀")
-                limit_name = TRANSLATE[score_string.split(pts[0])[0]]
-                fu = 70 # just ensures mangan score is used if 3 or 4 han
-            dama = hand_is_hidden[w] and ("riichi", 1) not in list(map(translate_tenhou_yaku, yaku))
-            if w == won_from: # tsumo
-                return ("tsumo", Tsumo(score_delta = score_delta,
-                                       winner = w,
-                                       dama = dama,
-                                       limit_name = limit_name,
-                                       score = Score.from_tenhou_strs(yaku, kita=kita_counts[w], fu=fu, is_dealer=is_dealer, is_tsumo=True, num_players=num_players)))
+        for [score_delta, tenhou_result_list] in scores:
+            [winner, won_from, _, _, *yaku_strs] = tenhou_result_list
+            kwargs = {
+                "score_delta": score_delta,
+                "winner": winner,
+                "dama": hand_is_hidden[winner] and not any(y.startswith("立直") for y in yaku_strs),
+                "score": Score.from_tenhou_list(tenhou_result_list=tenhou_result_list,
+                                                round=round,
+                                                num_players=num_players,
+                                                kita=kita_counts[winner])
+            }
+            if winner == won_from: # tsumo
+                return ("tsumo", Tsumo(**kwargs))
             else:
-                rons.append(Ron(score_delta = score_delta,
-                                winner = w,
-                                won_from = won_from,
-                                dama = dama,
-                                limit_name = limit_name,
-                                score = Score.from_tenhou_strs(yaku, kita=kita_counts[w], fu=fu, is_dealer=is_dealer, is_tsumo=False, num_players=num_players)))
+                rons.append(Ron(**kwargs, won_from=won_from))
         return ("ron", *rons)
     elif result_type in ({"流局", "全員聴牌", "全員不聴", "流し満貫"} # exhaustive draws
                        | {"九種九牌", "四家立直", "三家和了", "四槓散了", "四風連打"}): # abortive draws
         return ("draw", Draw(score_delta = scores[0][0] if len(scores) > 0 else [0]*num_players,
-                                  name = TRANSLATE[result_type]))
+                             name = TRANSLATE[result_type]))
     else:
-        assert False, f"unhandled result type {result_type}"
+        assert False, f"unhandled Tenhou result type {result_type}"
 
 ###
 ### loading and parsing mahjong soul games
@@ -470,7 +458,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 if any(fan.id in YAKUMAN.keys() for fan in h.fans):
                     score_string = "役満"
                 elif han >= 6 or is_mangan(han, h.fu):
-                    score_string = limit_hands(han)
+                    score_string = LIMIT_HANDS[han]
                 point_string = f"{h.point_rong}点"
                 if h.zimo:
                     if h.point_zimo_qin > 0:

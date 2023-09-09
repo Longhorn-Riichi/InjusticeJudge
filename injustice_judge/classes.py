@@ -3,8 +3,8 @@ from enum import IntEnum
 import functools
 from typing import *
 
-from .constants import TOGGLE_RED_FIVE, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
-from .utils import ph, pt, pt_sideways, normalize_red_five, normalize_red_fives, shanten_name, sorted_hand, translate_tenhou_yaku, try_remove_all_tiles
+from .constants import LIMIT_HANDS, TOGGLE_RED_FIVE, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
+from .utils import is_mangan, ph, pt, pt_sideways, normalize_red_five, normalize_red_fives, shanten_name, sorted_hand, translate_tenhou_yaku, try_remove_all_tiles
 from .shanten import calculate_shanten
 
 # This file contains most of the classes used in InjusticeJudge.
@@ -249,20 +249,23 @@ class Score:
         ura_index = self.get_dora_index("ura")
         ura = self.yaku[ura_index][1] if ura_index is not None else 0
         return ura
+    def get_limit_hand_name(self):
+        if self.han >= 6 or is_mangan(self.han, self.fu):
+            return TRANSLATE[LIMIT_HANDS[self.han]]
+        return ""
     @classmethod
-    def from_tenhou_strs(cls, yaku_strs: List[str],
-                              kita: int = 0,
-                              fu = 0,
-                              is_dealer: bool = False,
-                              is_tsumo: bool = False,
-                              num_players: Optional[int] = None):
-        # this does two things:
-        # - Tenhou sanma counts kita as normal dora, we reverse that
-        # - convert yaku_strs=["立直(1飜)", "一発(1飜)"] into yaku=[("riichi", 1), ("ippatsu", 1)]
+    def from_tenhou_list(cls, tenhou_result_list: List[Any],
+                              round: int,
+                              num_players: int,
+                              kita: int = 0):
+        w, won_from, _, score_str, *yaku_strs = tenhou_result_list
+        is_dealer = w == round%4
+        is_tsumo = w == won_from
         dora_index: Optional[int] = None
         yaku_dora: int = 0
         yaku_kita: int = 0
         if not any("役満" in y for y in yaku_strs): # not a yakuman hand
+            # add in missing kita yaku (tenhou counts kita as normal dora)
             for i, y in enumerate(yaku_strs):
                 name_str, han_str = y.split("(")
                 name = TRANSLATE[name_str]
@@ -285,9 +288,17 @@ class Score:
                 else:
                     yaku_strs[dora_index] = f"ドラ({non_kita_dora_count}飜)"
                 yaku_strs.append(f"抜きドラ({kita}飜)")
+
+        # convert yaku_strs=["立直(1飜)", "一発(1飜)"] into yaku=[("riichi", 1), ("ippatsu", 1)]
         yaku: List[Tuple[str, int]] = list(map(translate_tenhou_yaku, yaku_strs))
+
+        # grab han/fu from yaku/score_str, respectively
+        # score_str is "30符1飜1000点", "50符3飜1600-3200点" if below mangan
+        # otherwise, it's "倍満16000点", "満貫4000点∀", "満貫2000-4000点"
+        # extract fu if below mangan, otherwise set it to 70 if mangan+
         han = sum(han for _, han in yaku)
         assert han > 0, f"somehow got a {han} han score"
+        fu = int(score_str.split("符")[0]) if "符" in score_str else 70
         return cls(yaku, han, fu, is_dealer, is_tsumo, num_players)
 
 
@@ -300,7 +311,6 @@ class Win:
     score_delta: List[int]  # list of score differences for this round
     winner: int             # winner's seat (0-3)
     dama: bool              # whether it was a dama hand or not
-    limit_name: str         # e.g. "mangan", or empty string if not a limit hand
     score: Score            # Score object (contains han, fu, score, and yaku list)
 @dataclass(frozen = True)
 class Ron(Win):

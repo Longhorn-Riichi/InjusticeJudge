@@ -11,19 +11,6 @@ import os
 ### utility functions
 ###
 
-LIMIT_HANDS = {2: "満貫", 3: "満貫", 4: "満貫", 5: "満貫",
-               6: "跳満", 7: "跳満",
-               8: "倍満", 9: "倍満", 10: "倍満",
-               11: "三倍満", 12: "三倍満"}
-
-def limit_hands(han: int) -> str:
-    # maps han count to tenhou's limit hand name
-    if han >= 13:
-        return "役満"
-    else:
-        return LIMIT_HANDS[han]
-
-
 def pt_unicode(tile: int) -> str:
     """print tile (2-char representation)"""
     TILE_REPRS = "🀇🀈🀉🀊🀋🀌🀍🀎🀏🀙🀚🀛🀜🀝🀞🀟🀠🀡🀐🀑🀒🀓🀔🀕🀖🀗🀘🀀🀁🀂🀃🀆🀅🀄︎"

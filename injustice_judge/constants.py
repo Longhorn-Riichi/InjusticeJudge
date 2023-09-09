@@ -6,6 +6,7 @@ from typing import *
 # A summary:
 #   SHANTEN_NAMES: the printed name for each number internally representing of a type of shanten
 #      PLACEMENTS: the printed name of a placement (1 -> "1st")
+#     LIMIT_HANDS: maps han count to tenhou limit hand name
 #      YAKU_NAMES: maps mahjong soul yaku IDs to tenhou yaku names
 #         YAKUMAN: the yakuman subset of YAKU_NAMES
 #       TRANSLATE: a big map from all Japanese terms to English terms
@@ -108,6 +109,12 @@ SHANTEN_NAMES = {
 # }
 PLACEMENTS = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th"}
 
+LIMIT_HANDS = defaultdict(lambda: "役満", {
+                0: "", 1: "", 2: "",
+                3: "満貫", 4: "満貫", 5: "満貫",
+                6: "跳満", 7: "跳満",
+                8: "倍満", 9: "倍満", 10: "倍満",
+                11: "三倍満", 12: "三倍満"})
 YAKU_NAMES = {
     1: "門前清自摸和",        # Fully Concealed Hand
     2: "立直",               # Riichi

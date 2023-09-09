@@ -1,8 +1,8 @@
 from .classes import Hand, Kyoku, Ron, Tsumo
-from .constants import TRANSLATE, YAOCHUUHAI
+from .constants import LIMIT_HANDS, TRANSLATE, YAOCHUUHAI
 from enum import Enum
 from typing import *
-from .utils import is_mangan, normalize_red_five, round_name, to_placement, translate_tenhou_yaku, limit_hands
+from .utils import is_mangan, normalize_red_five, round_name, to_placement, translate_tenhou_yaku
 from .yaku import get_final_yaku, get_score, get_takame_score
 from pprint import pprint
 
@@ -301,7 +301,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                     add_flag(seat, Flags.YOU_HAD_LIMIT_TENPAI,
                                    {"hand_str": hand_str,
                                     "takame": takame,
-                                    "limit_name": TRANSLATE[limit_hands(han)],
+                                    "limit_name": TRANSLATE[LIMIT_HANDS[han]],
                                     "yaku_str": ", ".join(name for name, value in best_score.yaku),
                                     "han": han,
                                     "fu": fu})
@@ -410,8 +410,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                                 Flags.WINNER_GOT_HANEMAN, Flags.WINNER_GOT_BAIMAN,
                                 Flags.WINNER_GOT_SANBAIMAN, Flags.WINNER_GOT_YAKUMAN]
             limit_hand_names = ["", "mangan", "haneman", "baiman", "sanbaiman", "yakuman"]
-            assert result.limit_name in limit_hand_names, f"unknown limit hand name {result.limit_name}"
-            limit_hand_flags = limit_hand_flags[0:limit_hand_names.index(result.limit_name)+1]
+            limit_hand_flags = limit_hand_flags[0:limit_hand_names.index(result.score.get_limit_hand_name())+1]
             winner_data = {"seat": result.winner,
                            "wait": kyoku.hands[result.winner].shanten[1],
                            "ukeire": kyoku.final_ukeire[result.winner],
