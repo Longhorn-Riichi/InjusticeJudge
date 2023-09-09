@@ -415,6 +415,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                            "wait": kyoku.hands[result.winner].shanten[1],
                            "ukeire": kyoku.final_ukeire[result.winner],
                            "score": result.score.to_points(),
+                           "score_object": result.score,
                            "han": han,
                            "fu": fu,
                            "ura": ura_han,

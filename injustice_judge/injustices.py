@@ -1,10 +1,10 @@
-from .classes import Kyoku, Ron, Tsumo
+from .classes import Kyoku, Ron, Score, Tsumo
 from .constants import PLACEMENTS, SHANTEN_NAMES, TRANSLATE
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
 from .flags import Flags, determine_flags
-from .utils import is_mangan, ph, pt, relative_seat_name, round_name, shanten_name, sorted_hand, try_remove_all_tiles, calculate_delta_scores, apply_delta_scores
+from .utils import apply_delta_scores, calculate_delta_scores, is_mangan, ph, pt, relative_seat_name, round_name, shanten_name, sorted_hand, to_placement, try_remove_all_tiles, calculate_delta_scores, apply_delta_scores
 from pprint import pprint
 
 # This file provides `evaluate_injustices`, which is called by `__init__.py`
@@ -516,24 +516,27 @@ def your_mangan_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]],
 @injustice(require=[Flags.FINAL_ROUND, Flags.YOU_DEALT_IN, Flags.YOU_DROPPED_PLACEMENT, Flags.WINNER],
             forbid=[])
 def dropped_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    # winner = data[flags.index(Flags.WINNER)]["seat"]
-    # han = data[flags.index(Flags.WINNER)]["han"]
-    # ura = data[flags.index(Flags.WINNER)]["ura"]
-    # fu = data[flags.index(Flags.WINNER)]["fu"]
-    # score = data[flags.index(Flags.WINNER)]["score"]
-    # old_placement = data[flags.index(Flags.YOU_DROPPED_PLACEMENT)]["old"]
-    # new_placement = data[flags.index(Flags.YOU_DROPPED_PLACEMENT)]["new"]
-    # counterfactual_point_gain = 1000
-    # score_difference_str = "1000 above"
-
-    # if ura >= 0:
-    #     return [Injustice(round_number, honba, "Injustice",
-    #             InjusticeClause(subject="you",
-    #                             content=f"dropped from {PLACEMENTS[old_placement]} to {PLACEMENTS[new_placement]},"
-    #                                     f" which only happened because {relative_seat_name(player, winner)} got ura {ura},"
-    #                                     f" pushing their point gain from {counterfactual_point_gain} to {score}"
-    #                                     f" when your score was {score_difference_str} {PLACEMENTS[new_placement]} place",
-    #                             last_subject=relative_seat_name(player, winner)))]
-    # TODO take honba into account?
-    return [] # WIP
+    score: Score = data[flags.index(Flags.WINNER)]["score_object"]
+    winner: int = data[flags.index(Flags.WINNER)]["seat"]
+    prev_scores: List[int] = data[flags.index(Flags.YOU_DROPPED_PLACEMENT)]["prev_scores"]
+    old_placement: int = data[flags.index(Flags.YOU_DROPPED_PLACEMENT)]["old"]
+    new_placement: int = data[flags.index(Flags.YOU_DROPPED_PLACEMENT)]["new"]
+    ura = score.count_ura()
+    if ura > 0:
+        # check if placement would have stayed constant had there been no ura
+        orig_placement = to_placement(prev_scores)
+        orig_points = score.to_points()
+        score.add_dora("ura", -ura)
+        uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(round_number, honba, [winner], player))
+        uraless_points = score.to_points()
+        score.add_dora("ura", ura)
+        if orig_placement == uraless_placement:
+            return [Injustice(round_number, honba, "Injustice",
+                    InjusticeClause(subject="you",
+                                    verb="dropped from",
+                                    content=f"{PLACEMENTS[old_placement]} to {PLACEMENTS[new_placement]},"
+                                            f" which only happened because {relative_seat_name(player, winner)} got ura {ura},"
+                                            f" pushing their point gain from {uraless_points} to {orig_points}",
+                                    last_subject=relative_seat_name(player, winner)))]
+    return []
 

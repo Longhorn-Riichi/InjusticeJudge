@@ -212,8 +212,8 @@ class Score:
             return oya + (self.num_players-2)*ko
         else:
             return (OYA_RON_SCORE if self.is_dealer else KO_RON_SCORE)[self.han][self.fu]  # type: ignore[index]
-    def to_score_deltas(self, round: int, honba: int, num_players: int, winners: List[int], payer: int) -> List[int]:
-        score_deltas = [0]*num_players
+    def to_score_deltas(self, round: int, honba: int, winners: List[int], payer: int) -> List[int]:
+        score_deltas = [0]*self.num_players
         if self.tsumo:
             assert len(winners) == 1
             for payer in {0,1,2,3} - {winners[0]}:

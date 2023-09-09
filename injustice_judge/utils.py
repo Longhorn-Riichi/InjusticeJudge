@@ -73,7 +73,6 @@ round_name = lambda rnd, honba: (f"East {rnd+1}" if rnd <= 3 else f"South {rnd-3
 short_round_name = lambda rnd, honba: (f"E{rnd+1}" if rnd <= 3 else f"S{rnd-3}" if rnd <= 7 else f"W{rnd-7}" if rnd <= 11 else f"N{rnd-11}") + f"-{honba}"
 relative_seat_name = lambda you, other: {0: "self", 1: "shimocha", 2: "toimen", 3: "kamicha"}[(other-you)%4]
 is_mangan = lambda han, fu: han == 5 or (han >= 4 and fu >= 40) or (han >= 3 and fu >= 70)
-to_placement = lambda scores: (ixs := sorted(range(len(scores)), key=lambda x: -scores[x]), [ixs.index(p) for p in range(len(scores))])[1]
 
 # helpers for removing tiles from hand
 @functools.cache
@@ -160,7 +159,8 @@ def calculate_delta_scores(han: int, fu: int, is_tsumo: bool, winner: int, deale
         delta_scores[loser] = -score
     return delta_scores
 
-apply_delta_scores = lambda scores, delta_score:  [score + delta for score, delta in zip(scores, delta_score)]
+apply_delta_scores = lambda scores, delta_score: [score + delta for score, delta in zip(scores, delta_score)]
+to_placement = lambda scores: (ixs := sorted(range(len(scores)), key=lambda x: -scores[x]), [ixs.index(p) for p in range(len(scores))])[1]
 
 def get_taatsu_wait(taatsu: Tuple[int, int]) -> Set[int]:
     t1, t2 = normalize_red_fives(taatsu)
