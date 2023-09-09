@@ -67,6 +67,37 @@ CHECK_YAKUMAN = {"daisangen": is_daisangen,
                  "chuurenpoutou": is_chuuren,
                  "suukantsu": is_suukantsu}
 get_yakuman_tenpais = lambda hand: {name for name, func in CHECK_YAKUMAN.items() if func(hand)}
+def get_yakuman_waits(hand: Hand, name: str) -> Set[int]:
+    """
+    Get all the waits that lead to a given yakuman hand.
+    Assumes the given hand is yakuman tenpai for the given yakuman name
+    """
+    if name == "daisangen":
+        return {45,46,47} & set(hand.shanten[1])
+    elif name in {"shousuushi", "daisuushi"}:
+        # if there are 11 winds you can have either shousuushi or daisuushi
+        # get only the relevant wait
+        shousuushi_waits = set()
+        daisuushi_waits = set()
+        num_winds = sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44})
+        if num_winds == 10:
+            shousuushi_waits = {41,42,43,44} & set(hand.shanten[1])
+        elif num_winds == 11:
+            shousuushi_waits = set(hand.shanten[1]) - {41,42,43,44}
+            daisuushi_waits = {41,42,43,44} & set(hand.shanten[1])
+        elif num_winds == 12:
+            daisuushi_waits = set(hand.shanten[1])
+        return shousuushi_waits if name == "shousuushi" else daisuushi_waits
+    elif name == "ryuuiisou":
+        return {32,33,34,36,38,46} & set(hand.shanten[1])
+    elif name == "chuurenpoutou":
+        ctr = Counter([t % 10 for t in normalize_red_fives(hand.tiles)])
+        missing_digits = set((CHUUREN_TILES - (CHUUREN_TILES & ctr)).keys())
+        return {wait for wait in hand.shanten[1] if wait % 10 in missing_digits}
+    elif name in {"kokushi", "suuankou", "tsuuiisou", "chinroutou", "suukantsu"}:
+        return set(hand.shanten[1])
+    else:
+        assert False, f"tried to get yakuman waits for {name}"
 
 def test_get_yakuman_tenpais():
     print("daisangen:")
@@ -356,7 +387,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
                     yaku_for_wait[wait].append(("chanta", 2 if is_closed_hand else 1))
         elif set(triplets) - CHANTA_TRIS == set() and (pair_tile is None or pair_tile in YAOCHUUHAI):
             for wait in waits:
-                if sorted_hand((*taatsu, wait)) in CHANTA_TRIS | CHANTA_PAIRS:
+                if sorted_hand((*taatsu, wait)) in CHANTA_TRIS | TERMINAL_SEQS | CHANTA_PAIRS:
                     yaku_for_wait[wait].append(("chanta", 2 if is_closed_hand else 1))
 
     # the following yaku_for_wait don't need to check the structure of the hand (sequences/triplets)

@@ -447,11 +447,12 @@ def iishanten_haipai_aborted(flags: List[Flags], data: List[Dict[str, Any]], rou
             forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_RONNED_SOMEONE, Flags.YOU_TSUMOED])
 def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     yakuman_types = data[flags.index(Flags.YOU_REACHED_YAKUMAN_TENPAI)]["types"]
+    yakuman_waits = data[flags.index(Flags.YOU_REACHED_YAKUMAN_TENPAI)]["waits"]
     what_happened = "you didn't win"
     last_subject = "you"
     if Flags.GAME_ENDED_WITH_RON in flags:
         rons = data[flags.index(Flags.GAME_ENDED_WITH_RON)]["objects"]
-        score = sum(ron.score.get_value() for ron in rons)
+        score = sum(ron.score.to_points() for ron in rons)
         winner = rons[0].winner
         won_from = rons[0].won_from
         if won_from == player:

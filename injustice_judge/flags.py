@@ -1,5 +1,5 @@
 from .classes import Hand, Kyoku, Ron, Tsumo
-from .constants import LIMIT_HANDS, TRANSLATE, YAOCHUUHAI
+from .constants import LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from enum import Enum
 from typing import *
 from .utils import is_mangan, normalize_red_five, round_name, to_placement, translate_tenhou_yaku
@@ -305,16 +305,18 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                                     "yaku_str": ", ".join(name for name, value in best_score.yaku),
                                     "han": han,
                                     "fu": fu})
-                if han >= 13:
-                    add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": {"kazoe yakuman"}})
+                if han >= 13 and not any(y in map(TRANSLATE.get, YAKUMAN.values()) for y, _ in best_score.yaku):
+                    # TODO filter for only the waits that let you reach kazoe yakuman
+                    waits = new_shanten[1]
+                    add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": {f"kazoe yakuman ({', '.join(y for y, _ in best_score.yaku)})"}, "waits": waits})
         elif event_type == "dora_indicator":
             dora_indicator, kan_tile = event_data
             # check if the dora indicator is the kan tile
             if dora_indicator == kan_tile:
                 add_flag(seat, Flags.YOU_FLIPPED_DORA_BOMB)
         elif event_type == "yakuman_tenpai":
-            yakuman_types = event_data[0]
-            add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": yakuman_types})
+            yakuman_types, yakuman_waits = event_data
+            add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": yakuman_types, "waits": yakuman_waits})
         elif event_type == "placement_change":
             old, new, prev_scores, delta_scores = event_data
             if old == 4 and Flags.FINAL_ROUND in global_flags:
