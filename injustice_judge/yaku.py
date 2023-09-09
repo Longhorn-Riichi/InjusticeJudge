@@ -822,7 +822,7 @@ def debug_yaku(kyoku):
         tsumo_score = get_final_yaku(kyoku, w, False, True)
         print(f"{round_name(kyoku.round, kyoku.honba)} | seat {w} {print_hand_details_seat(kyoku, w)} | dora {ph(kyoku.doras)} ura {ph(kyoku.uras)}")
         final_tile = kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw
-        print(f"actual    | {kyoku.result[0]} {pt(final_tile)} giving {kyoku.result[1].score} with yaku {kyoku.result[1].yaku.yaku_strs}")
+        print(f"actual    | {kyoku.result[0]} {pt(final_tile)} giving {kyoku.result[1].score.to_points()} with yaku {kyoku.result[1].yaku.yaku_strs}")
         if kyoku.result[0] == "ron":
             for t in ron_score.keys():
                 assert (ron_score[t].han, ron_score[t].fu) != (0, 0), f"somehow got a 0/0 score: {ron_score}"

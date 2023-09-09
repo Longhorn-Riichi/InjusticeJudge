@@ -176,7 +176,9 @@ class Score:
     yaku: List[Tuple[str, int]] # list of ("yaku name", han value)
     han: int                    # total han for those yaku
     fu: int                     # total fu for some interpretation of the hand
-    tsumo: bool
+    is_dealer: bool             # whether it was dealer win (for calculating points)
+    tsumo: bool                 # whether it was a tsumo (for calculating points)
+    num_players: Optional[int]  # number of players (for calculating tsumo points)
     def __hash__(self):
         return hash((self.fu, tuple(self.yaku)))
     def __lt__(self, other):
@@ -189,25 +191,27 @@ class Score:
     def add_dora(self, dora_type: str, amount: int):
         # get the current amount
         i = self.get_dora_index(dora_type)
-        new_value = self.yaku[i][1] + amount
-        # apply the change
-        if new_value == 0:
-            if new_value != amount: # there was some preexisting dora
-                del self.yaku[i]
-        else:
-            new_dora = (dora_type + (f" {new_value}" if new_value > 1 else ""), new_value)
-            if new_value != amount: # there was some preexisting dora
-                self.yaku[i] = new_dora
-            else:
+        if i is None:
+            if amount >= 1:
+                new_dora = (dora_type + f" {amount}", amount)
                 self.yaku.append(new_dora)
-        self.han += amount
-    def get_value(self, num_players: int, is_dealer: bool):
-        if self.tsumo:
-            oya = OYA_TSUMO_SCORE[self.han][self.fu]  # type: ignore[index]
-            ko = oya if is_dealer else KO_TSUMO_SCORE[self.han][self.fu]  # type: ignore[index]
-            return oya + (num_players-2)*ko
         else:
-            return (OYA_RON_SCORE if is_dealer else KO_RON_SCORE)[self.han][self.fu]  # type: ignore[index]
+            new_value = self.yaku[i][1] + amount
+            # apply the change
+            if new_value == 0:
+                del self.yaku[i]
+            else:
+                new_dora = (dora_type + (f" {new_value}" if new_value > 1 else ""), new_value)
+                self.yaku[i] = new_dora
+        self.han += amount
+    def to_points(self):
+        if self.tsumo:
+            assert self.num_players is not None
+            oya = OYA_TSUMO_SCORE[self.han][self.fu]  # type: ignore[index]
+            ko = oya if self.is_dealer else KO_TSUMO_SCORE[self.han][self.fu]  # type: ignore[index]
+            return oya + (self.num_players-2)*ko
+        else:
+            return (OYA_RON_SCORE if self.is_dealer else KO_RON_SCORE)[self.han][self.fu]  # type: ignore[index]
     def to_score_deltas(self, round: int, honba: int, num_players: int, winners: List[int], payer: int) -> List[int]:
         score_deltas = [0]*num_players
         if self.tsumo:
@@ -246,7 +250,12 @@ class Score:
         ura = self.yaku[ura_index][1] if ura_index is not None else 0
         return ura
     @classmethod
-    def from_tenhou_strs(cls, yaku_strs: List[str], kita: int = 0, fu = 0, is_tsumo: bool = False):
+    def from_tenhou_strs(cls, yaku_strs: List[str],
+                              kita: int = 0,
+                              fu = 0,
+                              is_dealer: bool = False,
+                              is_tsumo: bool = False,
+                              num_players: Optional[int] = None):
         # this does two things:
         # - Tenhou sanma counts kita as normal dora, we reverse that
         # - convert yaku_strs=["立直(1飜)", "一発(1飜)"] into yaku=[("riichi", 1), ("ippatsu", 1)]
@@ -279,7 +288,7 @@ class Score:
         yaku: List[Tuple[str, int]] = list(map(translate_tenhou_yaku, yaku_strs))
         han = sum(han for _, han in yaku)
         assert han > 0, f"somehow got a {han} han score"
-        return cls(yaku, han, fu, is_tsumo)
+        return cls(yaku, han, fu, is_dealer, is_tsumo, num_players)
 
 
     # these fields are only for debug use

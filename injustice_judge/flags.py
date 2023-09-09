@@ -398,7 +398,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             calculated_score = get_score(han, fu, is_dealer, result_type == "tsumo", kyoku.num_players)
             if os.getenv("debug"):
                 tsumo_string = "tsumo" if result_type == "tsumo" else "ron"
-                stored_score = result.score.get_value(kyoku.num_players, is_dealer)
+                stored_score = result.score.to_points()
                 if (calculated_score, stored_score) in {(7700, 8000), (7900, 8000), (11600, 12000), (11700, 12000)}: # ignore kiriage mangan differences for now
                     pass
                 else:
@@ -415,7 +415,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             winner_data = {"seat": result.winner,
                            "wait": kyoku.hands[result.winner].shanten[1],
                            "ukeire": kyoku.final_ukeire[result.winner],
-                           "score": result.score.get_value(kyoku.num_players, is_dealer),
+                           "score": result.score.to_points(),
                            "han": han,
                            "fu": fu,
                            "ura": ura_han,
@@ -455,7 +455,6 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
     if result_type == "ron":
         # check winners
         for ron in results:
-            is_dealer = ron.winner == kyoku.round % 4
             assert isinstance(ron, Ron), f"result tagged ron got non-Ron object: {ron}"
             # check deal-ins
             add_flag(ron.winner, Flags.YOU_RONNED_SOMEONE, {"from": ron.won_from})
@@ -463,14 +462,14 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             for seat in range(num_players):
                 if ron.score_delta[seat] < 0:
                     if not opened_hand[ron.winner] and not in_riichi[ron.winner]:
-                        add_flag(seat, Flags.YOU_DEALT_INTO_DAMA, {"seat": ron.winner, "score": ron.score.get_value(kyoku.num_players, is_dealer)})
+                        add_flag(seat, Flags.YOU_DEALT_INTO_DAMA, {"seat": ron.winner, "score": ron.score.to_points()})
                     if ron.score.has_ippatsu():
-                        add_flag(seat, Flags.YOU_DEALT_INTO_IPPATSU, {"seat": ron.winner, "score": ron.score.get_value(kyoku.num_players, is_dealer)})
+                        add_flag(seat, Flags.YOU_DEALT_INTO_IPPATSU, {"seat": ron.winner, "score": ron.score.to_points()})
                     if len(results) > 1:
                         add_flag(seat, Flags.YOU_DEALT_INTO_DOUBLE_RON, {"number": len(results)})
         if Flags.YOU_GOT_CHASED in flags[ron.won_from]:
             assert Flags.YOU_REACHED_TENPAI in flags[ron.won_from], "somehow got YOU_GOT_CHASED without YOU_REACHED_TENPAI"
-            add_flag(ron.won_from, Flags.CHASER_GAINED_POINTS, {"seat": ron.winner, "amount": ron.score.get_value(kyoku.num_players, is_dealer)})
+            add_flag(ron.won_from, Flags.CHASER_GAINED_POINTS, {"seat": ron.winner, "amount": ron.score.to_points()})
 
     # here we add all flags that have to do with self-draw luck:
     # - YOU_TSUMOED
