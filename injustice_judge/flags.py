@@ -368,7 +368,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             # calculate the yaku, han, and fu for the winning hand
             # check calculated values with the han and points given in the result data
             # first get the expected values from the result data
-            expected_yaku = list(map(translate_tenhou_yaku, result.yaku.yaku_strs))
+            expected_yaku = result.score.yaku
             expected_han = 0
             ura_han = 0
             for name, han in expected_yaku:
@@ -415,7 +415,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             winner_data = {"seat": result.winner,
                            "wait": kyoku.hands[result.winner].shanten[1],
                            "ukeire": kyoku.final_ukeire[result.winner],
-                           "score": result.score,
+                           "score": result.score.get_value(kyoku.num_players, is_dealer),
                            "han": han,
                            "fu": fu,
                            "ura": ura_han,
@@ -425,23 +425,23 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             if kyoku.final_ukeire[result.winner] <= 4:
                 add_global_flag(Flags.WINNER_HAD_BAD_WAIT, winner_data)
             # check for 3+ han from hidden dora
-            if result.yaku.to_score().count_dora() >= 3:
+            if result.score.count_dora() >= 3:
                 hidden_hand = (*kyoku.hands[result.winner].hidden_part, final_tile)
                 hidden_dora_han = sum(hidden_hand.count(dora) for dora in kyoku.doras)
                 if hidden_dora_han >= 3:
                     add_global_flag(Flags.WINNER_GOT_HIDDEN_DORA_3, {"seat": result.winner, "value": hidden_dora_han})
             # check for 3+ ura
-            if result.yaku.to_score().count_ura() >= 3:
+            if result.score.count_ura() >= 3:
                 add_global_flag(Flags.WINNER_GOT_URA_3, {"seat": result.winner, "value": result.yaku.ura})
             # check for dora bomb
             if Flags.YOU_FLIPPED_DORA_BOMB in flags[result.winner]:
                 add_global_flag(Flags.WINNER_GOT_KAN_DORA_BOMB, {"seat": result.winner, "value": result.yaku.dora})
             # check for haitei/houtei
-            if result.yaku.to_score().has_haitei():
-                haitei_type = "haitei" if ("haitei", 1) in result.yaku.yaku \
-                         else "houtei" if ("houtei", 1) in result.yaku.yaku \
+            if result.score.has_haitei():
+                haitei_type = "haitei" if ("haitei", 1) in result.score.yaku \
+                         else "houtei" if ("houtei", 1) in result.score.yaku \
                          else ""
-                assert haitei_type != "", f"unknown haitei type for yaku {result.yaku.yaku_strs}"
+                assert haitei_type != "", f"unknown haitei type for yaku {result.score.yaku}"
                 add_global_flag(Flags.WINNER_GOT_HAITEI, {"seat": result.winner, "yaku": haitei_type})
 
     # here we add all flags that have to do with deal-ins:
@@ -455,6 +455,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
     if result_type == "ron":
         # check winners
         for ron in results:
+            is_dealer = ron.winner == kyoku.round % 4
             assert isinstance(ron, Ron), f"result tagged ron got non-Ron object: {ron}"
             # check deal-ins
             add_flag(ron.winner, Flags.YOU_RONNED_SOMEONE, {"from": ron.won_from})
@@ -462,14 +463,14 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             for seat in range(num_players):
                 if ron.score_delta[seat] < 0:
                     if not opened_hand[ron.winner] and not in_riichi[ron.winner]:
-                        add_flag(seat, Flags.YOU_DEALT_INTO_DAMA, {"seat": ron.winner, "score": ron.score})
-                    if ron.yaku.to_score().has_ippatsu():
-                        add_flag(seat, Flags.YOU_DEALT_INTO_IPPATSU, {"seat": ron.winner, "score": ron.score})
+                        add_flag(seat, Flags.YOU_DEALT_INTO_DAMA, {"seat": ron.winner, "score": ron.score.get_value(kyoku.num_players, is_dealer)})
+                    if ron.score.has_ippatsu():
+                        add_flag(seat, Flags.YOU_DEALT_INTO_IPPATSU, {"seat": ron.winner, "score": ron.score.get_value(kyoku.num_players, is_dealer)})
                     if len(results) > 1:
                         add_flag(seat, Flags.YOU_DEALT_INTO_DOUBLE_RON, {"number": len(results)})
         if Flags.YOU_GOT_CHASED in flags[ron.won_from]:
             assert Flags.YOU_REACHED_TENPAI in flags[ron.won_from], "somehow got YOU_GOT_CHASED without YOU_REACHED_TENPAI"
-            add_flag(ron.won_from, Flags.CHASER_GAINED_POINTS, {"seat": ron.winner, "amount": ron.score})
+            add_flag(ron.won_from, Flags.CHASER_GAINED_POINTS, {"seat": ron.winner, "amount": ron.score.get_value(kyoku.num_players, is_dealer)})
 
     # here we add all flags that have to do with self-draw luck:
     # - YOU_TSUMOED
@@ -486,7 +487,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                              "wait": kyoku.hands[tsumo.winner].shanten[1],
                              "ukeire": kyoku.final_ukeire[tsumo.winner]})
         # check ippatsu tsumo
-        if tsumo.yaku.to_score().has_ippatsu():
+        if tsumo.score.has_ippatsu():
             add_flag(seat, Flags.WINNER_IPPATSU_TSUMO, {"seat": tsumo.winner})
 
 

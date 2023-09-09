@@ -5,7 +5,7 @@ from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
-from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Score, Tsumo, ResultYakuList, GameMetadata, Dir
+from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Score, Tsumo, GameMetadata, Dir
 from .constants import DORA, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
 from .utils import is_mangan, ph, apply_delta_scores, normalize_red_five, round_name, sorted_hand, to_placement, translate_tenhou_yaku, limit_hands
 from .yaku import get_yakuman_tenpais, debug_yaku
@@ -202,48 +202,31 @@ def parse_result(result: List[Any], num_players: int, hand_is_hidden: List[bool]
     if result_type == "和了":
         rons: List[Ron] = []
         for [score_delta, [w, won_from, _, score_string, *yaku]] in scores:
-            translated_yaku = list(map(translate_tenhou_yaku, yaku))
             below_mangan = "符" in score_string
             if below_mangan: # e.g. "30符1飜1000点", "50符3飜1600-3200点"
                 [fu, rest] = score_string.split("符")
                 [han, rest] = rest.split("飜")
                 pts = "".join(rest.split("点"))
                 fu = int(fu)
-                han = int(han)
                 limit_name = "" # not a limit hand
             else: # e.g. "倍満16000点", "満貫4000点∀"
                 pts = "".join(c for c in score_string if c in "0123456789-∀")
                 limit_name = TRANSLATE[score_string.split(pts[0])[0]]
-                han = sum(value for _, value in translated_yaku)
-                fu = 40 if han == 4 else 70 if han == 3 else 0
-            assert han > 0, f"somehow got a {han} han win"
-            dama = hand_is_hidden[w] and ("riichi", 1) not in translated_yaku
+                fu = 70 # just ensures mangan score is used if 3 or 4 han
+            dama = hand_is_hidden[w] and ("riichi", 1) not in list(map(translate_tenhou_yaku, yaku))
             if w == won_from: # tsumo
-                if "-" in pts:
-                    score_ko, score_oya = map(int, pts.split("-"))
-                    score_total = score_oya + (num_players-2)*score_ko
-                elif "∀" in pts:
-                    score_ko = score_oya = int(pts.split("∀")[0])
-                    score_total = score_oya + (num_players-2)*score_ko
-                else:
-                    assert False, f"unable to parse tsumo score {pts} from score string {score_string}"
                 return ("tsumo", Tsumo(score_delta = score_delta,
                                        winner = w,
                                        dama = dama,
                                        limit_name = limit_name,
-                                       score = Score(yaku, han, fu, tsumo=True),
-                                       # score_oya = score_oya,
-                                       # score_ko = score_ko,
-                                       yaku = ResultYakuList(yaku, kita_counts[w])))
+                                       score = Score.from_tenhou_strs(yaku, kita=kita_counts[w], fu=fu, is_tsumo=True)))
             else:
-                score = int(pts)
                 rons.append(Ron(score_delta = score_delta,
                                 winner = w,
                                 won_from = won_from,
                                 dama = dama,
                                 limit_name = limit_name,
-                                score = Score(yaku, han, fu, tsumo=False),
-                                yaku = ResultYakuList(yaku, kita_counts[w])))
+                                score = Score.from_tenhou_strs(yaku, kita=kita_counts[w], fu=fu, is_tsumo=False)))
         return ("ron", *rons)
     elif result_type in ({"流局", "全員聴牌", "全員不聴", "流し満貫"} # exhaustive draws
                        | {"九種九牌", "四家立直", "三家和了", "四槓散了", "四風連打"}): # abortive draws
