@@ -501,8 +501,9 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
                     yaku_for_wait[wait].append(("double riichi", 2))
                 else:
                     yaku_for_wait[wait].append(("riichi", 1))
-        elif event_seat != seat and event_type == "kakan": # someone kakans
-            is_chankan = True # only handle ippatsu cancellation if a draw happens next
+        elif event_seat != seat and event_type in {"kakan", "kita"}: # someone kakans or calls kita
+            # ippatsu isn't cancelled yet; wait for a draw
+            is_chankan = True
         elif event_seat != seat and event_type in {"chii", "pon", "minkan", "ankan", "kita"}: # any non-kakan call
             double_riichi_eligible = False
             is_ippatsu = False
