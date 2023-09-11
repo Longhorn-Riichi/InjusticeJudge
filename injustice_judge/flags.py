@@ -245,7 +245,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             if majority_suit is not None and tile not in majority_suit | JIHAI:
                 honitsu_tiles = majority_suit | JIHAI
                 majority_tiles = tuple(tile for tile in current_hand[seat].tiles if tile in honitsu_tiles)
-                enough_honitsu_tiles = len(majority_tiles) >= 9
+                enough_honitsu_tiles = len(majority_tiles) >= 10
                 no_off_suit_calls = all(call.tile in honitsu_tiles for call in current_hand[seat].calls)
                 going_for_honitsu = enough_honitsu_tiles and no_off_suit_calls
             if going_for_honitsu:
@@ -338,9 +338,9 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                 # check if we're tenpai and this would have been our last discard before noten payments
                 if already_tenpai and tiles_in_wall <= 3:
                     add_flag(seat, Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT, {"tile": tile})
-            # check if this was tsumogiri honors
+            # check if this was tsumogiri honors (and you're not going for nagashi)
             is_tsumogiri = tile == last_draw[seat]
-            if 41 <= tile <= 47 and is_tsumogiri:
+            if not nagashi[seat] and 41 <= tile <= 47 and is_tsumogiri:
                 tsumogiri_honor_discards[seat] += 1
                 if tsumogiri_honor_discards[seat] >= 6:
                     add_flag(seat, Flags.SIX_DISCARDS_TSUMOGIRI_HONOR, {"num_discards": tsumogiri_honor_discards})

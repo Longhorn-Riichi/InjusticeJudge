@@ -44,7 +44,12 @@ def evaluate_injustices(kyoku: Kyoku, player: int) -> List[str]:
         injustice string, or an empty list if there were no injustices.
     """
     global injustices
+
+    # calculate flags for our player this round
     flags, data = determine_flags(kyoku)
+
+    # go through all the injustices and see if they apply
+    # collect the resulting Injustice objects in all_results
     all_results: List[Injustice] = []
     for i in injustices:
         if     all(flag in flags[player]     for flag in i["required_flags"]) \
@@ -61,7 +66,7 @@ def evaluate_injustices(kyoku: Kyoku, player: int) -> List[str]:
             #       set(i["forbidden_flags"]) & set(flags[player]))
 
     # `all_results` contains a list of injustices for this kyoku,
-    #   but we need to group them up before we printing.
+    #   but we need to group them up before we print.
     # This outputs a header like "- Injustice detected in **East 1**:"
     #   followed by `injustice.desc` joined by ", and"
     #   for every injustice in all_results
@@ -341,24 +346,23 @@ def against_triple_riichi(flags: List[Flags], data: List[Dict[str, Any]], round_
                             verb="were against",
                             object="a triple riichi, and dealt in"))]
 
-# Print if your 3-shanten start was slower than someone else's 5-shanten start
-@injustice(require=[Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN],
-           forbid=[Flags.YOU_REACHED_TENPAI])
-def your_3_shanten_slower_than_5_shanten(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    their_seat = data[flags.index(Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN)]["seat"]
-    their_shanten = data[flags.index(Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN)]["their_shanten"]
-    your_shanten = data[flags.index(Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN)]["your_shanten"]
-
-    if Flags.YOU_REACHED_TENPAI in flags:
-        return [Injustice(round_number, honba, "Injustice",
-                InjusticeClause(subject=f"your {SHANTEN_NAMES[your_shanten]} starting hand",
-                                verb="reached tenpai after",
-                                content=f"{relative_seat_name(player, their_seat)} who started from {SHANTEN_NAMES[their_shanten]}"))]
-    else:
-        return [Injustice(round_number, honba, "Injustice",
-                InjusticeClause(subject=f"your {SHANTEN_NAMES[your_shanten]} starting hand",
-                                verb="couldn't reach tenpai,",
-                                content=f"yet {relative_seat_name(player, their_seat)}'s {SHANTEN_NAMES[their_shanten]} starting hand did"))]
+# # Print if your 3-shanten start was slower than someone else's 5-shanten start
+# @injustice(require=[Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN],
+#            forbid=[Flags.YOU_REACHED_TENPAI])
+# def your_3_shanten_slower_than_5_shanten(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+#     their_seat = data[flags.index(Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN)]["seat"]
+#     their_shanten = data[flags.index(Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN)]["their_shanten"]
+#     your_shanten = data[flags.index(Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN)]["your_shanten"]
+#     if Flags.YOU_REACHED_TENPAI in flags:
+#         return [Injustice(round_number, honba, "Injustice",
+#                 InjusticeClause(subject=f"your {SHANTEN_NAMES[your_shanten]} starting hand",
+#                                 verb="reached tenpai after",
+#                                 content=f"{relative_seat_name(player, their_seat)} who started from {SHANTEN_NAMES[their_shanten]}"))]
+#     else:
+#         return [Injustice(round_number, honba, "Injustice",
+#                 InjusticeClause(subject=f"your {SHANTEN_NAMES[your_shanten]} starting hand",
+#                                 verb="couldn't reach tenpai,",
+#                                 content=f"yet {relative_seat_name(player, their_seat)}'s {SHANTEN_NAMES[their_shanten]} starting hand did"))]
 
 # Print if you were ever iishanten with zero tiles left
 @injustice(require=[Flags.IISHANTEN_WITH_0_TILES])
@@ -491,7 +495,8 @@ def your_tenpai_tile_dealt_in(flags: List[Flags], data: List[Dict[str, Any]], ro
             InjusticeClause(subject="you", verb="immediately dealt in"))]
 
 # Print if you drew a tile that would have completed a past wait
-@injustice(require=[Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE])
+@injustice(require=[Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE],
+            forbid=[Flags.YOU_GAINED_POINTS])
 def drew_tile_completing_past_wait(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     tile_data = data[flags.index(Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE)]
     tile = tile_data["tile"]
@@ -740,8 +745,9 @@ def your_early_8_outs_wait_never_won(flags: List[Flags], data: List[Dict[str, An
                                         content="but never won with it"))]
     return []
 
+# Print if you tsumogiri honors 6 times in a row and are not going for nagashi
 @injustice(require=[Flags.SIX_DISCARDS_TSUMOGIRI_HONOR],
-            forbid=[])
+            forbid=[Flags.YOU_GAINED_POINTS])
 def you_tsumogiri_honors_6_times(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     num_discards = data[len(flags) - 1 - flags[::-1].index(Flags.SIX_DISCARDS_TSUMOGIRI_HONOR)]["num_discards"]
     return [Injustice(round_number, honba, "Injustice",
@@ -750,7 +756,7 @@ def you_tsumogiri_honors_6_times(flags: List[Flags], data: List[Dict[str, Any]],
                             content=f"and had to discard honors {num_discards} times in a row"))]
 
 @injustice(require=[Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI],
-            forbid=[])
+            forbid=[Flags.YOU_GAINED_POINTS])
 def you_tsumogiri_6_times_without_tenpai(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     num_discards = data[len(flags) - 1 - flags[::-1].index(Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI)]["num_discards"]
     return [Injustice(round_number, honba, "Injustice",
