@@ -161,8 +161,11 @@ def injustice(require: List[Flags] = [], forbid: List[Flags] = []) -> Callable[[
 @injustice(require=[Flags.FIVE_SHANTEN_START],
             forbid=[Flags.YOU_GAINED_POINTS, Flags.DREW_WORST_HAIPAI_SHANTEN])
 def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    shanten: Tuple[int, List[int]] = data[flags.index(Flags.FIVE_SHANTEN_START)]["shanten"]
-    if Flags.DREW_WORST_HAIPAI_SHANTEN in flags:
+    shanten: Tuple[int, List[int]]
+    if Flags.FIVE_SHANTEN_START in flags:
+        shanten = data[flags.index(Flags.FIVE_SHANTEN_START)]["shanten"]
+    elif Flags.DREW_WORST_HAIPAI_SHANTEN in flags:
+        shanten = data[flags.index(Flags.DREW_WORST_HAIPAI_SHANTEN)]["shanten"]
         second_worst_shanten: int = data[flags.index(Flags.DREW_WORST_HAIPAI_SHANTEN)]["second_worst_shanten"]
         difference = (shanten[0]//1) - second_worst_shanten
         if difference >= 2:
@@ -170,10 +173,12 @@ def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_num
                     InjusticeClause(subject=f"you",
                                     verb=f"started with",
                                     content=f"{shanten_name(shanten)}, while everyone else started with {SHANTEN_NAMES[second_worst_shanten]} or better"))]
-    return [Injustice(round_number, honba, "Injustice",
-            InjusticeClause(subject="you",
-                            verb="started with",
-                            object=shanten_name(shanten)))]
+    if shanten[0] >= 5:
+        return [Injustice(round_number, honba, "Injustice",
+                InjusticeClause(subject="you",
+                                verb="started with",
+                                object=shanten_name(shanten)))]
+    return []
 
 # Print if you started with 7-8 types of terminals and couldn't gain points as a result
 @injustice(require=[Flags.SEVEN_TERMINAL_START],
