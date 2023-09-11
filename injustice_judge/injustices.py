@@ -482,7 +482,7 @@ def baiman_oyakaburi(flags: List[Flags], data: List[Dict[str, Any]], round_numbe
             Injustice(round_number, honba, "Injustice",
             InjusticeClause(subject=relative_seat_name(player, winner),
                             verb="got",
-                            object="a baiman tsumo{furiten_string}"))]
+                            object=f"a baiman tsumo{furiten_string}"))]
 
 # Print if your riichi/tenpai tile dealt in
 @injustice(require=[Flags.YOUR_TENPAI_TILE_DEALT_IN])
