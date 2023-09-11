@@ -57,7 +57,7 @@ is_suukantsu = lambda hand: list(map(lambda call: "kan" in call.type, hand.calls
 # note: evaluating {suukantsu, tenhou, chiihou, kazoe} requires information outside of the hand
 
 CHECK_YAKUMAN = {"daisangen": is_daisangen,
-                 "kokushi": is_kokushi,
+                 "kokushi musou": is_kokushi,
                  "suuankou": is_suuankou,
                  "shousuushi": is_shousuushi,
                  "daisuushi": is_daisuushi,
@@ -94,7 +94,7 @@ def get_yakuman_waits(hand: Hand, name: str) -> Set[int]:
         ctr = Counter([t % 10 for t in normalize_red_fives(hand.tiles)])
         missing_digits = set((CHUUREN_TILES - (CHUUREN_TILES & ctr)).keys())
         return {wait for wait in hand.shanten[1] if wait % 10 in missing_digits}
-    elif name in {"kokushi", "suuankou", "tsuuiisou", "chinroutou", "suukantsu"}:
+    elif name in {"kokushi musou", "suuankou", "tsuuiisou", "chinroutou", "suukantsu"}:
         return set(hand.shanten[1])
     else:
         assert False, f"tried to get yakuman waits for {name}"
@@ -106,7 +106,7 @@ def test_get_yakuman_tenpais():
     assert get_yakuman_tenpais([11,12,13,45,45,45,45,46,46,46,47,47,47], [47,47,47]) == {"daisangen"}
     assert get_yakuman_tenpais([11,12,13,45,45,45,45,46,46,46,47,11,11]) == set()
 
-    assert get_yakuman_tenpais([11,19,21,29,29,31,39,41,42,43,44,45,47]) == {"kokushi"}
+    assert get_yakuman_tenpais([11,19,21,29,29,31,39,41,42,43,44,45,47]) == {"kokushi musou"}
     assert get_yakuman_tenpais([11,19,21,29,29,29,39,41,42,43,44,45,46]) == set()
 
     print("suuankou:")
@@ -625,11 +625,21 @@ def add_yakuman(yaku_for_wait: YakuForWait, hand: Hand, events: List[Event], rou
             tenhou_eligible = False
             break
     if tenhou_eligible:
-        if is_tsumo and is_dealer:
-            yakumans.add("tenhou")
-        elif is_tsumo and not is_dealer:
-            yakumans.add("chiihou")
-        elif not is_tsumo: # renhou
+        if is_tsumo: # tenhou/chiihou
+            if is_dealer:
+                yakumans.add("tenhou")
+            elif not is_dealer:
+                yakumans.add("chiihou")
+            UPGRADES = {
+                "kokushi musou": "kokushi musou 13-sided",
+                "suuankou": "suuankou tanki",
+                "chuurenpoutou": "junsei chuurenpoutou"
+            }
+            for k, v in UPGRADES.items():
+                if k in yakumans:
+                    yakumans.remove(k)
+                    yakumans.add(v)
+        else: # renhou
             # compare our current yaku to renhou
             # if renhou is equal or better, then we replace it with renhou
             for wait in waits:
