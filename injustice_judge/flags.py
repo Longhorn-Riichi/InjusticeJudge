@@ -460,7 +460,8 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                     del data[seat][ix]
 
                 # check if we are mangan+ tenpai
-                is_haitei = kyoku.tiles_in_wall == 0
+                is_haitei = kyoku.tiles_in_wall == 0 and seat == kyoku.final_draw_seat
+                is_houtei = kyoku.tiles_in_wall == 0 and seat != kyoku.final_draw_seat
                 best_score, takame = get_takame_score(hand = hand,
                                                       events = kyoku.events,
                                                       doras = kyoku.doras,
@@ -468,6 +469,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                                                       round = kyoku.round,
                                                       seat = seat,
                                                       is_haitei = is_haitei,
+                                                      is_houtei = is_houtei,
                                                       num_players = kyoku.num_players)
                 han = best_score.han
                 fu = best_score.fu

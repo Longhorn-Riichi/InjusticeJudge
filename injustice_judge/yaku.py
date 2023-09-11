@@ -469,7 +469,8 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
                       uras: List[int],
                       round: int,
                       seat: int,
-                      is_haitei: bool):
+                      is_haitei: bool,
+                      is_houtei: bool):
     is_closed_hand = len(hand.closed_part) == 13
     ctr = Counter(hand.tiles)
     waits = set(yaku_for_wait.keys())
@@ -574,10 +575,14 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
                 if ura > 0:
                     yaku_for_wait[wait].append((f"ura {ura}" if ura > 1 else "ura", ura))
 
-    # houtei: just need is_haitei passed in
+    # haitei/houtei: just need is_haitei or is_houtei passed in
     if is_haitei:
         for wait in waits:
             yaku_for_wait[wait].append(("houtei", 1))
+    elif is_houtei:
+        for wait in waits:
+            yaku_for_wait[wait].append(("houtei", 1))
+    assert [is_rinshan, is_chankan, is_haitei, is_houtei].count(True) <= 1, "rinshan, chankan, haitei, and houtei should be exclusive"
     return yaku_for_wait
 
 # literally only menzentsumo, sanankou, and haitei depend on tsumo to achieve
@@ -693,6 +698,7 @@ def get_yaku(hand: Hand,
              round: int,
              seat: int,
              is_haitei: bool,
+             is_houtei: bool,
              num_players: int,
              check_rons: bool = True,
              check_tsumos: bool = True) -> Dict[int, Score]:
@@ -727,7 +733,7 @@ def get_yaku(hand: Hand,
         yaku_for_wait: YakuForWait = get_stateless_yaku(interpretation, hand.shanten, is_closed_hand)
 
         # pprint(yaku_for_wait)
-        yaku_for_wait = add_stateful_yaku(yaku_for_wait, hand, events, doras, uras, round, seat, is_haitei)
+        yaku_for_wait = add_stateful_yaku(yaku_for_wait, hand, events, doras, uras, round, seat, is_haitei, is_houtei)
         # print(round_name(round, 0), yaku_for_wait)
         # pprint([(a, b) for a, b, *_ in events])
         if check_tsumos:
@@ -781,7 +787,8 @@ def get_final_yaku(kyoku: Kyoku,
                    uras = kyoku.uras,
                    round = kyoku.round,
                    seat = seat,
-                   is_haitei = kyoku.tiles_in_wall == 0,
+                   is_haitei = kyoku.tiles_in_wall == 0 and seat == kyoku.final_draw_seat,
+                   is_houtei = kyoku.tiles_in_wall == 0 and seat != kyoku.final_draw_seat,
                    num_players = kyoku.num_players,
                    check_rons = check_rons,
                    check_tsumos = check_tsumos)
@@ -818,6 +825,7 @@ def get_takame_score(hand: Hand,
                      round: int,
                      seat: int,
                      is_haitei: bool,
+                     is_houtei: bool,
                      num_players: int) -> Tuple[Score, int]:
     assert hand.shanten[0] == 0
     
@@ -830,6 +838,7 @@ def get_takame_score(hand: Hand,
                                         round = round,
                                         seat = seat,
                                         is_haitei = is_haitei,
+                                        is_houtei = is_houtei,
                                         num_players = num_players,
                                         check_rons = calls_present,
                                         check_tsumos = not calls_present)
@@ -848,6 +857,7 @@ def get_takame_score(hand: Hand,
                                                 round = round,
                                                 seat = seat,
                                                 is_haitei = is_haitei,
+                                                is_houtei = is_houtei,
                                                 num_players = num_players,
                                                 check_rons = True,
                                                 check_tsumos = False)

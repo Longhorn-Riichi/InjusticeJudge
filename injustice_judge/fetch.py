@@ -94,6 +94,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 tile = event_data[0]
                 kyoku.hands[seat] = kyoku.hands[seat].add(tile)
                 kyoku.final_draw = tile
+                kyoku.final_draw_seat = seat
                 kyoku.final_draw_event_index[seat] = len(kyoku.events) - 1
                 kyoku.tiles_in_wall -= 1
                 assert len(kyoku.hands[seat].tiles) == 14
