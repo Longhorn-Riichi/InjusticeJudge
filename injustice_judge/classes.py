@@ -72,12 +72,14 @@ class Hand:
     shanten: Tuple[float, List[int]] = (-1, [])         # shanten for the hand, or -1 if the hand is 14 tiles
                                                         # (like when it's in the middle of a draw or call)
     prev_shanten: Tuple[float, List[int]] = (-1, [])    # shanten for the hand right before said draw or call
+    tiles_with_kans: Tuple[int, ...] = ()               # all tiles in the hand including kans
     kita_count: int = 0                                 # number of kita calls for this hand
     def __post_init__(self):
         """You only need to provide `tiles` (and `calls`, if any), this calculates the rest"""
         super().__setattr__("tiles", sorted_hand(self.tiles))
         super().__setattr__("open_part", tuple(tile for call in self.calls for tile in call.tiles[:3]))
         super().__setattr__("hidden_part", _hidden_part(self.tiles, self.open_part))
+        super().__setattr__("tiles_with_kan", (*self.hidden_part, *(tile for call in self.calls for tile in call.tiles)))
         # for closed part, add any ankan back in as triplets
         closed_part = self.hidden_part
         for call in self.calls:
@@ -141,10 +143,10 @@ class Hand:
     def ukeire(self, visible: Iterable[int]):
         """
         Pass in all the visible tiles on board (not including hand).
-        Return the ukeire of the hand, or 0 if the hand is not tenpai.
+        Return the ukeire of the hand, or 0 if the hand is not tenpai or iishanten.
         """
         shanten, waits = self.shanten
-        if shanten > 0:
+        if shanten >= 2:
             return 0
         relevant_tiles = set(normalize_red_fives(waits))
         visible = list(normalize_red_fives(list(self.tiles) + list(visible)))

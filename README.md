@@ -33,6 +33,9 @@ Analyzes your tenhou.net game to find instances of mahjong injustice. Currently,
 - You had to deal with a triple riichi in which you are the one not in riichi (and you dealt in)
 - You started with 3+ dora while 4th place, but then someone else won
 - Someone with a 5-shanten start (or worse) reaches tenpai before your 3-shanten start (or better)
+- Your iishanten had 0 outs (at any point in time)
+- You had no safe tiles after someone's riichi and drew at least 4 dangerous tiles afterwards
+- Everyone immediately discarded a dangerous tile after your riichi
 
 __Note__: This program was explicitly written to
 

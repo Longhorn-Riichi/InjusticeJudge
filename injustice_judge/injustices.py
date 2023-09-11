@@ -353,12 +353,39 @@ def your_3_shanten_slower_than_5_shanten(flags: List[Flags], data: List[Dict[str
         return [Injustice(round_number, honba, "Injustice",
                 InjusticeClause(subject=f"your {SHANTEN_NAMES[your_shanten]} starting hand",
                                 verb="reached tenpai after",
-                                content=f"{relative_seat_name(player, their_seat)} who started from {their_shanten}"))]
+                                content=f"{relative_seat_name(player, their_seat)} who started from {SHANTEN_NAMES[their_shanten]}"))]
     else:
         return [Injustice(round_number, honba, "Injustice",
                 InjusticeClause(subject=f"your {SHANTEN_NAMES[your_shanten]} starting hand",
                                 verb="couldn't reach tenpai,",
-                                content=f"yet {relative_seat_name(player, their_seat)}'s {their_shanten} starting hand did"))]
+                                content=f"yet {relative_seat_name(player, their_seat)}'s {SHANTEN_NAMES[their_shanten]} starting hand did"))]
+
+# Print if you were ever iishanten with zero tiles left
+@injustice(require=[Flags.IISHANTEN_WITH_0_TILES])
+def iishanten_with_0_tiles(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    shanten = data[flags.index(Flags.IISHANTEN_WITH_0_TILES)]["shanten"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject=f"your {shanten_name(shanten)}",
+                            verb="had",
+                            content="zero outs at some point"))]
+
+# Print if everyone immediately threw a dangerous tile after your riichi
+@injustice(require=[Flags.EVERYONE_DISRESPECTED_YOUR_RIICHI])
+def everyone_disrespected_your_riichi(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="your riichi",
+                            verb="was disrespected by",
+                            content="everyone (they all immediately threw dangerous tiles against you)"))]
+
+# Print if you drew a dangerous tile and had no safe tiles at least four times
+@injustice(require=[Flags.FOUR_DANGEROUS_DRAWS_AFTER_RIICHI])
+def four_dangerous_draws_after_riichi(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    num = data[len(data) - 1 - flags[::-1].index(Flags.FOUR_DANGEROUS_DRAWS_AFTER_RIICHI)]["num"]
+    opponent = data[len(data) - 1 - flags[::-1].index(Flags.FOUR_DANGEROUS_DRAWS_AFTER_RIICHI)]["opponent"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="you",
+                            verb="kept drawing",
+                            content=f"dangerous tile after dangerous tile ({num} times) after {relative_seat_name(player, opponent)}'s riichi"))]
 
 ###
 ### end game injustices
@@ -536,7 +563,7 @@ def lost_points_to_hidden_dora_3(flags: List[Flags], data: List[Dict[str, Any]],
     else:
         return [Injustice(round_number, honba, "Injustice",
             InjusticeClause(subject="you",
-                            verb="paid",
+                            verb="got hit by",
                             object=f"{relative_seat_name(player, seat)}'s tsumo with {value} hidden dora"))]
 
 # Print if an early abortive draw happened with an iishanten haipai
