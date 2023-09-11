@@ -83,7 +83,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.final_draw_event_index.append(-1)
                 kyoku.final_discard_event_index.append(-1)
             elif event_type == "start_game":
-                kyoku.round, kyoku.honba, kyoku.start_scores = event_data
+                kyoku.round, kyoku.honba, kyoku.riichi_sticks, kyoku.start_scores = event_data
                 kyoku.num_players = metadata.num_players
                 kyoku.tiles_in_wall = 70 if kyoku.num_players == 4 else 55
                 kyoku.starting_doras = [DORA[d] for d in dora_indicators] + ([51, 52, 53] if metadata.use_red_fives else [])
@@ -422,7 +422,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             # this is actually how Tenhou logs store the round counter
             round = action.chang*4 + action.ju
             honba = action.ben
-            events.append((t, "start_game", round, honba, list(action.scores)))
+            riichi_sticks = action.liqibang
+            events.append((t, "start_game", round, honba, riichi_sticks, list(action.scores)))
             # pretend we drew the first tile
             events.append((action.ju, "draw", first_tile))
             dora_indicators = [convert_tile(dora) for dora in action.doras]
@@ -595,7 +596,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         assert False, f"unable to extract the call tiles from call {call}"
 
     for raw_kyoku in raw_kyokus:
-        [[round, honba, num_riichis],
+        [[round, honba, riichi_sticks],
          scores, dora_indicators, ura_indicators,
          haipai0, draws0, discards0,
          haipai1, draws1, discards1,
@@ -625,7 +626,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         i = [0] * num_players
         for seat in range(num_players):
             events.append((seat, "haipai", sorted_hand(haipai[seat])))
-        events.append((seat, "start_game", round, honba, scores))
+        events.append((seat, "start_game", round, honba, riichi_sticks, scores))
 
         # Emit events for draws and discards and calls, in order
         # stops when the current player has no more draws; remaining

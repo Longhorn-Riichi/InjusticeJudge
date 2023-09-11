@@ -353,6 +353,7 @@ class Kyoku:
     # Some basic facts about this kyoku
     round: int                                    = 0
     honba: int                                    = 0
+    riichi_sticks: int                            = 0
     num_players: int                              = 0
     final_draw: int                               = 0
     final_discard: int                            = 0
