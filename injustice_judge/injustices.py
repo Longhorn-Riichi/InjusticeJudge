@@ -45,6 +45,12 @@ def evaluate_injustices(kyoku: Kyoku, player: int) -> List[str]:
     """
     global injustices
 
+    # skip check if we won this round
+    if kyoku.result[0] in {"ron", "tsumo"}:
+        for result in kyoku.result[1:]:
+            if result.winner == player:
+                return []
+
     # calculate flags for our player this round
     flags, data = determine_flags(kyoku)
 
