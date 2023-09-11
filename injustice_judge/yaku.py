@@ -365,8 +365,16 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
             if remaining in [set(), {sorted_hand((*taatsu, wait))}]:
                 yaku_for_wait[wait].append(("sanshoku doukou", 2))
 
+    # honroutou: check that all of the hand is terminal/honors
+    # then every terminal/honor wait gives honroutou
+    non_honroutou_waits = waits
+    if set(full_hand) - YAOCHUUHAI == set():
+        non_honroutou_waits -= YAOCHUUHAI
+        for wait in waits & YAOCHUUHAI:
+            yaku_for_wait[wait].append(("honroutou", 2))
+    # otherwise, we score junchan/chanta
     # junchan: if we remove all junchan groups and we're left with a terminal pair
-    # chanta: if not junchan and we remove all chanta groups and we're left with a terminal/honor pair
+    # chanta: if not junchan/honroutou and we remove all chanta groups and we're left with a terminal/honor pair
     TERMINAL_SEQS = set().union(set(zip(range(11,40,10),range(12,40,10),range(13,40,10))),
                                 set(zip(range(21,40,10),range(22,40,10),range(23,40,10))),
                                 set(zip(range(31,40,10),range(32,40,10),range(33,40,10))),
@@ -380,13 +388,13 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
     # check that every existing group is junchan
     if set(sequences) - TERMINAL_SEQS == set():
         if set(triplets) - JUNCHAN_TRIS == set() and (pair_tile is None or pair_tile in {11,19,21,29,31,39}):
-            for wait in waits:
+            for wait in non_honroutou_waits:
                 if sorted_hand((*taatsu, wait)) in JUNCHAN_TRIS | TERMINAL_SEQS | JUNCHAN_PAIRS:
                     yaku_for_wait[wait].append(("junchan", 3 if is_closed_hand else 2))
                 elif sorted_hand((*taatsu, wait)) in CHANTA_TRIS | CHANTA_PAIRS:
                     yaku_for_wait[wait].append(("chanta", 2 if is_closed_hand else 1))
         elif set(triplets) - CHANTA_TRIS == set() and (pair_tile is None or pair_tile in YAOCHUUHAI):
-            for wait in waits:
+            for wait in non_honroutou_waits:
                 if sorted_hand((*taatsu, wait)) in CHANTA_TRIS | TERMINAL_SEQS | CHANTA_PAIRS:
                     yaku_for_wait[wait].append(("chanta", 2 if is_closed_hand else 1))
 
@@ -397,12 +405,6 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
     if set(full_hand) & YAOCHUUHAI == set():
         for wait in waits - YAOCHUUHAI:
             yaku_for_wait[wait].append(("tanyao", 1))
-
-    # honroutou: check that all of the hand is terminal/honors
-    # then every terminal/honor wait gives tanyao
-    if set(full_hand) - YAOCHUUHAI == set():
-        for wait in waits & YAOCHUUHAI:
-            yaku_for_wait[wait].append(("honroutou", 2))
 
     # toitoi: take out all triplets.
     # if there's 4, the remaining tile gives toitoi.
