@@ -146,7 +146,7 @@ def test_get_yakuman_tenpais():
 ### yaku calculation
 ###
 
-def get_hand_interpretations(hand: Hand, yakuhai: Set[int]) -> Set[Interpretation]:
+def get_hand_interpretations(hand: Hand, yakuhai: Tuple[int, ...]) -> Set[Interpretation]:
     if hand.shanten[0] != 0:
         return set()
     waits = set(hand.shanten[1])
@@ -215,7 +215,7 @@ def get_hand_interpretations(hand: Hand, yakuhai: Set[int]) -> Set[Interpretatio
 
             # remove a pair, if we haven't yet
             if pair is None:
-                yakuhai_fu = 2 if tile in yakuhai else 0
+                yakuhai_fu = 2 * yakuhai.count(tile)
                 # print(f"add {yakuhai_fu} for yakuhai pair {pt(tile)}, {ph(unprocessed_part)}")
                 removed_pair = try_remove_all_tiles(unprocessed_part, (tile, tile))
                 if removed_pair != unprocessed_part: # removal was a success
@@ -239,7 +239,7 @@ def get_hand_interpretations(hand: Hand, yakuhai: Set[int]) -> Set[Interpretatio
             # first take care of the tanki possibility:
             # print(f"add 2 for single wait {pt(unprocessed_part[0])}")
             tanki = unprocessed_part[0]
-            yakuhai_fu = 2 if tanki in yakuhai else 0
+            yakuhai_fu = 2 * yakuhai.count(tile)
             ron_fu = base_ron_fu + fu + yakuhai_fu + 2
             tsumo_fu = base_tsumo_fu + fu + yakuhai_fu + 2
             interpretations.add(Interpretation(unprocessed_part, ron_fu, tsumo_fu, sequences, triplets, calls=frozen_hand_calls))
@@ -692,7 +692,7 @@ def get_yaku(hand: Hand,
     assert len(waits) > 0, f"hand {hand!s} is tenpai, but has no waits?"
 
     # now for each of the waits we calculate their possible yaku
-    interpretations = get_hand_interpretations(hand, yakuhai={45,46,47,(round//4)+41,((seat-round)%4)+41})
+    interpretations = get_hand_interpretations(hand, yakuhai=(45,46,47,(round//4)+41,((seat-round)%4)+41))
 
     assert len(interpretations) > 0, f"tenpai hand {hand!s} had no interpretations?"
     # best_score[wait] = the Score value representing the best interpretation for that wait
