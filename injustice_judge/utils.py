@@ -1,8 +1,9 @@
 import functools
 import itertools
-from .constants import DISCORD_TILES, DISCORD_CALLED_TILES, DISCORD_DORA_TILES, DISCORD_CALLED_DORA_TILES, PRED, SHANTEN_NAMES, SUCC, TOGGLE_RED_FIVE, TRANSLATE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, OYA_RON_SCORE, KO_RON_SCORE
+from .constants import MANZU, PINZU, SOUZU, DISCORD_TILES, DISCORD_CALLED_TILES, DISCORD_DORA_TILES, DISCORD_CALLED_DORA_TILES, PRED, SHANTEN_NAMES, SUCC, TOGGLE_RED_FIVE, TRANSLATE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, OYA_RON_SCORE, KO_RON_SCORE
 from typing import *
 import os
+
 
 # This file contains a bunch of utility functions that don't really belong anywhere else.
 # The goal is to move these someday, so they're not really documented right now.
@@ -186,3 +187,17 @@ def get_waits(hand: Tuple[int, ...]) -> Set[int]:
                 to_update.add((try_remove_all_tiles(hand, taatsu), (*taatsus, taatsu)))
     return waits
 
+def get_majority_suit(hand: Tuple[int, ...]) -> Optional[Set[int]]:
+    # returns one of {MANZU, PINZU, SOUZU}
+    # or None if there is no majority suit (i.e. there's a tie)
+    num_manzu = sum(1 for tile in hand if tile in MANZU)
+    num_pinzu = sum(1 for tile in hand if tile in PINZU)
+    num_souzu = sum(1 for tile in hand if tile in SOUZU)
+    if num_manzu > max(num_pinzu, num_souzu):
+        return MANZU
+    elif num_pinzu > max(num_manzu, num_souzu):
+        return PINZU
+    elif num_souzu > max(num_manzu, num_pinzu):
+        return SOUZU
+    else:
+        return None

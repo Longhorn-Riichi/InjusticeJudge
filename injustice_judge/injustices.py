@@ -135,7 +135,7 @@ def injustice(require: List[Flags] = [], forbid: List[Flags] = []) -> Callable[[
     global injustices
     def decorator(callback):
         injustices.append({"callback": callback, "required_flags": require, "forbidden_flags": forbid})
-        return lambda f: f
+        return callback
     return decorator
 
 
@@ -165,6 +165,43 @@ def seven_terminal_start(flags: List[Flags], data: List[Dict[str, Any]], round_n
                                 verb="started with",
                                 content=f"{num_types} types of terminal/honor tiles"))]
     return []
+
+@injustice(require=[Flags.STARTED_WITH_TWO_147_SHAPES],
+            forbid=[])
+def started_with_two_147_shapes(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    hand = data[flags.index(Flags.STARTED_WITH_TWO_147_SHAPES)]["hand"]
+    num = data[flags.index(Flags.STARTED_WITH_TWO_147_SHAPES)]["num"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="you",
+                            verb="started with",
+                            object=f"{num} 1-4-7 shapes",
+                            content=f"in your hand ({ph(hand)})"))]
+
+# Print if you were still at bad shanten after the first row of discards and couldn't gain points as a result
+@injustice(require=[Flags.FOUR_SHANTEN_AFTER_FIRST_ROW],
+            forbid=[Flags.YOU_GAINED_POINTS])
+def four_shanten_after_first_row(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    shanten = data[flags.index(Flags.FOUR_SHANTEN_AFTER_FIRST_ROW)]["shanten"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="you",
+                            verb="were still",
+                            object=shanten_name(shanten),
+                            content="after the first row of discards"))]
+
+@injustice(require=[Flags.DREW_WORST_HAIPAI_SHANTEN],
+            forbid=[])
+def drew_worst_shanten_by_far(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    shanten: Tuple[int, List[int]] = data[flags.index(Flags.DREW_WORST_HAIPAI_SHANTEN)]["shanten"]
+    second_worst_shanten: int = data[flags.index(Flags.DREW_WORST_HAIPAI_SHANTEN)]["second_worst_shanten"]
+    difference = (shanten[0]//1) - second_worst_shanten
+    if difference >= 2:
+        return [Injustice(round_number, honba, "Injustice",
+                InjusticeClause(subject=f"your {shanten_name(shanten)} start",
+                                verb=f"was {difference} worse than",
+                                object=f"everyone else's starting shanten",
+                                content=f"(their worst was {SHANTEN_NAMES[second_worst_shanten]})"))]
+    else:
+        return []
 
 ###
 ### mid game injustices
@@ -230,6 +267,29 @@ def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], round_number: i
                    InjusticeClause(subject="you", verb="never reached", object="tenpai")))
     return ret
 
+# Print if you drew a dora tile you had discarded a turn prior
+@injustice(require=[Flags.IMMEDIATELY_DREW_DISCARDED_DORA],
+            forbid=[])
+def drew_dora_you_just_discarded(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    tile = data[flags.index(Flags.IMMEDIATELY_DREW_DISCARDED_DORA)]["tile"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="you",
+                            verb="immediately drew",
+                            content=f"a dora {pt(tile+100)} that you just discarded"))]
+
+# Print if your turn was skipped 3 times due to pon/kan
+@injustice(require=[Flags.TURN_SKIPPED_BY_PON],
+            forbid=[])
+def turn_was_skipped_3_times(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    times = flags.count(Flags.TURN_SKIPPED_BY_PON)
+    if times >= 3:
+        return [Injustice(round_number, honba, "Injustice",
+                InjusticeClause(subject="your turn",
+                                verb="was skipped",
+                                content=f"{times} times by pon/kan"))]
+    else:
+        return []
+
 # Print if you just barely failed nagashi
 @injustice(require=[Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI],
             forbid=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
@@ -251,16 +311,54 @@ def lost_nagashi_to_call(flags: List[Flags], data: List[Dict[str, Any]], round_n
                             verb="lost",
                             content=f"nagashi on your last discard {pt(tile)} because {relative_seat_name(player, caller)} called it"))]
 
-# Print if your riichi discard passed, but someone stole your riichi stick before your next draw
-@injustice(require=[Flags.LAST_DISCARD_WAS_RIICHI, Flags.WINNER],
-            forbid=[Flags.YOUR_TENPAI_TILE_DEALT_IN])
-def riichi_stick_robbed(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    winner = data[flags.index(Flags.WINNER)]["seat"]
+# Print if ankan removed (part of) your tenpai wait
+@injustice(require=[Flags.ANKAN_ERASED_TENPAI_WAIT])
+def ankan_erased_tenpai_wait(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    tile = data[flags.index(Flags.ANKAN_ERASED_TENPAI_WAIT)]["tile"]
+    wait = data[flags.index(Flags.ANKAN_ERASED_TENPAI_WAIT)]["wait"]
+    ukeire = data[flags.index(Flags.ANKAN_ERASED_TENPAI_WAIT)]["ukeire"]
+    caller = data[flags.index(Flags.ANKAN_ERASED_TENPAI_WAIT)]["caller"]
     return [Injustice(round_number, honba, "Injustice",
-            InjusticeClause(subject="your riichi discard",
-                            verb="passed",
-                            content=f"but {relative_seat_name(player, winner)} won before your next draw, stealing your riichi stick",
-                            last_subject=relative_seat_name(player, winner)))]
+            InjusticeClause(subject=f"{relative_seat_name(player, caller)}'s ankan",
+                            subject_description=ph((50,tile,tile,50)),
+                            verb="erased",
+                            content=f"{'your entire' if ukeire <= 4 else 'part of your'} wait {ph(wait)}"))]
+
+# Print if you drew at least 6 off-suit tiles in a row for honitsu
+@injustice(require=[Flags.BAD_HONITSU_DRAWS])
+def consecutive_bad_honitsu_draws(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    tiles = data[flags.index(Flags.BAD_HONITSU_DRAWS)]["tiles"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="you",
+                            verb="were going for",
+                            content=f"honitsu, but drew {len(tiles)} off-suit tiles ({ph(tiles)}) in a row"))]
+
+# Print if you had to deal with triple riichi
+@injustice(require=[Flags.AGAINST_TRIPLE_RIICHI, Flags.YOU_DEALT_IN])
+def against_triple_riichi(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="you",
+                            verb="were against",
+                            object="a triple riichi, and dealt in"))]
+
+# Print if your 3-shanten start was slower than someone else's 5-shanten start
+@injustice(require=[Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN],
+           forbid=[Flags.YOU_REACHED_TENPAI])
+def your_3_shanten_slower_than_5_shanten(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    their_seat = data[flags.index(Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN)]["seat"]
+    their_shanten = data[flags.index(Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN)]["their_shanten"]
+    your_shanten = data[flags.index(Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN)]["your_shanten"]
+
+    if Flags.YOU_REACHED_TENPAI in flags:
+        return [Injustice(round_number, honba, "Injustice",
+                InjusticeClause(subject=f"your {SHANTEN_NAMES[your_shanten]} starting hand",
+                                verb="reached tenpai after",
+                                content=f"{relative_seat_name(player, their_seat)} who started from {their_shanten}"))]
+    else:
+        return [Injustice(round_number, honba, "Injustice",
+                InjusticeClause(subject=f"your {SHANTEN_NAMES[your_shanten]} starting hand",
+                                verb="couldn't reach tenpai,",
+                                content=f"yet {relative_seat_name(player, their_seat)}'s {their_shanten} starting hand did"))]
 
 ###
 ### end game injustices
@@ -273,6 +371,17 @@ def tenpai_status_string(flags: List[Flags]) -> str:
     elif Flags.YOU_REACHED_TENPAI in flags:
         status = ", while you were tenpai"
     return status
+
+# Print if your riichi discard passed, but someone stole your riichi stick before your next draw
+@injustice(require=[Flags.LAST_DISCARD_WAS_RIICHI, Flags.WINNER],
+            forbid=[Flags.YOUR_TENPAI_TILE_DEALT_IN])
+def riichi_stick_robbed(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    winner = data[flags.index(Flags.WINNER)]["seat"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="your riichi discard",
+                            verb="passed",
+                            content=f"but {relative_seat_name(player, winner)} won before your next draw, stealing your riichi stick",
+                            last_subject=relative_seat_name(player, winner)))]
 
 # Print if you lost points to a first row ron/tsumo
 @injustice(require=[Flags.LOST_POINTS_TO_FIRST_ROW_WIN])
@@ -365,7 +474,7 @@ def drew_tile_completing_past_wait(flags: List[Flags], data: List[Dict[str, Any]
             InjusticeClause(subject="you",
                             verb="drew",
                             content=f"a tile {pt(tile)} that would have completed your past tenpai wait on {ph(wait)}"
-                                    f" if you didn't change to {shanten_name(shanten)}"))]
+                                    f" if you didn't decide to switch to a {shanten_name(shanten)}"))]
 
 # Print if you dealt in while tenpai, right before you would have received tenpai payments
 @injustice(require=[Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT])
@@ -390,7 +499,7 @@ def lost_points_to_ura_3(flags: List[Flags], data: List[Dict[str, Any]], round_n
     else:
         return [Injustice(round_number, honba, "Injustice",
             InjusticeClause(subject="you",
-                            verb="paid",
+                            verb="got hit by",
                             object=f"{relative_seat_name(player, seat)}'s tsumo with ura {value}"))]
 
 # Print if you dealt into haitei/houtei
@@ -513,6 +622,18 @@ def your_mangan_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]],
     else:
         return []
 
+# Print if you were fourth started with 3 dora but someone else won
+@injustice(require=[Flags.STARTED_WITH_3_DORA, Flags.YOU_WERE_FOURTH, Flags.WINNER],
+            forbid=[Flags.YOU_GAINED_POINTS])
+def couldnt_avoid_last_with_3_dora(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    num_dora = data[flags.index(Flags.STARTED_WITH_3_DORA)]["num"]
+    winner = data[flags.index(Flags.WINNER)]["seat"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="you",
+                            verb="were",
+                            content=f"in fourth place and had a chance to come back with three dora,"
+                                    f" but you couldn't since {relative_seat_name(player, winner)} won"))]
+
 # Print if someone took your points and you dropped placement only because of ura
 @injustice(require=[Flags.FINAL_ROUND, Flags.YOU_DEALT_IN, Flags.YOU_DROPPED_PLACEMENT, Flags.WINNER],
             forbid=[])
@@ -541,3 +662,71 @@ def dropped_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]],
                                     last_subject=relative_seat_name(player, winner)))]
     return []
 
+# Print if your good 4+ sided wait lost to someone else's worse wait
+@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.WINNER],
+            forbid=[Flags.YOU_GAINED_POINTS])
+def four_sided_wait_didnt_win(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    for i, flag in reversed(list(enumerate(flags))):
+        if flag == Flags.YOU_REACHED_TENPAI:
+            wait = data[i]["wait"]
+            ukeire = data[i]["ukeire"]
+            winner = data[flags.index(Flags.WINNER)]["seat"]
+            winner_wait = data[flags.index(Flags.WINNER)]["wait"]
+            winner_ukeire = data[flags.index(Flags.WINNER)]["ukeire"]
+            if len(wait) >= 4 and ukeire >= 8 and len(winner_wait) < 4 and winner_ukeire < ukeire:
+                return [Injustice(round_number, honba, "Injustice",
+                        InjusticeClause(subject=f"your {len(wait)}-sided wait",
+                                        subject_description=f"{ph(wait)} ({ukeire} outs)",
+                                        verb="lost to",
+                                        content=f"{relative_seat_name(player, winner)}'s"
+                                                f"{len(winner_wait)}-sided wait"
+                                                f"{ph(winner_wait)} ({winner_ukeire} outs)"))]
+    return []
+
+# Print if you dealt into chankan while tenpai
+@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.WINNER],
+            forbid=[Flags.YOU_GAINED_POINTS])
+def dealt_into_chankan_while_tenpai(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    yaku = data[flags.index(Flags.WINNER)]["score_object"].yaku
+    if ("chankan", 1) in yaku:
+        return [Injustice(round_number, honba, "Injustice",
+                InjusticeClause(subject="you",
+                                verb="kanned",
+                                content="and dealt in while tenpai"))]
+    else:
+        return []
+
+# Print if you had an early 8 outs ryanmen (or better) and never folded, but never won
+@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI, Flags.WINNER],
+            forbid=[Flags.YOU_GAINED_POINTS, Flags.YOU_FOLDED_FROM_TENPAI])
+@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI, Flags.GAME_ENDED_WITH_RYUUKYOKU],
+            forbid=[Flags.YOU_FOLDED_FROM_TENPAI])
+def your_early_8_outs_wait_never_won(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    for i, flag in enumerate(flags):
+        if flag == Flags.YOU_REACHED_TENPAI:
+            ukeire = data[i]["ukeire"]
+            if ukeire >= 8:
+                return [Injustice(round_number, honba, "Injustice",
+                        InjusticeClause(subject="you",
+                                        verb="had",
+                                        object=f"an early {ukeire} outs wait",
+                                        content="but never won with it"))]
+    return []
+
+@injustice(require=[Flags.SIX_DISCARDS_TSUMOGIRI_HONOR],
+            forbid=[])
+def you_tsumogiri_honors_6_times(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    num_discards = data[len(flags) - 1 - flags[::-1].index(Flags.SIX_DISCARDS_TSUMOGIRI_HONOR)]["num_discards"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="you",
+                            verb="drew",
+                            content=f"and had to discard honors {num_discards} times in a row"))]
+
+@injustice(require=[Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI],
+            forbid=[])
+def you_tsumogiri_6_times_without_tenpai(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+    num_discards = data[len(flags) - 1 - flags[::-1].index(Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI)]["num_discards"]
+    return [Injustice(round_number, honba, "Injustice",
+            InjusticeClause(subject="you",
+                            verb="drew",
+                            content=f"what you discarded {num_discards} times in a row while not in tenpai"))]

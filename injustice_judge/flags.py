@@ -1,8 +1,8 @@
-from .classes import Hand, Kyoku, Ron, Tsumo
-from .constants import LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
+from .classes import CallInfo, Dir, Hand, Kyoku, Ron, Tsumo
+from .constants import MANZU, PINZU, SOUZU, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from enum import Enum
 from typing import *
-from .utils import is_mangan, normalize_red_five, round_name, to_placement, translate_tenhou_yaku
+from .utils import get_majority_suit, is_mangan, normalize_red_five, round_name, to_placement, translate_tenhou_yaku
 from .yaku import get_final_yaku, get_score, get_takame_score
 from pprint import pprint
 
@@ -29,23 +29,35 @@ from pprint import pprint
 ###
 
 Flags = Enum("Flags", "_SENTINEL"
+    " AGAINST_TRIPLE_RIICHI"
+    " ANKAN_ERASED_TENPAI_WAIT"
+    " BAD_HONITSU_DRAWS"
     " CHANGED_WAIT_ON_LAST_DISCARD"
     " CHASER_GAINED_POINTS"
     " CHASER_LOST_POINTS"
+    " DREW_WORST_HAIPAI_SHANTEN"
     " FIRST_ROW_TENPAI"
     " FIVE_SHANTEN_START"
+    " FOUR_SHANTEN_AFTER_FIRST_ROW"
     " GAME_ENDED_WITH_ABORTIVE_DRAW"
     " GAME_ENDED_WITH_RON"
     " GAME_ENDED_WITH_RYUUKYOKU"
     " GAME_ENDED_WITH_TSUMO"
     " IISHANTEN_HAIPAI_ABORTED"
+    " IMMEDIATELY_DREW_DISCARDED_DORA"
+    " IMMEDIATELY_DREW_DISCARDED_TILE"
     " LAST_DISCARD_WAS_RIICHI"
     " FINAL_ROUND"
     " LOST_POINTS_TO_FIRST_ROW_WIN"
     " NINE_DRAWS_NO_IMPROVEMENT"
     " SEVEN_TERMINAL_START"
+    " SIX_DISCARDS_TSUMOGIRI_HONOR"
+    " SIX_TSUMOGIRI_WITHOUT_TENPAI"
     " SOMEONE_REACHED_TENPAI"
+    " STARTED_WITH_3_DORA"
+    " STARTED_WITH_TWO_147_SHAPES"
     " TENPAI_ON_LAST_DISCARD"
+    " TURN_SKIPPED_BY_PON"
     " WINNER"
     " WINNER_GOT_BAIMAN"
     " WINNER_GOT_HAITEI"
@@ -86,6 +98,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_WERE_SECOND"
     " YOU_WERE_THIRD"
     " YOU_WERE_FOURTH"
+    " YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN"
     " YOUR_LAST_DISCARD_ENDED_NAGASHI"
     " YOUR_LAST_NAGASHI_TILE_CALLED"
     " YOUR_TENPAI_TILE_DEALT_IN"
@@ -165,14 +178,19 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
     # - YOU_AVOIDED_LAST_PLACE
     # - YOU_DROPPED_PLACEMENT
     # - LAST_DISCARD_WAS_RIICHI
+    current_hand: List[Hand] = []
     shanten: List[Tuple[float, List[int]]] = [(99, [])]*4
     draws_since_shanten_change: List[int] = [0]*num_players
+    tsumogiri_honor_discards: List[int] = [0]*num_players
+    tsumogiri_without_tenpai: List[int] = [0]*num_players
+    consecutive_off_suit_tiles: List[List[int]] = [list() for player in range(num_players)]
     tiles_in_wall = 70 if num_players == 4 else 55
     past_waits: List[List[List[int]]] = [list() for player in range(num_players)]
     num_discards: List[int] = [0]*num_players
     opened_hand: List[bool] = [False]*num_players
     in_riichi: List[bool] = [False]*num_players
     nagashi: List[bool] = [True]*num_players
+
     debug_prev_flag_len = [0]*num_players
     debug_prev_global_flag_len = 0
     for i, event in enumerate(kyoku.events):
@@ -194,20 +212,83 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
         last_discard_was_riichi = [False]*num_players
         if event_type == "draw":
             tile = event_data[0]
+            current_hand[seat] = current_hand[seat].add(tile)
             tiles_in_wall -= 1
             last_draw[seat] = tile
             # check if draw would have completed a past wait
             for wait in past_waits[seat]:
                 if tile in wait:
-                    add_flag(seat, Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE, {"tile": event_data[0], "wait": wait, "shanten": shanten[seat]})
+                    add_flag(seat, Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE, {"tile": event_data[0], "wait": wait, "shanten": current_hand[seat].shanten})
             # check if it's been more than 9 draws since we changed shanten
-            if shanten[seat][0] > 0 and draws_since_shanten_change[seat] >= 9:
-                add_flag(seat, Flags.NINE_DRAWS_NO_IMPROVEMENT, {"shanten": shanten[seat], "draws": draws_since_shanten_change[seat]})
+            if current_hand[seat].shanten[0] > 0 and draws_since_shanten_change[seat] >= 9:
+                add_flag(seat, Flags.NINE_DRAWS_NO_IMPROVEMENT, {"shanten": current_hand[seat].shanten, "draws": draws_since_shanten_change[seat]})
             draws_since_shanten_change[seat] += 1
+            # check if we drew what we just discarded
+            if tile == last_discard[seat]:
+                add_flag(seat, Flags.IMMEDIATELY_DREW_DISCARDED_TILE, {"tile": tile})
+                if tile in kyoku.doras:
+                    add_flag(seat, Flags.IMMEDIATELY_DREW_DISCARDED_DORA, {"tile": tile})
+            # check if we're going for honitsu and drew an off-suit tile
+            going_for_honitsu = False
+            majority_suit = get_majority_suit(current_hand[seat].tiles)
+            if majority_suit is not None and tile not in majority_suit | JIHAI:
+                honitsu_tiles = majority_suit | JIHAI
+                majority_tiles = tuple(tile for tile in current_hand[seat].tiles if tile in honitsu_tiles)
+                eight_honitsu_tiles = len(majority_tiles) >= 8
+                no_off_suit_calls = all(call.tile in honitsu_tiles for call in current_hand[seat].calls)
+                going_for_honitsu = eight_honitsu_tiles and no_off_suit_calls
+            if going_for_honitsu:
+                # tick up a counter if you drew off-suit tiles in a row
+                consecutive_off_suit_tiles[seat].append(tile)
+                if len(consecutive_off_suit_tiles[seat]) >= 6:
+                    add_flag(seat, Flags.BAD_HONITSU_DRAWS, {"tiles": consecutive_off_suit_tiles[seat]})
+            else:
+                consecutive_off_suit_tiles[seat] = []
+            # check if we're still 4-shanten or worse after the first row of discards
+            if num_discards[seat] == 6 and current_hand[seat].prev_shanten[0] >= 4:
+                add_flag(seat, Flags.FOUR_SHANTEN_AFTER_FIRST_ROW, {"shanten": current_hand[seat].prev_shanten})
         elif event_type in {"chii", "pon", "minkan"}:
+            called_tile, call_tiles, call_dir = event_data
+            if event_type != "minkan":
+                current_hand[seat] = current_hand[seat].add(called_tile)
+            current_hand[seat] = current_hand[seat].add_call(CallInfo(event_type, called_tile, call_dir, call_tiles))
             opened_hand[seat] = True
+            # for everyone whose turn was skipped, add Flags.TURN_SKIPPED_BY_PON
+            if event_type in {"pon", "minkan"}:
+                if call_dir in {Dir.TOIMEN, Dir.SHIMOCHA}:
+                    # called from toimen or shimocha, kamicha was skipped
+                    kamicha_seat = (seat-1)%4
+                    if not (num_players == 3 and kamicha_seat == 3):
+                        add_flag(kamicha_seat, Flags.TURN_SKIPPED_BY_PON)
+                if call_dir == Dir.SHIMOCHA:
+                    # called from shimocha, toimen was skipped
+                    toimen_seat = (seat-2)%4
+                    if not (num_players == 3 and toimen_seat == 3):
+                        add_flag(toimen_seat, Flags.TURN_SKIPPED_BY_PON)
+        elif event_type in {"ankan", "kakan", "kita"}:
+            called_tile, call_tiles, call_dir = event_data
+            if event_type == "kakan":
+                current_hand[seat] = current_hand[seat].kakan(called_tile)
+            elif event_type == "ankan":
+                current_hand[seat] = current_hand[seat].add_call(CallInfo("ankan", called_tile, Dir.SELF, [called_tile]*4))
+            elif event_type == "kita":
+                current_hand[seat] = current_hand[seat].kita()
+            current_hand[seat] = current_hand[seat].remove(called_tile)
+            # check if anyone's tenpai and had their waits erased by ankan
+            if event_type == "ankan":
+                tile = normalize_red_five(called_tile)
+                for player in range(num_players):
+                    if seat == player:
+                        continue
+                    if Flags.YOU_REACHED_TENPAI in flags[player]:
+                        last_tenpai_data = data[player][len(flags[player]) - 1 - flags[player][::-1].index(Flags.YOU_REACHED_TENPAI)]
+                        wait = last_tenpai_data["wait"]
+                        ukeire = last_tenpai_data["ukeire"]
+                        if tile in wait:
+                            add_flag(player, Flags.ANKAN_ERASED_TENPAI_WAIT, {"tile": tile, "wait": wait, "caller": seat, "ukeire": ukeire})
         elif event_type in {"discard", "riichi"}:
             tile = event_data[0]
+            current_hand[seat] = current_hand[seat].remove(tile)
             num_discards[seat] += 1
             last_discard[seat] = tile
             last_discard_was_riichi[seat] = event_type == "riichi"
@@ -215,6 +296,10 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             if event_type == "riichi":
                 in_riichi[seat] = True
                 add_flag(seat, Flags.YOU_DECLARED_RIICHI)
+                # if there's a triple riichi, give Flags.AGAINST_TRIPLE_RIICHI to the non-riichi person
+                if sum(1 for b in in_riichi if b) == 3:
+                    non_riichi_seat = next(i for i, b in enumerate(in_riichi) if b == False)
+                    add_flag(non_riichi_seat, Flags.AGAINST_TRIPLE_RIICHI)
             # check if this is the deal-in tile
             is_last_discard_of_the_game = i == max(kyoku.final_discard_event_index)
             if is_last_discard_of_the_game and kyoku.result[0] == "ron":
@@ -225,6 +310,23 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                 # check if we're tenpai and this would have been our last discard before noten payments
                 if already_tenpai and tiles_in_wall <= 3:
                     add_flag(seat, Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT, {"tile": tile})
+            # check if this was tsumogiri honors
+            is_tsumogiri = tile == last_draw[seat]
+            if 41 <= tile <= 47 and is_tsumogiri:
+                tsumogiri_honor_discards[seat] += 1
+                if tsumogiri_honor_discards[seat] >= 6:
+                    add_flag(seat, Flags.SIX_DISCARDS_TSUMOGIRI_HONOR, {"num_discards": tsumogiri_honor_discards})
+            else:
+                tsumogiri_honor_discards[seat] = 0
+            # check if this was tsumogiri while not in tenpai
+            if Flags.YOU_REACHED_TENPAI not in flags[seat] and is_tsumogiri:
+                tsumogiri_without_tenpai[seat] += 1
+                if tsumogiri_without_tenpai[seat] >= 6:
+                    add_flag(seat, Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI, {"num_discards": tsumogiri_without_tenpai})
+            else:
+                tsumogiri_without_tenpai[seat] = 0
+
+            # 
         elif event_type == "end_nagashi":
             who, reason, tile = event_data
             nagashi[who] = False
@@ -236,19 +338,27 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                     add_flag(who, Flags.YOUR_LAST_NAGASHI_TILE_CALLED, {"tile": tile, "caller": seat})
         elif event_type == "haipai":
             hand = event_data[0]
+            current_hand.append(Hand(hand))
+            # check if we have at least 7 terminal/honor tiles
             num_types = len(set(hand) & YAOCHUUHAI) # of terminal/honor tiles
             if num_types >= 7:
                 add_flag(seat, Flags.SEVEN_TERMINAL_START, {"num_types": num_types})
-        elif event_type == "haipai_shanten":
-            shanten[seat] = event_data[0]
-            if shanten[seat][0] >= 5:
-                add_flag(seat, Flags.FIVE_SHANTEN_START, {"shanten": shanten[seat]})
+            # check if we have a 5 shanten start
+            if current_hand[seat].shanten[0] >= 5:
+                add_flag(seat, Flags.FIVE_SHANTEN_START, {"shanten": current_hand[seat].shanten})
+            # check if we started with 3 dora
+            starting_dora = sum(hand.count(dora) for dora in kyoku.starting_doras)
+            if starting_dora >= 3:
+                add_flag(seat, Flags.STARTED_WITH_3_DORA, {"num": starting_dora})
+            # check if we started with at least two 1-4-7 shapes
+            num_147_shapes = sum(1 for suit in (MANZU, PINZU, SOUZU)
+                                   if tuple(tile // 10 for tile in hand if tile in suit) in {(1,4,7),(2,5,8),(3,6,9)})
+            if num_147_shapes >= 2:
+                add_flag(seat, Flags.STARTED_WITH_TWO_147_SHAPES, {"hand": hand, "num": num_147_shapes})
+
         elif event_type == "shanten_change":
             prev_shanten, new_shanten, hand, ukeire, furiten = event_data
-            assert type(hand) == Hand, "TODO"
-            assert shanten[seat][0] != 99, f"missing haipai_shanten event before a shanten_change event"
             assert new_shanten[0] >= 0, f"somehow shanten for seat {seat} was {new_shanten[0]}"
-            shanten[seat] = new_shanten
             draws_since_shanten_change[seat] = 0
             # record past waits if we've changed from tenpai
             if prev_shanten[0] == 0:
@@ -292,6 +402,18 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                 # check for first row tenpai
                 if num_discards[seat] <= 6:
                     add_flag(seat, Flags.FIRST_ROW_TENPAI, {"seat": seat, "turn": num_discards[seat]})
+                # check if we started from 5-shanten and reached tenpai
+                # add a flag to everyone who had a 3-shanten start but couldn't reach tenpai
+                if Flags.FIVE_SHANTEN_START in flags[seat]:
+                    for player in range(num_players):
+                        if seat == player:
+                            continue
+                        if kyoku.haipai[player].shanten[0] <= 3 and Flags.YOU_REACHED_TENPAI not in flags[player]:
+                            add_flag(player, Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN,
+                                             {"seat": seat,
+                                              "your_shanten": kyoku.haipai[player].shanten[0],
+                                              "their_shanten": kyoku.haipai[seat].shanten[0]})
+
                 # check if you entered tenpai on your last discard
                 was_last_discard_of_the_game = i >= kyoku.final_discard_event_index[seat]
                 if was_last_discard_of_the_game:
@@ -305,6 +427,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                     del flags[seat][ix]
                     del data[seat][ix]
 
+                # check if we are mangan+ tenpai
                 is_haitei = kyoku.tiles_in_wall == 0
                 best_score, takame = get_takame_score(hand = hand,
                                                       events = kyoku.events,
@@ -313,12 +436,8 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                                                       round = kyoku.round,
                                                       seat = seat,
                                                       is_haitei = is_haitei)
-                # if seat == 2 and (kyoku.round, kyoku.honba) == (6, 1):
-                #     print(seat, round_name(kyoku.round, kyoku.honba), best_score.yaku)
                 han = best_score.han
                 fu = best_score.fu
-
-                # check if we are mangan+ tenpai
                 if han >= 5 or is_mangan(han, fu):
                     hand_str = hand.print_hand_details(ukeire=ukeire, final_tile=None, furiten=furiten)
                     add_flag(seat, Flags.YOU_HAD_LIMIT_TENPAI,
@@ -328,6 +447,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                                     "yaku_str": ", ".join(name for name, value in best_score.yaku),
                                     "han": han,
                                     "fu": fu})
+                # check if we are yakuman tenpai
                 if han >= 13 and not any(y in map(TRANSLATE.get, YAKUMAN.values()) for y, _ in best_score.yaku):
                     # TODO filter for only the waits that let you reach kazoe yakuman
                     waits = new_shanten[1]
@@ -346,6 +466,14 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                 add_flag(seat, Flags.YOU_AVOIDED_LAST_PLACE, {})
             if new > old: # dropped placement
                 add_flag(seat, Flags.YOU_DROPPED_PLACEMENT, {"old": old, "new": new, "prev_scores": prev_scores, "delta_scores": delta_scores})
+        elif event_type == "start_game":
+            # check if anyone's starting shanten is 2 worse than everyone else
+            starting_shanten = [kyoku.haipai[player].shanten[0] // 1 for player in range(num_players)]
+            get_starting_shanten = lambda player: kyoku.haipai[player].shanten[0] // 1
+            for player in range(num_players):
+                second_worst_shanten = max(get_starting_shanten(other_player) for other_player in range(num_players) if player != other_player)
+                if get_starting_shanten(player) > second_worst_shanten:
+                    add_flag(player, Flags.DREW_WORST_HAIPAI_SHANTEN, {"shanten": kyoku.haipai[player].shanten, "second_worst_shanten": second_worst_shanten})
         elif event_type == "end_game":
             for seat in range(num_players):
                 if last_discard_was_riichi[seat]:

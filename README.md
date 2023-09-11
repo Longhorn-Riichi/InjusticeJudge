@@ -17,6 +17,22 @@ Analyzes your tenhou.net game to find instances of mahjong injustice. Currently,
 - You reached yakuman tenpai and did not win
 - You got head bumped
 - You were haneman+ tenpai but someone else won with a below-mangan hand
+- You dropped placement only because the winner got ura
+- You had a (good) 4+ sided wait and didn't win
+- You dealt into chankan while tenpai
+- You had an early 8 outs ryanmen (or better) and never folded, but didn't win
+- You keep drawing honor tiles that you discard immediately (6+ times)
+- You draw and discard the same tile 6 times in a row (not in tenpai)
+- You started with a shanten 2 worse than every other player
+- You discarded dora and immediately drew dora after
+- Your turn was skipped by pon/kan 3 or more times
+- Your tenpai wait was damaged by someone calling ankan
+- You are going for honitsu but drew 6+ off-suit tiles in a row
+- You started with a 1-4-7 shape in more than one suit
+- You're still 4-shanten or worse after the first row of discards
+- You had to deal with a triple riichi in which you are the one not in riichi (and you dealt in)
+- You started with 3+ dora while 4th place, but then someone else won
+- Someone with a 5-shanten start (or worse) reaches tenpai before your 3-shanten start (or better)
 
 __Note__: This program was explicitly written to
 
@@ -72,4 +88,3 @@ To do this:
 
 ## High level TODOs
 
-- detect when your big tenpai hand is destroyed by a low value hand

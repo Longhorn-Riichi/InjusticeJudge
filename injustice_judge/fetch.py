@@ -86,10 +86,10 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.round, kyoku.honba, kyoku.start_scores = event_data
                 kyoku.num_players = metadata.num_players
                 kyoku.tiles_in_wall = 70 if kyoku.num_players == 4 else 55
-                kyoku.doras = [DORA[d] for d in dora_indicators] + ([51, 52, 53] if metadata.use_red_fives else [])
+                kyoku.starting_doras = [DORA[d] for d in dora_indicators] + ([51, 52, 53] if metadata.use_red_fives else [])
+                kyoku.doras = kyoku.starting_doras.copy()
                 kyoku.uras = [DORA[d] for d in ura_indicators]
                 kyoku.haipai_ukeire = [hand.ukeire(dora_indicators[:num_doras]) for hand in kyoku.hands]
-                kyoku.events.extend((seat, "haipai_shanten", hand.shanten) for seat, hand in enumerate(kyoku.hands))
             elif event_type == "draw":
                 tile = event_data[0]
                 kyoku.hands[seat] = kyoku.hands[seat].add(tile)

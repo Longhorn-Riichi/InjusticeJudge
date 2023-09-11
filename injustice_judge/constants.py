@@ -14,6 +14,10 @@ from typing import *
 #  DORA_INDICATOR: map from a dora to its indicator
 #            DORA: map from a dora indicator to its indicated dora
 # TOGGLE_RED_FIVE: maps a five to its red equivalent and vice versa
+#           MANZU: a set of all manzu tiles
+#           PINZU: a set of all pinzu tiles
+#           SOUZU: a set of all souzu tiles
+#           JIHAI: a set of all honor tiles
 #      YAOCHUUHAI: a set of all terminal and honor tiles
 #       TANYAOHAI: a set of all 2-8 tiles
 #    KO_RON_SCORE: nondealer ron score for a given han and fu
@@ -26,7 +30,7 @@ from typing import *
 
 SHANTEN_NAMES = {
     0: "tenpai",
-    1: "unknown iishanten", # unused
+    1: "iishanten", # used when we round down iishanten
     1.200: "kokushi musou iishanten",
     1.010: "headless iishanten",
     1.020: "kuttsuki iishanten",
@@ -310,6 +314,10 @@ DORA = {0:0,11:12,12:13,13:14,14:15,15:16,16:17,17:18,18:19,19:11, # get dora, g
             31:32,32:33,33:34,34:35,35:36,36:37,37:38,38:39,39:31,
             41:42,42:43,43:44,44:41,45:46,46:47,47:45,51:16,52:26,53:36}
 TOGGLE_RED_FIVE = {15:51,25:52,35:53,51:15,52:25,53:35}
+MANZU = {11,12,13,14,15,16,17,18,19,51}
+PINZU = {21,22,23,24,25,26,27,28,29,52}
+SOUZU = {31,32,33,34,35,36,37,38,39,53}
+JIHAI = {41,42,43,44,45,46,47}
 YAOCHUUHAI = {11,19,21,29,31,39,41,42,43,44,45,46,47}
 TANYAOHAI = {12,13,14,15,16,17,18,22,23,24,25,26,27,28,32,33,34,35,36,37,38}
 

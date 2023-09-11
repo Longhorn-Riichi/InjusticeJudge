@@ -356,11 +356,13 @@ class Kyoku:
 
     # doras include the round doras AND the red fives; there can be multiple of the same dora tile
     doras: List[int]                              = field(default_factory=list)
+    starting_doras: List[int]                     = field(default_factory=list)
     uras: List[int]                               = field(default_factory=list)
 
     # The result of the kyoku in the format (type, result object(s))
-    # either ("ron", Ron(...), ...) for a (double, triple) ron
+    # either ("ron", Ron(...), ...) for a (single, double, triple) ron
     #     or ("tsumo", Tsumo(...)) for a tsumo
+    #     or ("ryuukyoku", Draw(...)) for a ryuukyoku
     #     or ("draw", Draw(...)) for a draw
     result: Tuple[Any, ...]                       = ()
 
