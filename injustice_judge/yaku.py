@@ -692,6 +692,7 @@ def get_yaku(hand: Hand,
              round: int,
              seat: int,
              is_haitei: bool,
+             num_players: int,
              check_rons: bool = True,
              check_tsumos: bool = True) -> Dict[int, Score]:
     if hand.shanten[0] != 0:
@@ -753,16 +754,16 @@ def get_yaku(hand: Hand,
                 han = sum(b for _, b in yaku_for_wait[wait])
                 ron_fu = interpretation.ron_fu + shanpon_fu[wait]
                 fixed_fu = fixed_fu or (30 if ron_fu == 20 else None) # open pinfu ron = 30
-                add_best_score(wait, Score(yaku_for_wait[wait], han, fixed_fu or round_fu(ron_fu), False, interpretation, hand))
+                add_best_score(wait, Score(yaku_for_wait[wait], han, fixed_fu or round_fu(ron_fu), seat == round%4, False, num_players, interpretation, hand))
             if check_tsumos:
                 han = sum(b for _, b in tsumo_yaku[wait])
                 if is_closed_hand:
                     tsumo_fu = interpretation.tsumo_fu + 2*shanpon_fu[wait]
                     fixed_fu = fixed_fu or (20 if ("pinfu", 1) in tsumo_yaku[wait] else None) # closed pinfu tsumo = 20
-                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), True, interpretation, hand))
+                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), seat == round%4, True, num_players, interpretation, hand))
                 else:
                     tsumo_fu = interpretation.tsumo_fu + 2*shanpon_fu[wait]
-                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), True, interpretation, hand))
+                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), seat == round%4, True, num_players, interpretation, hand))
         # for k, v in best_score.items():
         #     print(f"{pt(k)}, {v!s}")
         # print("========")
@@ -780,6 +781,7 @@ def get_final_yaku(kyoku: Kyoku,
                    round = kyoku.round,
                    seat = seat,
                    is_haitei = kyoku.tiles_in_wall == 0,
+                   num_players = kyoku.num_players,
                    check_rons = check_rons,
                    check_tsumos = check_tsumos)
     return ret
@@ -814,7 +816,8 @@ def get_takame_score(hand: Hand,
                      uras: List[int],
                      round: int,
                      seat: int,
-                     is_haitei: bool) -> Tuple[Score, int]:
+                     is_haitei: bool,
+                     num_players: int) -> Tuple[Score, int]:
     assert hand.shanten[0] == 0
     
     # if no calls, use tsumo score. else, get ron score
@@ -826,6 +829,7 @@ def get_takame_score(hand: Hand,
                                         round = round,
                                         seat = seat,
                                         is_haitei = is_haitei,
+                                        num_players = num_players,
                                         check_rons = calls_present,
                                         check_tsumos = not calls_present)
     best_score, takame = max((score, wait) for wait, score in scores.items())
@@ -843,6 +847,7 @@ def get_takame_score(hand: Hand,
                                                 round = round,
                                                 seat = seat,
                                                 is_haitei = is_haitei,
+                                                num_players = num_players,
                                                 check_rons = True,
                                                 check_tsumos = False)
         best_ron_score, ron_takame = max((score, wait) for wait, score in ron_scores.items())

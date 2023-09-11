@@ -205,7 +205,7 @@ def parse_result(result: List[Any], round: int, num_players: int, hand_is_hidden
     if result_type == "和了":
         rons: List[Ron] = []
         for [score_delta, tenhou_result_list] in scores:
-            [winner, won_from, _, _, *yaku_strs] = tenhou_result_list
+            [winner, won_from, pao_seat, _, *yaku_strs] = tenhou_result_list
             kwargs = {
                 "score_delta": score_delta,
                 "winner": winner,
@@ -213,7 +213,8 @@ def parse_result(result: List[Any], round: int, num_players: int, hand_is_hidden
                 "score": Score.from_tenhou_list(tenhou_result_list=tenhou_result_list,
                                                 round=round,
                                                 num_players=num_players,
-                                                kita=kita_counts[winner])
+                                                kita=kita_counts[winner]),
+                "pao_from": None if winner == pao_seat else pao_seat,
             }
             if winner == won_from: # tsumo
                 return ("tsumo", Tsumo(**kwargs))
@@ -463,14 +464,18 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 elif han >= 6 or is_mangan(han, h.fu):
                     score_string = LIMIT_HANDS[han]
                 point_string = f"{h.point_rong}点"
-                if h.zimo:
-                    if h.point_zimo_qin > 0:
-                        point_string = f"{h.point_zimo_xian}-{h.point_zimo_qin}点"
-                    else:
-                        point_string = f"{h.point_zimo_xian}点∀"
+                pao_seat = h.seat
+                if h.baopai > 0:
+                    pao_seat = h.baopai - 1
+                else:
+                    if h.zimo:
+                        if h.point_zimo_qin > 0:
+                            point_string = f"{h.point_zimo_xian}-{h.point_zimo_qin}点"
+                        else:
+                            point_string = f"{h.point_zimo_xian}点∀"
                 yakus = [name for _, name in sorted((fan.id, f"{YAKU_NAMES[fan.id]}({'役満' if fan.id in YAKUMAN.keys() else str(fan.val)+'飜'})") for fan in h.fans if fan.val)]
                 result.append(list(action.delta_scores))
-                result.append([h.seat, last_seat, h.seat, score_string+point_string, *yakus])
+                result.append([h.seat, last_seat, pao_seat, score_string+point_string, *yakus])
                 dora_indicators = majsoul_hand_to_tenhou(h.doras)
                 ura_indicators = majsoul_hand_to_tenhou(h.li_doras)
             end_round(result)

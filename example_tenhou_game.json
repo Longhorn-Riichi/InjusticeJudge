@@ -60,9 +60,11 @@
             [13, 42, 43, "c282729", 27, 23, 31, 33, 19, 19],
             [44, 60, 60, 26, 60, 60, 24, 60, 60, 31],
             ["和了", [-12300, 15300, 0, 0], // score deltas
-                [1, 0, 1, // player who won, player who dealt in, player who won (again?)
-                    "満貫12000点", // is mangan
-                    "立直(1飜)", "一発(1飜)", "役牌 白(1飜)", "赤ドラ(1飜)"]
+                [1, // winner's seat
+                 0, // player who dealt in (for tsumo, this is the winner's seat)
+                 1, // player who paid pao (otherwise, this is the winner's seat)
+                 "満貫12000点", // is mangan
+                 "立直(1飜)", "一発(1飜)", "役牌 白(1飜)", "赤ドラ(1飜)"]
             ]
         ],
         [

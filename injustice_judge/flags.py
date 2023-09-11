@@ -467,7 +467,8 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                                                       uras = kyoku.uras,
                                                       round = kyoku.round,
                                                       seat = seat,
-                                                      is_haitei = is_haitei)
+                                                      is_haitei = is_haitei,
+                                                      num_players = kyoku.num_players)
                 han = best_score.han
                 fu = best_score.fu
                 if han >= 5 or is_mangan(han, fu):

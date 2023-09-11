@@ -180,7 +180,7 @@ class Score:
     fu: int                     # total fu for some interpretation of the hand
     is_dealer: bool             # whether it was dealer win (for calculating points)
     tsumo: bool                 # whether it was a tsumo (for calculating points)
-    num_players: Optional[int]  # number of players (for calculating tsumo points)
+    num_players: int            # number of players (for calculating tsumo points)
     def __hash__(self):
         return hash((self.fu, tuple(self.yaku)))
     def __lt__(self, other):
@@ -214,21 +214,33 @@ class Score:
             return oya + (self.num_players-2)*ko
         else:
             return (OYA_RON_SCORE if self.is_dealer else KO_RON_SCORE)[self.han][self.fu]  # type: ignore[index]
-    def to_score_deltas(self, round: int, honba: int, winners: List[int], payer: int) -> List[int]:
+    def to_score_deltas(self, round: int, honba: int, winners: List[int], payer: int, pao_seat: Optional[int] = None) -> List[int]:
         score_deltas = [0]*self.num_players
-        if self.tsumo:
-            assert len(winners) == 1
-            for payer in {0,1,2,3} - {winners[0]}:
-                oya_payment = (winners[0] == round%4) or (payer == round%4)
-                score_deltas[payer] -= (OYA_TSUMO_SCORE if oya_payment else KO_TSUMO_SCORE)[self.han][self.fu]  # type: ignore[index]
-                score_deltas[payer] -= 100 * honba
-            score_deltas[payer] -= sum(score_deltas)
+        if pao_seat is not None:
+            assert len(winners) == 1, "don't know how to handle pao when there's a multiple ron"
+            winner = winners[0]
+            oya_payment = winner == round%4
+            points = (OYA_RON_SCORE if oya_payment else KO_RON_SCORE)[self.han][self.fu]  # type: ignore[index]
+            score_deltas[winner] += points
+            if self.tsumo:
+                score_deltas[pao_seat] -= points
+            else:
+                score_deltas[payer] -= points//2
+                score_deltas[pao_seat] -= points//2
         else:
-            for winner in winners:
-                oya_payment = winner == round%4
-                score_deltas[winner] += (OYA_RON_SCORE if oya_payment else KO_RON_SCORE)[self.han][self.fu]  # type: ignore[index]
-                score_deltas[winner] += 300 * honba
-            score_deltas[winner] -= sum(score_deltas)
+            if self.tsumo:
+                assert len(winners) == 1
+                for payer in {0,1,2,3} - {winners[0]}:
+                    oya_payment = (winners[0] == round%4) or (payer == round%4)
+                    score_deltas[payer] -= (OYA_TSUMO_SCORE if oya_payment else KO_TSUMO_SCORE)[self.han][self.fu]  # type: ignore[index]
+                    score_deltas[payer] -= 100 * honba
+                score_deltas[payer] -= sum(score_deltas)
+            else:
+                for winner in winners:
+                    oya_payment = winner == round%4
+                    score_deltas[winner] += (OYA_RON_SCORE if oya_payment else KO_RON_SCORE)[self.han][self.fu]  # type: ignore[index]
+                    score_deltas[winner] += 300 * honba
+                score_deltas[winner] -= sum(score_deltas)
         return score_deltas
     def has_riichi(self):
         return ("riichi", 1) in self.yaku
@@ -314,6 +326,7 @@ class Win:
     winner: int             # winner's seat (0-3)
     dama: bool              # whether it was a dama hand or not
     score: Score            # Score object (contains han, fu, score, and yaku list)
+    pao_from: Optional[int] # if not None, it's the seat that pays pao (sekinin barai)
 @dataclass(frozen = True)
 class Ron(Win):
     """Parsed version of a single tenhou ron result"""
