@@ -383,10 +383,10 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             if starting_dora >= 3:
                 add_flag(seat, Flags.STARTED_WITH_3_DORA, {"num": starting_dora})
             # check if we started with at least two 1-4-7 shapes
-            num_147_shapes = sum(1 for suit in (MANZU, PINZU, SOUZU)
-                                   if tuple(tile // 10 for tile in hand if tile in suit) in {(1,4,7),(2,5,8),(3,6,9)})
-            if num_147_shapes >= 2:
-                add_flag(seat, Flags.STARTED_WITH_TWO_147_SHAPES, {"hand": hand, "num": num_147_shapes})
+            # num_147_shapes = sum(1 for suit in (MANZU, PINZU, SOUZU)
+            #                        if tuple(tile // 10 for tile in hand if tile in suit) in {(1,4,7),(2,5,8),(3,6,9)})
+            # if num_147_shapes >= 2:
+            #     add_flag(seat, Flags.STARTED_WITH_TWO_147_SHAPES, {"hand": hand, "num": num_147_shapes})
 
         elif event_type == "shanten_change":
             prev_shanten, new_shanten, hand, ukeire, furiten = event_data

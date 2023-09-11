@@ -157,7 +157,7 @@ def injustice(require: List[Flags] = [], forbid: List[Flags] = []) -> Callable[[
 
 # Print if you started with atrocious shanten and couldn't gain points as a result
 @injustice(require=[Flags.FIVE_SHANTEN_START],
-            forbid=[Flags.YOU_GAINED_POINTS])
+            forbid=[Flags.YOU_GAINED_POINTS, Flags.DREW_WORST_HAIPAI_SHANTEN])
 def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
     shanten = data[flags.index(Flags.FIVE_SHANTEN_START)]["shanten"]
     return [Injustice(round_number, honba, "Injustice",
@@ -177,16 +177,16 @@ def seven_terminal_start(flags: List[Flags], data: List[Dict[str, Any]], round_n
                                 content=f"{num_types} types of terminal/honor tiles"))]
     return []
 
-@injustice(require=[Flags.STARTED_WITH_TWO_147_SHAPES],
-            forbid=[])
-def started_with_two_147_shapes(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    hand = data[flags.index(Flags.STARTED_WITH_TWO_147_SHAPES)]["hand"]
-    num = data[flags.index(Flags.STARTED_WITH_TWO_147_SHAPES)]["num"]
-    return [Injustice(round_number, honba, "Injustice",
-            InjusticeClause(subject="you",
-                            verb="started with",
-                            object=f"{num} 1-4-7 shapes",
-                            content=f"in your hand ({ph(hand)})"))]
+# @injustice(require=[Flags.STARTED_WITH_TWO_147_SHAPES],
+#             forbid=[])
+# def started_with_two_147_shapes(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
+#     hand = data[flags.index(Flags.STARTED_WITH_TWO_147_SHAPES)]["hand"]
+#     num = data[flags.index(Flags.STARTED_WITH_TWO_147_SHAPES)]["num"]
+#     return [Injustice(round_number, honba, "Injustice",
+#             InjusticeClause(subject="you",
+#                             verb="started with",
+#                             object=f"{num} 1-4-7 shapes",
+#                             content=f"in your hand ({ph(hand)})"))]
 
 # Print if you were still at bad shanten after the first row of discards and couldn't gain points as a result
 @injustice(require=[Flags.FOUR_SHANTEN_AFTER_FIRST_ROW],
@@ -207,13 +207,12 @@ def drew_worst_shanten_by_far(flags: List[Flags], data: List[Dict[str, Any]], ro
     difference = (shanten[0]//1) - second_worst_shanten
     if difference >= 2:
         return [Injustice(round_number, honba, "Injustice",
-                InjusticeClause(subject=f"your {shanten_name(shanten)} start",
-                                verb=f"was {difference} worse than",
-                                object=f"everyone else's starting shanten",
-                                content=f"(their worst was {SHANTEN_NAMES[second_worst_shanten]})"))]
+                InjusticeClause(subject=f"you",
+                                verb=f"started with",
+                                content=f"{shanten_name(shanten)}, while everyone else started with {SHANTEN_NAMES[second_worst_shanten]} or better"))]
     else:
         return []
-
+# you started with 5-shanten while everyone else started with 3-shanten or better
 ###
 ### mid game injustices
 ###
