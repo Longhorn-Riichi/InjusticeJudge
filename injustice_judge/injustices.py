@@ -156,10 +156,20 @@ def injustice(require: List[Flags] = [], forbid: List[Flags] = []) -> Callable[[
 ###
 
 # Print if you started with atrocious shanten and couldn't gain points as a result
+@injustice(require=[Flags.DREW_WORST_HAIPAI_SHANTEN],
+            forbid=[Flags.YOU_GAINED_POINTS])
 @injustice(require=[Flags.FIVE_SHANTEN_START],
             forbid=[Flags.YOU_GAINED_POINTS, Flags.DREW_WORST_HAIPAI_SHANTEN])
 def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    shanten = data[flags.index(Flags.FIVE_SHANTEN_START)]["shanten"]
+    shanten: Tuple[int, List[int]] = data[flags.index(Flags.FIVE_SHANTEN_START)]["shanten"]
+    if Flags.DREW_WORST_HAIPAI_SHANTEN in flags:
+        second_worst_shanten: int = data[flags.index(Flags.DREW_WORST_HAIPAI_SHANTEN)]["second_worst_shanten"]
+        difference = (shanten[0]//1) - second_worst_shanten
+        if difference >= 2:
+            return [Injustice(round_number, honba, "Injustice",
+                    InjusticeClause(subject=f"you",
+                                    verb=f"started with",
+                                    content=f"{shanten_name(shanten)}, while everyone else started with {SHANTEN_NAMES[second_worst_shanten]} or better"))]
     return [Injustice(round_number, honba, "Injustice",
             InjusticeClause(subject="you",
                             verb="started with",
@@ -199,20 +209,6 @@ def four_shanten_after_first_row(flags: List[Flags], data: List[Dict[str, Any]],
                             object=shanten_name(shanten),
                             content="after the first row of discards"))]
 
-@injustice(require=[Flags.DREW_WORST_HAIPAI_SHANTEN],
-            forbid=[])
-def drew_worst_shanten_by_far(flags: List[Flags], data: List[Dict[str, Any]], round_number: int, honba: int, player: int) -> List[Injustice]:
-    shanten: Tuple[int, List[int]] = data[flags.index(Flags.DREW_WORST_HAIPAI_SHANTEN)]["shanten"]
-    second_worst_shanten: int = data[flags.index(Flags.DREW_WORST_HAIPAI_SHANTEN)]["second_worst_shanten"]
-    difference = (shanten[0]//1) - second_worst_shanten
-    if difference >= 2:
-        return [Injustice(round_number, honba, "Injustice",
-                InjusticeClause(subject=f"you",
-                                verb=f"started with",
-                                content=f"{shanten_name(shanten)}, while everyone else started with {SHANTEN_NAMES[second_worst_shanten]} or better"))]
-    else:
-        return []
-# you started with 5-shanten while everyone else started with 3-shanten or better
 ###
 ### mid game injustices
 ###
