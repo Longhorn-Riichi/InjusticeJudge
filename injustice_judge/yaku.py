@@ -2,7 +2,7 @@ from typing import *
 from .classes import Event, Hand, Kyoku, YakuForWait, Score, Interpretation
 from .constants import LIMIT_HANDS, PRED, SUCC, YAOCHUUHAI
 from .shanten import get_tenpai_waits
-from .utils import fix, get_score, get_taatsu_wait, is_mangan, pt, ph, print_hand_details_seat, normalize_red_five, normalize_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles
+from .utils import fix, get_score, get_taatsu_wait, is_mangan, pt, ph, normalize_red_five, normalize_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles
 from pprint import pprint
 
 # This file details some algorithms for checking the yaku of a given `Hand` object.
@@ -874,12 +874,18 @@ def get_takame_score(hand: Hand,
 ###
 
 def debug_yaku(kyoku):
+    def print_hand_details_given_seat(kyoku, seat, print_final_tile=False):
+        final_tile = None if not print_final_tile else kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw
+        return kyoku.hands[seat].print_hand_details(
+                ukeire=kyoku.final_ukeire[seat],
+                final_tile=final_tile,
+                furiten=kyoku.furiten[seat])
     if kyoku.result[0] in {"ron", "tsumo"}:
         w = kyoku.result[1].winner
         is_dealer = w == kyoku.round % 4
         ron_score = get_final_yaku(kyoku, w, True, False)
         tsumo_score = get_final_yaku(kyoku, w, False, True)
-        print(f"{round_name(kyoku.round, kyoku.honba)} | seat {w} {print_hand_details_seat(kyoku, w)} | dora {ph(kyoku.doras)} ura {ph(kyoku.uras)}")
+        print(f"{round_name(kyoku.round, kyoku.honba)} | seat {w} {print_hand_details_given_seat(kyoku, w)} | dora {ph(kyoku.doras)} ura {ph(kyoku.uras)}")
         final_tile = kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw
         print(f"actual    | {kyoku.result[0]} {pt(final_tile)} giving {kyoku.result[1].score.to_points()} with yaku {kyoku.result[1].yaku.yaku_strs}")
         if kyoku.result[0] == "ron":

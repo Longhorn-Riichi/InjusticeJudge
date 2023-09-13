@@ -4,7 +4,7 @@ import functools
 from typing import *
 
 from .constants import LIMIT_HANDS, TOGGLE_RED_FIVE, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
-from .utils import is_mangan, ph, pt, pt_sideways, normalize_red_five, normalize_red_fives, shanten_name, sorted_hand, translate_tenhou_yaku, try_remove_all_tiles
+from .utils import is_mangan, ph, pt, normalize_red_five, normalize_red_fives, shanten_name, sorted_hand, translate_tenhou_yaku, try_remove_all_tiles
 from .shanten import calculate_shanten
 
 # This file contains most of the classes used in InjusticeJudge.
@@ -32,15 +32,14 @@ class CallInfo:
         tile = as_dora(self.tile)
         # other_tiles is all the non-called tiles in the call
         other_tiles = try_remove_all_tiles(tiles, (tile,))
-        assert tile is not None, "CallInfo has a `None` tile??"
-        sideways = pt_sideways(tile)
+        sideways = pt(tile, is_sideways=True)
         if self.type == "ankan":
             if any(tile in {51,52,53} for tile in tiles):
                 return ph((50, TOGGLE_RED_FIVE[tile], tile, 50))
             else:
                 return ph((50, tile, tile, 50))
         elif self.type == "kakan": # print two consecutive sideways tiles
-            sideways = pt_sideways(other_tiles[0]) + sideways
+            sideways = pt(other_tiles[0], is_sideways=True) + sideways
             other_tiles = other_tiles[1:]
         if self.dir == Dir.SHIMOCHA:
             return ph(other_tiles) + sideways
@@ -387,10 +386,12 @@ class Kyoku:
     # this is represented by several lists indexed by seat, below
     # `hands` keeps track of hand, calls, shanten
     hands: List[Hand]                             = field(default_factory=list)
-    # `pond` keeps track of all discards so far
+    # `pond` keeps track of all discards so far by each player
     pond: List[List[int]]                         = field(default_factory=list)
     # `furiten` keeps track of whether a player is in furiten
     furiten: List[bool]                           = field(default_factory=list)
+    # `riichi_index` keeps track of which tile in `pond` is the riichi discard
+    riichi_index: List[Optional[int]]             = field(default_factory=list)
 
     # we also keep track of some facts for each player
     # store the scores of each player at the beginning of the kyoku

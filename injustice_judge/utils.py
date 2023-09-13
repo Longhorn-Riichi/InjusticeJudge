@@ -9,10 +9,10 @@ import os
 # The goal is to move these someday, so they're not really documented right now.
 
 ###
-### utility functions
+### printing functions
 ###
 
-def pt_unicode(tile: int) -> str:
+def pt_unicode(tile: int, is_sideways: bool = False) -> str:
     """print tile (2-char representation)"""
     TILE_REPRS = "🀇🀈🀉🀊🀋🀌🀍🀎🀏🀙🀚🀛🀜🀝🀞🀟🀠🀡🀐🀑🀒🀓🀔🀕🀖🀗🀘🀀🀁🀂🀃🀆🀅🀄︎"
     is_dora = tile >= 100
@@ -39,10 +39,12 @@ def pt_unicode(tile: int) -> str:
     elif tile == 53:
         ret = "🀔·"
     if is_dora:
-        return ret + "\u20f0" # combining asterisk
+        ret += "\u20f0" # combining asterisk
+    if is_sideways:
+        ret = f"₍{ret}₎"
     return ret
 
-def pt_discord(tile: int, is_sideways=False) -> str:
+def pt_discord(tile: int, is_sideways: bool = False) -> str:
     if tile >= 100:
         # tile is dora
         tile -= 100
@@ -56,17 +58,22 @@ def pt_discord(tile: int, is_sideways=False) -> str:
         else: 
             return DISCORD_TILES[tile]
 
-pt = lambda tile: pt_discord(tile) if os.getenv("use_discord_tile_emoji") == "True" else pt_unicode(tile)
-pt_sideways = lambda tile: pt_discord(tile, True) if os.getenv("use_discord_tile_emoji") == "True" else f"₍{pt_unicode(tile)}₎"
+# print tile, print hand
+pt = lambda tile, is_sideways=False: pt_discord(tile, is_sideways) if os.getenv("use_discord_tile_emoji") == "True" else pt_unicode(tile, is_sideways)
+ph = lambda hand, doras=[]: "".join(map(pt, map(lambda tile: tile + 100 if tile in doras else tile, hand)))
 
-def print_hand_details_seat(kyoku, seat, print_final_tile=False):
-    final_tile = None if not print_final_tile else kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw
-    return kyoku.hands[seat].print_hand_details(
-            ukeire=kyoku.final_ukeire[seat],
-            final_tile=final_tile,
-            furiten=kyoku.furiten[seat])
+def print_pond(pond: Iterable[int], doras: List[int] = [], riichi_index: Optional[int] = None) -> str:
+    if riichi_index is None:
+        return ph(pond, doras)
+    else:
+        i = riichi_index
+        pond = tuple(pond)
+        return ph(pond[:i], doras) + pt(pond[i], is_sideways=True) + ph(pond[i+1:], doras)
 
-ph = lambda hand: "".join(map(pt, hand)) # print hand
+###
+### all other functions
+###
+
 normalize_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else tile
 normalize_red_fives = lambda hand: map(normalize_red_five, hand)
 sorted_hand = lambda hand: tuple(sorted(hand, key=normalize_red_five))

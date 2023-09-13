@@ -79,6 +79,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.hands.append(hand)
                 kyoku.pond.append([])
                 kyoku.furiten.append(False)
+                kyoku.riichi_index.append(None)
                 kyoku.haipai.append(hand)
                 kyoku.final_draw_event_index.append(-1)
                 kyoku.final_discard_event_index.append(-1)
@@ -100,6 +101,10 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 assert len(kyoku.hands[seat].tiles) == 14
             elif event_type in {"discard", "riichi"}: # discards
                 tile, *_ = event_data
+                # save riichi index
+                if event_type == "riichi":
+                    kyoku.riichi_index[seat] = len(kyoku.pond[seat])
+                # update hand
                 old_shanten = kyoku.hands[seat].shanten
                 kyoku.hands[seat] = kyoku.hands[seat].remove(tile)
                 kyoku.final_discard = tile

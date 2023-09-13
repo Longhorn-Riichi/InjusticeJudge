@@ -2,7 +2,7 @@ from .classes import CallInfo, Dir, Hand, Kyoku, Ron, Tsumo
 from .constants import DORA_INDICATOR, MANZU, PINZU, SOUZU, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from enum import Enum
 from typing import *
-from .utils import get_majority_suit, is_mangan, normalize_red_five, round_name, to_placement, translate_tenhou_yaku
+from .utils import get_majority_suit, is_mangan, normalize_red_five, print_pond, round_name, to_placement, translate_tenhou_yaku
 from .wwyd import is_safe
 from .yaku import get_final_yaku, get_score, get_takame_score
 from pprint import pprint
@@ -198,7 +198,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
     # respects_riichi[riichi_player][respecting_player] = True/False if the first discard after riichi was a dangerous/safe tile
     respects_riichi: List[List[Optional[bool]]] = [[None]*num_players for player in range(num_players)]
     # dangerous_draws_after_riichi[seat] increments by one whenever you have no safe tiles after riichi and draw a dangerous tile
-    dangerous_draws_after_riichi: List[int] = [0]*num_players
+    dangerous_draws_after_riichi: List[List[int]] = [list() for player in range(num_players)]
     revealed_doras = 0
     get_visible_tiles = lambda seat: visible_tiles + list(current_hand[seat].tiles_with_kans) + [DORA_INDICATOR[dora] for dora in kyoku.doras[len(kyoku.starting_doras)+revealed_doras:]]
 
@@ -252,7 +252,9 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                 # tick up a counter if you drew off-suit tiles in a row
                 consecutive_off_suit_tiles[seat].append(tile)
                 if len(consecutive_off_suit_tiles[seat]) >= 6:
-                    add_flag(seat, Flags.BAD_HONITSU_DRAWS, {"tiles": consecutive_off_suit_tiles[seat]})
+                    add_flag(seat, Flags.BAD_HONITSU_DRAWS,
+                                   {"tiles": consecutive_off_suit_tiles[seat],
+                                    "hand": current_hand[seat]})
             else:
                 consecutive_off_suit_tiles[seat] = []
             # check if we're still 4-shanten or worse after the first row of discards
@@ -269,9 +271,13 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                     continue
                 check_safety = lambda t: is_safe(t, current_pond[opponent], get_visible_tiles(seat))
                 if b and not check_safety(tile) and not any(check_safety(t) for t in current_hand[seat].tiles):
-                    dangerous_draws_after_riichi[seat] += 1
-                    if dangerous_draws_after_riichi[seat] >= 4:
-                        add_flag(seat, Flags.FOUR_DANGEROUS_DRAWS_AFTER_RIICHI, {"num": dangerous_draws_after_riichi[seat], "opponent": opponent})
+                    dangerous_draws_after_riichi[seat].append(tile)
+                    if len(dangerous_draws_after_riichi[seat]) >= 4:
+                        add_flag(seat, Flags.FOUR_DANGEROUS_DRAWS_AFTER_RIICHI,
+                                       {"tiles": dangerous_draws_after_riichi[seat],
+                                        "opponent": opponent,
+                                        "pond_str": print_pond(kyoku.pond[opponent], kyoku.doras, kyoku.riichi_index[opponent])
+                                        })
         elif event_type in {"chii", "pon", "minkan"}:
             called_tile, call_tiles, call_dir = event_data
             if event_type != "minkan":
