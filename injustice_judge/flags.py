@@ -267,7 +267,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             if 1 <= current_hand[seat].shanten[0] < 2:
                 ukeire = current_hand[seat].ukeire(get_visible_tiles(seat))
                 if ukeire == 0:
-                    add_flag(seat, Flags.IISHANTEN_WITH_0_TILES)
+                    add_flag(seat, Flags.IISHANTEN_WITH_0_TILES, {"shanten": current_hand[seat].shanten})
             # check if there's a riichi and we drew a dangerous tile and we have no safe tiles
             for opponent, b in enumerate(in_riichi):
                 if seat == opponent:

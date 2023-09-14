@@ -517,9 +517,13 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
     if is_chankan:
         for wait in waits:
             yaku_for_wait[wait].append(("chankan", 1))
+        is_haitei = False
+        is_houtei = False
     if is_rinshan:
         for wait in waits:
             yaku_for_wait[wait].append(("rinshan", 1))
+        is_haitei = False
+        is_houtei = False
 
     # yakuhai: if your tenpai hand has three, then you just have yakuhai for any wait
     # alternatively if your tenpai hand has two, then any wait matching that has yakuhai
@@ -582,7 +586,7 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
     elif is_houtei:
         for wait in waits:
             yaku_for_wait[wait].append(("houtei", 1))
-    assert [is_rinshan, is_chankan, is_haitei, is_houtei].count(True) <= 1, "rinshan, chankan, haitei, and houtei should be exclusive"
+    assert [is_rinshan, is_chankan, is_haitei, is_houtei].count(True) <= 1, f"rinshan, chankan, haitei, and houtei should be exclusive {[is_rinshan, is_chankan, is_haitei, is_houtei]}"
     return yaku_for_wait
 
 # literally only menzentsumo, sanankou, and haitei depend on tsumo to achieve
