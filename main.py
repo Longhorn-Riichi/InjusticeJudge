@@ -13,7 +13,7 @@ if __name__ == "__main__":
     player = int(sys.argv[2]) if len(sys.argv) == 3 else None
     assert link != "", "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
     assert player in {0,1,2,3,None}, "expected second argument to be 0,1,2,3"
-    print("\n".join(asyncio.run(analyze_game(link, player))))
+    print("\n".join(asyncio.run(analyze_game(link, player, look_for={"injustice", "skill"}))))
 
     # from injustice_judge.yaku import test_get_yakuman_tenpais
     # test_get_yakuman_tenpais()
