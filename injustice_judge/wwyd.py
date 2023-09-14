@@ -19,4 +19,9 @@ def is_safe(tile: int, opponent_pond: List[int], visible_tiles: List[int]) -> bo
         possible_taatsus = ((PRED[PRED[tile]], PRED[tile]), (PRED[tile], SUCC[tile]), (SUCC[tile], SUCC[SUCC[tile]]))
         if all(any(visible_tiles.count(tile) >= 3 for tile in taatsu) for taatsu in possible_taatsus if 0 not in taatsu):
             return True
+    else:
+        # check if there's 3 copies already
+        if visible_tiles.count(tile) >= 3:
+            return True
+
     return False
