@@ -1,5 +1,5 @@
 from .classes import CallInfo, Dir, Hand, Kyoku, Ron, Tsumo
-from .constants import DORA_INDICATOR, MANZU, PINZU, SOUZU, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
+from .constants import DORA, DORA_INDICATOR, MANZU, PINZU, SOUZU, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from enum import Enum
 from typing import *
 from .utils import get_majority_suit, is_mangan, normalize_red_five, print_pond, round_name, to_placement, translate_tenhou_yaku
@@ -59,7 +59,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " SIX_TSUMOGIRI_WITHOUT_TENPAI"
     " SOMEONE_REACHED_TENPAI"
     " STARTED_WITH_3_DORA"
-    " STARTED_WITH_TWO_147_SHAPES"
+    # " STARTED_WITH_TWO_147_SHAPES"
     " TENPAI_ON_LAST_DISCARD"
     " TURN_SKIPPED_BY_PON"
     " WINNER"
@@ -85,6 +85,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_DEALT_INTO_IPPATSU"
     " YOU_DECLARED_RIICHI"
     " YOU_DREW_PREVIOUSLY_WAITED_TILE"
+    " YOU_GAINED_PLACEMENT"
     " YOU_DROPPED_PLACEMENT"
     " YOU_FLIPPED_DORA_BOMB"
     " YOU_FOLDED_FROM_TENPAI"
@@ -102,6 +103,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_WERE_SECOND"
     " YOU_WERE_THIRD"
     " YOU_WERE_FOURTH"
+    " YOU_WON"
     " YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN"
     " YOUR_LAST_DISCARD_ENDED_NAGASHI"
     " YOUR_LAST_NAGASHI_TILE_CALLED"
@@ -180,6 +182,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
     # - YOU_REACHED_YAKUMAN_TENPAI
     # - YOU_FLIPPED_DORA_BOMB
     # - YOU_AVOIDED_LAST_PLACE
+    # - YOU_GAINED_PLACEMENT
     # - YOU_DROPPED_PLACEMENT
     # - LAST_DISCARD_WAS_RIICHI
     current_hand: List[Hand] = []
@@ -199,8 +202,8 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
     respects_riichi: List[List[Optional[bool]]] = [[None]*num_players for player in range(num_players)]
     # dangerous_draws_after_riichi[seat] increments by one whenever you have no safe tiles after riichi and draw a dangerous tile
     dangerous_draws_after_riichi: List[List[int]] = [list() for player in range(num_players)]
-    revealed_doras = 0
-    get_visible_tiles = lambda seat: visible_tiles + list(current_hand[seat].tiles_with_kans) + [DORA_INDICATOR[dora] for dora in kyoku.doras[len(kyoku.starting_doras)+revealed_doras:]]
+    current_doras = [kyoku.doras[0]]
+    get_visible_tiles = lambda seat: visible_tiles + list(current_hand[seat].tiles_with_kans) + [DORA_INDICATOR[dora] for dora in kyoku.doras[len(kyoku.starting_doras)+len(current_doras):]]
 
     debug_prev_flag_len = [0]*num_players
     debug_prev_global_flag_len = 0
@@ -494,10 +497,12 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                     waits = new_shanten[1]
                     add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": {f"kazoe yakuman ({', '.join(y for y, _ in best_score.yaku)})"}, "waits": waits})
         elif event_type == "dora_indicator":
-            dora_indicator, kan_tile = event_data
-            # check if the dora indicator is the kan tile
-            if dora_indicator == kan_tile:
-                add_flag(seat, Flags.YOU_FLIPPED_DORA_BOMB)
+            dora_indicator, kan_call = event_data
+            dora = DORA[dora_indicator]
+            current_doras.append(dora)
+            # check if that just gave us 4 dora
+            if current_hand[seat].tiles_with_kans.count(dora) == 4:
+                add_flag(seat, Flags.YOU_FLIPPED_DORA_BOMB, {"doras": list(current_doras), "call": kan_call, "hand": current_hand[seat]})
         elif event_type == "yakuman_tenpai":
             yakuman_types, yakuman_waits = event_data
             add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": yakuman_types, "waits": yakuman_waits})
@@ -507,6 +512,8 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                 add_flag(seat, Flags.YOU_AVOIDED_LAST_PLACE, {})
             if new > old: # dropped placement
                 add_flag(seat, Flags.YOU_DROPPED_PLACEMENT, {"old": old, "new": new, "prev_scores": prev_scores, "delta_scores": delta_scores})
+            elif new < old: # gained placement
+                add_flag(seat, Flags.YOU_GAINED_PLACEMENT, {"old": old, "new": new, "prev_scores": prev_scores, "delta_scores": delta_scores})
         elif event_type == "start_game":
             # check if anyone's starting shanten is 2 worse than everyone else
             starting_shanten = [kyoku.haipai[player].shanten[0] // 1 for player in range(num_players)]
@@ -519,10 +526,6 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             for seat in range(num_players):
                 if last_discard_was_riichi[seat]:
                     add_flag(seat, Flags.LAST_DISCARD_WAS_RIICHI, {})
-
-        # add another dora
-        if event_type in {"minkan", "ankan", "kakan"}:
-            revealed_doras += 1
 
 
     # Finally, look at kyoku.result. This determines flags related to:
@@ -623,6 +626,7 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                            "hand": winning_hand}
             for flag in limit_hand_flags:
                 add_global_flag(flag, winner_data)
+            add_flag(result.winner, Flags.YOU_WON, winner_data)
             if kyoku.final_ukeire[result.winner] <= 4:
                 add_global_flag(Flags.WINNER_HAD_BAD_WAIT, winner_data)
             # check for 3+ han from hidden dora

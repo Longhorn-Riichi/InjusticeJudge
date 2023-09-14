@@ -87,8 +87,8 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.round, kyoku.honba, kyoku.riichi_sticks, kyoku.start_scores = event_data
                 kyoku.num_players = metadata.num_players
                 kyoku.tiles_in_wall = 70 if kyoku.num_players == 4 else 55
-                kyoku.starting_doras = [DORA[d] for d in dora_indicators] + ([51, 52, 53] if metadata.use_red_fives else [])
-                kyoku.doras = kyoku.starting_doras.copy()
+                kyoku.doras = [DORA[d] for d in dora_indicators] + ([51, 52, 53] if metadata.use_red_fives else [])
+                kyoku.starting_doras = [DORA[dora_indicators[0]]] + ([51, 52, 53] if metadata.use_red_fives else [])
                 kyoku.uras = [DORA[d] for d in ura_indicators]
                 kyoku.haipai_ukeire = [hand.ukeire(dora_indicators[:num_doras]) for hand in kyoku.hands]
             elif event_type == "draw":
@@ -183,7 +183,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 called_tile, call_tiles, call_dir = event_data
                 # might not have another dora if we get rinshan right after this
                 if num_doras < len(dora_indicators):
-                    kyoku.events.append((seat, "dora_indicator", dora_indicators[num_doras], called_tile))
+                    kyoku.events.append((seat, "dora_indicator", dora_indicators[num_doras], CallInfo(event_type, called_tile, call_dir, call_tiles)))
                 num_doras += 1
 
         assert len(kyoku.hands) > 0, f"somehow we never initialized the kyoku at index {len(kyokus)}"

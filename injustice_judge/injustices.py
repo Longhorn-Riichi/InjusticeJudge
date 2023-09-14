@@ -164,13 +164,60 @@ skill = make_check_decorator("skill")
 ### skills
 ###
 
-# Print if you won the game
-@skill(require=[Flags.WINNER, Flags.YOU_GAINED_POINTS])
-def won_game(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+# # Print if you won the game
+# @skill(require=[Flags.WINNER, Flags.YOU_GAINED_POINTS])
+# def won_game(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+#     return [Skill(kyoku.round, kyoku.honba, "Skill",
+#             CheckClause(subject="you",
+#                         verb="won",
+#                         object="the round"))]
+
+# TODO:
+# you head bump'd someone (hard)
+# you chased someone and they dealt into you on ippatsu
+# you got tenpai payments by getting tenpai in the last draw
+# you were tenpai, changed your wait and immediately won
+# you won a hell wait
+
+@skill(require=[Flags.YOU_GAINED_POINTS, Flags.WINNER_GOT_YAKUMAN])
+def got_yakuman(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    yaku = data[flags.index(Flags.WINNER_GOT_YAKUMAN)]["score_object"].yaku
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+        CheckClause(subject="you",
+                    verb="got",
+                    content=f"yakuman ({', '.join(y for y, _ in yaku)})"))]
+
+# Print if you ever called kan and got 4 dora
+@skill(require=[Flags.YOU_FLIPPED_DORA_BOMB])
+def won_with_3_ura(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    doras = data[flags.index(Flags.YOU_FLIPPED_DORA_BOMB)]["doras"]
+    call = data[flags.index(Flags.YOU_FLIPPED_DORA_BOMB)]["call"]
+    hand = data[flags.index(Flags.YOU_FLIPPED_DORA_BOMB)]["hand"]
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="your kan call",
+                        subject_description=call.to_str(doras=doras),
+                        verb="gave you",
+                        content=f"four dora {pt(doras[-1]+100)} in hand {hand.to_str(doras=doras)}"))]
+
+# Print if you started with 3 dora and won with 3 dora
+@skill(require=[Flags.STARTED_WITH_3_DORA, Flags.YOU_WON])
+def won_with_3_starting_dora(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    num_dora = data[flags.index(Flags.YOU_WON)]["score_object"].count_dora()
+    starting_dora = sorted(tile for tile in kyoku.haipai[player].tiles if tile in kyoku.starting_doras)
+    ending_dora = sorted(tile for tile in kyoku.hands[player].tiles if tile in kyoku.doras)
     return [Skill(kyoku.round, kyoku.honba, "Skill",
             CheckClause(subject="you",
-                        verb="won",
-                        object="the round"))]
+                        verb="started with",
+                        content=f"at least 3 dora ({ph(starting_dora)}), and won with {num_dora} dora ({ph(ending_dora)})"))]
+
+# Print if you got out of last place in the final round
+@skill(require=[Flags.FINAL_ROUND, Flags.YOU_WERE_FOURTH, Flags.YOU_GAINED_PLACEMENT])
+def got_out_of_last_place(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    new = data[flags.index(Flags.YOU_GAINED_PLACEMENT)]["new"]
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="climbed out of",
+                        content=f"4th place (to {PLACEMENTS[new]})"))]
 
 ###
 ### early game injustices

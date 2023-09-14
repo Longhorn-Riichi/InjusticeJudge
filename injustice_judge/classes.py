@@ -78,7 +78,7 @@ class Hand:
         super().__setattr__("tiles", sorted_hand(self.tiles))
         super().__setattr__("open_part", tuple(tile for call in self.calls for tile in call.tiles[:3]))
         super().__setattr__("hidden_part", _hidden_part(self.tiles, self.open_part))
-        super().__setattr__("tiles_with_kan", (*self.hidden_part, *(tile for call in self.calls for tile in call.tiles)))
+        super().__setattr__("tiles_with_kans", (*self.hidden_part, *(tile for call in self.calls for tile in call.tiles)))
         # for closed part, add any ankan back in as triplets
         closed_part = self.hidden_part
         for call in self.calls:
