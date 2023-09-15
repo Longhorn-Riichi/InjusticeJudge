@@ -247,7 +247,9 @@ def get_hand_interpretations(hand: Hand, yakuhai: Tuple[int, ...]) -> Set[Interp
             if len(triplets) == 0: # all sequences
                 # check that it's a tanki overlapping a sequence
                 has_pair = False
-                for t1,t2,t3 in sequences:
+                for i, (t1,t2,t3) in enumerate(sequences):
+                    remaining_seqs = (*sequences[:i], *sequences[i+1:])
+
                     if tanki == t1 and PRED[t1] != 0:
                         ryanmen = (t2,t3)
                     elif tanki == t3 and SUCC[t3] != 0:
@@ -258,7 +260,7 @@ def get_hand_interpretations(hand: Hand, yakuhai: Tuple[int, ...]) -> Set[Interp
                         has_pair = True
                         break
                 if has_pair == True:
-                    interpretations.add(Interpretation(ryanmen, 30, 22, sequences, triplets, (tanki, tanki), calls=frozen_hand_calls))
+                    interpretations.add(Interpretation(ryanmen, 30, 22, remaining_seqs, triplets, (tanki, tanki), calls=frozen_hand_calls))
 
             
 
@@ -298,6 +300,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
                  *(tile for seq in sequences for tile in seq),
                  *(tile for tri in triplets for tile in tri),
                  *(() if pair is None else pair))
+    assert len(full_hand) == 13, f"somehow got a length {len(full_hand)} hand"
     ctr = Counter(full_hand)
     count_of_counts = Counter(ctr.values())
 
