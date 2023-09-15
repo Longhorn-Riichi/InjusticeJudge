@@ -329,7 +329,7 @@ class Win:
 @dataclass(frozen = True)
 class Ron(Win):
     """Parsed version of a single tenhou ron result"""
-    won_from: int # loser's seat (0-3)
+    won_from: int           # loser's seat (0-3)
 @dataclass(frozen = True)
 class Tsumo(Win):
     """Parsed version of a tenhou tsumo result"""

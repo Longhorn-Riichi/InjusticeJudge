@@ -174,10 +174,51 @@ skill = make_check_decorator("skill")
 
 # TODO:
 # you head bump'd someone (hard)
-# you chased someone and they dealt into you on ippatsu
-# you got tenpai payments by getting tenpai in the last draw
-# you were tenpai, changed your wait and immediately won
-# you won a hell wait
+
+@skill(require=[Flags.YOU_WON])
+def won_hell_wait(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    ukeire = data[flags.index(Flags.YOU_WON)]["ukeire"]
+    winning_tile = data[flags.index(Flags.YOU_WON)]["winning_tile"]
+    if ukeire == 1:
+        return [Skill(kyoku.round, kyoku.honba, "Skill",
+                CheckClause(subject="you",
+                            verb="won",
+                            content=f"a hell wait on {pt(winning_tile + 100 if winning_tile in kyoku.doras else winning_tile)}"))]
+    else:
+        return []
+
+@skill(require=[Flags.YOU_WON, Flags.WINNER_WON_AFTER_CHANGING_WAIT])
+def won_after_changing_wait(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    hand_before = data[flags.index(Flags.WINNER_WON_AFTER_CHANGING_WAIT)]["hand_before"]
+    hand_after = data[flags.index(Flags.WINNER_WON_AFTER_CHANGING_WAIT)]["hand_after"]
+    winning_tile = data[flags.index(Flags.WINNER_WON_AFTER_CHANGING_WAIT)]["winning_tile"]
+    doras = data[flags.index(Flags.WINNER_WON_AFTER_CHANGING_WAIT)]["doras"]
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+        CheckClause(subject="you",
+                    verb="changed your hand's wait from",
+                    content=f"{ph(hand_before.prev_shanten[1], doras=doras)} to {ph(hand_before.shanten[1], doras=doras)} and immediately won on {pt(winning_tile + 100 if winning_tile in doras else winning_tile)}"))]
+
+@skill(require=[Flags.LAST_DRAW_TENPAI, Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.YOU_GAINED_POINTS])
+def last_draw_tenpai(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+        CheckClause(subject="you",
+                    verb="reached",
+                    content="tenpai on the very last draw and got noten payments for it"))]
+
+@skill(require=[Flags.YOU_CHASED, Flags.YOU_RONNED_SOMEONE, Flags.WINNER_GOT_IPPATSU])
+def won_chase_with_ippatsu(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    chased_player = data[flags.index(Flags.YOU_CHASED)]["seat"]
+    deal_in_player = data[flags.index(Flags.YOU_RONNED_SOMEONE)]["from"]
+    if chased_player == deal_in_player:
+        return [Skill(kyoku.round, kyoku.honba, "Major skill",
+            CheckClause(subject="you",
+                        verb="chased",
+                        content=f"{relative_seat_name(player, chased_player)}'s tenpai and they immediately dealt into you with ippatsu"))]
+    else:
+        return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="got",
+                        content=f"ippatsu after chasing {relative_seat_name(player, chased_player)}'s tenpai"))]
 
 @skill(require=[Flags.YOU_GAINED_POINTS, Flags.WINNER_GOT_YAKUMAN])
 def got_yakuman(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
@@ -507,22 +548,22 @@ def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]],
 
 # Print if you dealt into a double ron, dama, haitei/houtei, or ippatsu
 # Or if you dealt in while tenpai, right before you would have received tenpai payments
-@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_INTO_DAMA])
-@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_INTO_IPPATSU], forbid=[Flags.YOU_DEALT_INTO_DAMA])
-@injustice(require=[Flags.WINNER, Flags.WINNER_GOT_HAITEI, Flags.GAME_ENDED_WITH_RON, Flags.YOU_LOST_POINTS], forbid=[Flags.YOU_DEALT_INTO_DAMA, Flags.YOU_DEALT_INTO_IPPATSU])
-@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_INTO_DOUBLE_RON], forbid=[Flags.YOU_DEALT_INTO_DAMA, Flags.YOU_DEALT_INTO_IPPATSU, Flags.WINNER_GOT_HAITEI])
-@injustice(require=[Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT], forbid=[Flags.YOU_DEALT_INTO_DAMA, Flags.YOU_DEALT_INTO_IPPATSU, Flags.WINNER_GOT_HAITEI, Flags.YOU_DEALT_INTO_DOUBLE_RON])
+@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_IN, Flags.WINNER_WAS_DAMA])
+@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_IN, Flags.WINNER_GOT_IPPATSU], forbid=[Flags.WINNER_WAS_DAMA])
+@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_IN, Flags.WINNER_GOT_HAITEI], forbid=[Flags.WINNER_WAS_DAMA, Flags.WINNER_GOT_IPPATSU])
+@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_IN, Flags.MULTIPLE_RON], forbid=[Flags.WINNER_WAS_DAMA, Flags.WINNER_GOT_IPPATSU, Flags.WINNER_GOT_HAITEI])
+@injustice(require=[Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT], forbid=[Flags.WINNER_WAS_DAMA, Flags.WINNER_GOT_IPPATSU, Flags.WINNER_GOT_HAITEI, Flags.MULTIPLE_RON])
 def dealt_into_something_dumb(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     winner = data[flags.index(Flags.WINNER)]["seat"]
     score = data[flags.index(Flags.WINNER)]["score_object"].to_points()
-    is_dama = Flags.YOU_DEALT_INTO_DAMA in flags
-    is_ippatsu = Flags.YOU_DEALT_INTO_IPPATSU in flags
+    is_dama = Flags.WINNER_WAS_DAMA in flags
+    is_ippatsu = Flags.WINNER_GOT_IPPATSU in flags
     is_haitei = Flags.WINNER_GOT_HAITEI in flags
-    is_double = Flags.YOU_DEALT_INTO_DOUBLE_RON in flags
+    is_double = Flags.MULTIPLE_RON in flags
 
     content = ""
     if is_double:
-        number = data[flags.index(Flags.YOU_DEALT_INTO_DOUBLE_RON)]["number"]
+        number = data[flags.index(Flags.MULTIPLE_RON)]["number"]
         content += "double" if number == 2 else "triple"
     else:
         content += f"{relative_seat_name(player, winner)}'s {score} point"

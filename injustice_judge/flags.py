@@ -39,6 +39,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " CHASER_LOST_POINTS"
     " DREW_WORST_HAIPAI_SHANTEN"
     " EVERYONE_DISRESPECTED_YOUR_RIICHI"
+    " FINAL_ROUND"
     " FIRST_ROW_TENPAI"
     " FIVE_SHANTEN_START"
     " FOUR_DANGEROUS_DRAWS_AFTER_RIICHI"
@@ -52,15 +53,15 @@ Flags = Enum("Flags", "_SENTINEL"
     " IMMEDIATELY_DREW_DISCARDED_DORA"
     " IMMEDIATELY_DREW_DISCARDED_TILE"
     " LAST_DISCARD_WAS_RIICHI"
-    " FINAL_ROUND"
+    " LAST_DRAW_TENPAI"
     " LOST_POINTS_TO_FIRST_ROW_WIN"
+    " MULTIPLE_RON"
     " NINE_DRAWS_NO_IMPROVEMENT"
     " SEVEN_TERMINAL_START"
     " SIX_DISCARDS_TSUMOGIRI_HONOR"
     " SIX_TSUMOGIRI_WITHOUT_TENPAI"
     " SOMEONE_REACHED_TENPAI"
     " STARTED_WITH_3_DORA"
-    # " STARTED_WITH_TWO_147_SHAPES"
     " TENPAI_ON_LAST_DISCARD"
     " TURN_SKIPPED_BY_PON"
     " WINNER"
@@ -68,6 +69,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " WINNER_GOT_HAITEI"
     " WINNER_GOT_HANEMAN"
     " WINNER_GOT_HIDDEN_DORA_3"
+    " WINNER_GOT_IPPATSU"
     " WINNER_GOT_KAN_DORA_BOMB"
     " WINNER_GOT_MANGAN"
     " WINNER_GOT_SANBAIMAN"
@@ -75,22 +77,21 @@ Flags = Enum("Flags", "_SENTINEL"
     " WINNER_GOT_YAKUMAN"
     " WINNER_HAD_BAD_WAIT"
     " WINNER_IPPATSU_TSUMO"
+    " WINNER_WAS_DAMA"
     " WINNER_WAS_FURITEN"
+    " WINNER_WON_AFTER_CHANGING_WAIT"
     " YOU_ACHIEVED_NAGASHI"
     " YOU_ARE_DEALER"
     " YOU_AVOIDED_LAST_PLACE"
     " YOU_CHASED"
     " YOU_DEALT_IN"
     " YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT"
-    " YOU_DEALT_INTO_DAMA"
-    " YOU_DEALT_INTO_DOUBLE_RON"
-    " YOU_DEALT_INTO_IPPATSU"
     " YOU_DECLARED_RIICHI"
     " YOU_DREW_PREVIOUSLY_WAITED_TILE"
-    " YOU_GAINED_PLACEMENT"
     " YOU_DROPPED_PLACEMENT"
     " YOU_FLIPPED_DORA_BOMB"
     " YOU_FOLDED_FROM_TENPAI"
+    " YOU_GAINED_PLACEMENT"
     " YOU_GAINED_POINTS"
     " YOU_GOT_CHASED"
     " YOU_HAD_LIMIT_TENPAI"
@@ -99,6 +100,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_REACHED_YAKUMAN_TENPAI"
     " YOU_RONNED_SOMEONE"
     " YOU_TENPAI_FIRST"
+    # " STARTED_WITH_TWO_147_SHAPES"
     " YOU_TSUMOED"
     " YOU_WAITED_ON_WINNING_TILE"
     " YOU_WERE_FIRST"
@@ -371,7 +373,7 @@ class KyokuInfo:
                     continue
                 if Flags.YOU_REACHED_TENPAI in self.flags[other]:
                     other_data = self.data[other][len(self.flags[other]) - 1 - self.flags[other][::-1].index(Flags.YOU_REACHED_TENPAI)]
-                    self.add_flag(other, Flags.YOU_CHASED,
+                    self.add_flag(seat, Flags.YOU_CHASED,
                                          {"your_seat": seat,
                                           "your_hand": hand,
                                           "your_ukeire": hand.ukeire(self.get_visible_tiles(seat)),
@@ -400,6 +402,9 @@ class KyokuInfo:
         # check for first row tenpai
         if self.at[seat].num_discards <= 6:
             self.add_flag(seat, Flags.FIRST_ROW_TENPAI, {"seat": seat, "turn": self.at[seat].num_discards})
+        # check for last draw tenpai
+        if self.tiles_in_wall <= 3:
+            self.add_flag(seat, Flags.LAST_DRAW_TENPAI, {"seat": seat, "turn": self.at[seat].num_discards})
         # check if we started from 5-shanten and reached tenpai
         # add a flag to everyone who had a 3-shanten start but couldn't reach tenpai
         if Flags.FIVE_SHANTEN_START in self.flags[seat]:
@@ -578,17 +583,13 @@ class KyokuInfo:
         # check deal-ins
         self.add_flag(ron.winner, Flags.YOU_RONNED_SOMEONE, {"from": ron.won_from})
         self.add_flag(ron.won_from, Flags.YOU_DEALT_IN, {"to": ron.winner})
-        for seat in range(self.num_players):
-            if ron.score_delta[seat] < 0:
-                if not self.at[ron.winner].opened_hand and not self.at[ron.winner].in_riichi:
-                    self.add_flag(seat, Flags.YOU_DEALT_INTO_DAMA, {"seat": ron.winner, "score": ron.score.to_points()})
-                if ron.score.has_ippatsu():
-                    self.add_flag(seat, Flags.YOU_DEALT_INTO_IPPATSU, {"seat": ron.winner, "score": ron.score.to_points()})
-                if num_rons > 1:
-                    self.add_flag(seat, Flags.YOU_DEALT_INTO_DOUBLE_RON, {"number": num_rons})
+        # check for this was after a chase (to see if a chaser won)
         if Flags.YOU_GOT_CHASED in self.flags[ron.won_from]:
             assert Flags.YOU_REACHED_TENPAI in self.flags[ron.won_from], "somehow got YOU_GOT_CHASED without YOU_REACHED_TENPAI"
             self.add_flag(ron.won_from, Flags.CHASER_GAINED_POINTS, {"seat": ron.winner, "amount": ron.score.to_points()})
+        # check for multiple ron
+        if num_rons > 1:
+            self.add_global_flag(Flags.MULTIPLE_RON, {"number": num_rons})
 
     def process_tsumo_result(self, tsumo: Tsumo) -> None:
         self.add_flag(tsumo.winner, Flags.YOU_TSUMOED)
@@ -621,6 +622,8 @@ class KyokuInfo:
                               "hand": self.at[seat].hand})
 
     def process_win_result(self, result: Win, is_tsumo: bool) -> None:
+        winning_tile = self.kyoku.final_draw if is_tsumo else self.kyoku.final_discard
+
         # first check how each player reacts to this win
         for seat in range(self.num_players):
             # check if we lost points to a first row win
@@ -630,7 +633,6 @@ class KyokuInfo:
             # if tenpai, check if the winning tile is in our waits
             # this is useful to find missed/skipped wins, or head bumps
             if self.at[seat].hand.shanten[0] == 0:
-                winning_tile = self.kyoku.final_draw if is_tsumo else self.kyoku.final_discard
                 if normalize_red_five(winning_tile) in self.at[seat].hand.shanten[1]:
                     self.add_flag(seat, Flags.YOU_WAITED_ON_WINNING_TILE, {"tile": winning_tile, "wait": self.at[seat].hand.shanten[1]})
 
@@ -649,19 +651,18 @@ class KyokuInfo:
         # we already take into account if the wait is dora
         #   but we don't check if the winning tile is aka
         #   let's fix it here
-        final_tile = self.kyoku.final_draw if is_tsumo else self.kyoku.final_discard
-        final_tile_is_aka = final_tile in set(self.current_doras) and final_tile in {51,52,53}
-        final_tile = normalize_red_five(final_tile)
-        if final_tile_is_aka:
-            calculated_yaku[final_tile].add_dora("aka", 1)
+        winning_tile_is_aka = winning_tile in set(self.current_doras) and winning_tile in {51,52,53}
+        winning_tile = normalize_red_five(winning_tile)
+        if winning_tile_is_aka:
+            calculated_yaku[winning_tile].add_dora("aka", 1)
 
-        han = calculated_yaku[final_tile].han
-        fu = calculated_yaku[final_tile].fu
+        han = calculated_yaku[winning_tile].han
+        fu = calculated_yaku[winning_tile].fu
         # compare the han values to make sure we calculated it right
         winning_hand = self.at[result.winner].hand
         import os
         if os.getenv("debug"):
-            assert han == expected_han, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong han ({han}) for a {expected_han} han hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[final_tile]}"
+            assert han == expected_han, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong han ({han}) for a {expected_han} han hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[winning_tile]}"
         # compare the resulting score to make sure we calculated it right
         is_dealer = result.winner == self.kyoku.round % 4
         calculated_score = get_score(han, fu, is_dealer, is_tsumo, self.num_players)
@@ -671,7 +672,7 @@ class KyokuInfo:
             if (calculated_score, stored_score) in {(7700, 8000), (7900, 8000), (11600, 12000), (11700, 12000)}: # ignore kiriage mangan differences for now
                 pass
             else:
-                assert calculated_score == stored_score, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong {tsumo_string} score ({calculated_score}) for a {stored_score} point hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[final_tile]}"
+                assert calculated_score == stored_score, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong {tsumo_string} score ({calculated_score}) for a {stored_score} point hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[winning_tile]}"
 
         # Add potentially several WINNER flags depending on the limit hand
         # e.g. haneman wins will get WINNER_GOT_HANEMAN plus all the flags before that
@@ -684,6 +685,7 @@ class KyokuInfo:
                        "hand": winning_hand,
                        "ukeire": self.kyoku.final_ukeire[result.winner],
                        "score_object": result.score,
+                       "winning_tile": winning_tile,
                        "han": han,
                        "fu": fu,
                        "ura": ura}
@@ -694,7 +696,7 @@ class KyokuInfo:
             self.add_global_flag(Flags.WINNER_HAD_BAD_WAIT, winner_data)
         # check for 3+ han from hidden dora
         if result.score.count_dora() >= 3:
-            hidden_hand = (*self.at[result.winner].hand.hidden_part, final_tile)
+            hidden_hand = (*self.at[result.winner].hand.hidden_part, winning_tile)
             hidden_dora_han = sum(hidden_hand.count(dora) for dora in self.current_doras)
             if hidden_dora_han >= 3:
                 self.add_global_flag(Flags.WINNER_GOT_HIDDEN_DORA_3, {"seat": result.winner, "value": hidden_dora_han})
@@ -711,6 +713,19 @@ class KyokuInfo:
                      else ""
             assert haitei_type != "", f"unknown haitei type for yaku {result.score.yaku}"
             self.add_global_flag(Flags.WINNER_GOT_HAITEI, {"seat": result.winner, "yaku": haitei_type})
+        # check for dama
+        if not self.at[result.winner].opened_hand and not self.at[result.winner].in_riichi:
+            self.add_global_flag(Flags.WINNER_WAS_DAMA, {"seat": result.winner, "score": result.score.to_points()})
+        # check for ippatsu
+        if result.score.has_ippatsu():
+            self.add_global_flag(Flags.WINNER_GOT_IPPATSU, {"seat": result.winner, "score": result.score.to_points()})
+        # check if the win was immediately after changing waits
+        if self.at[result.winner].hand.shanten != self.at[result.winner].hand.prev_shanten \
+           and self.at[result.winner].hand.prev_shanten[0] == 0:
+            self.add_global_flag(Flags.WINNER_WON_AFTER_CHANGING_WAIT,
+                                 {"hand": self.at[result.winner].hand,
+                                  "winning_tile": winning_tile,
+                                  "doras": self.current_doras.copy()})
 
 def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]]]:
     """
