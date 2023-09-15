@@ -584,7 +584,7 @@ def your_tenpai_tile_dealt_in(flags: List[Flags], data: List[Dict[str, Any]], ky
 def drew_tile_completing_past_wait(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     tile_data = data[flags.index(Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE)]
     tile = tile_data["tile"]
-    wait = tile_data["hand"].shanten[1]
+    wait = tile_data["wait"]
     shanten = tile_data["shanten"]
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",

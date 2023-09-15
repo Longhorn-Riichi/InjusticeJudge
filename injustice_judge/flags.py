@@ -283,7 +283,7 @@ class KyokuInfo:
                     continue
                 if Flags.YOU_REACHED_TENPAI in self.flags[player]:
                     last_tenpai_data = self.data[player][len(self.flags[player]) - 1 - self.flags[player][::-1].index(Flags.YOU_REACHED_TENPAI)]
-                    wait = last_tenpai_data["wait"]
+                    wait = last_tenpai_data["hand"].shanten[1]
                     ukeire = last_tenpai_data["ukeire"]
                     if tile in wait:
                         self.add_flag(player, Flags.ANKAN_ERASED_TENPAI_WAIT, {"tile": tile, "wait": wait, "caller": seat, "ukeire": ukeire})
