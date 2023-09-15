@@ -9,17 +9,19 @@ from .yaku import get_final_yaku, get_score, get_takame_score, get_yakuman_tenpa
 from pprint import pprint
 
 # This file provides a `Flags` enum and a single function, `determine_flags`,
-#   which is called by `` in `injustices.py`
+#   which is called by `evaluate_injustices` in `injustices.py`
 # 
-# After getting a list of `Kyoku`s from `parse_game_link` in `fetch.py`,
-#   `determine_flags` turns each `Kyoku` into an ordered list of facts about
-#   the `Kyoku` for each player. This is represented by (for each player) a
-#   list of `Flags`, each one corresponding to a fact and each one associated
-#   with some data represented by a `data` dict. The list of `data` dicts is
-#   returned alongside the `flags` list, where the data at index `i`
-#   corresponds to the flag at index `i`. There's no documentation on the
-#   `data` dict associated with each type of flag -- you'll have to go down
-#   and examine the code generating that specific flag.
+# Every flag is generated from an event in Kyoku.events, and the idea in
+#   `determine_flags` is to process the events in order, resulting in an
+#   ordered list of facts about the given `Kyoku`, one for each player.
+#   
+# Flags are represented by a list of `Flags` objects, each one corresponding
+#   to a fact and each one associated with some data represented by a `data`
+#   dict. The list of `data` dicts is returned alongside the `flags` list,
+#   where the data at index `i` corresponds to the flag at index `i`. There's
+#   no documentation on the `data` dict associated with each type of flag --
+#   you'll have to go down and examine the code generating that specific
+#   flag.
 # 
 # The resulting flags are used in `evaluate_injustices` in `injustices.py`,
 #   which checks for combinations of flags that might constitute an injustice.
