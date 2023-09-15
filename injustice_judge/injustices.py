@@ -287,10 +287,9 @@ def four_shanten_after_first_row(flags: List[Flags], data: List[Dict[str, Any]],
 ###
 
 # Print if your tenpai got chased by a worse wait, and they won
-@injustice(require=[Flags.YOU_REACHED_TENPAI,
+@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.WINNER,
                     Flags.YOU_GOT_CHASED, Flags.CHASER_GAINED_POINTS],
-            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.GAME_ENDED_WITH_RYUUKYOKU,
-                    Flags.YOU_GAINED_POINTS])
+            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_GAINED_POINTS])
 def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     chasers: Dict[int, Dict[str, Any]] = {}
     for i in [i for i, f in enumerate(flags) if f == Flags.YOU_GOT_CHASED]:
@@ -299,10 +298,10 @@ def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], k
     ret = []
     for chase_data in chasers.values():
         chaser_seat = chase_data["seat"]
-        chaser_wait = chase_data["wait"]
+        chaser_wait = chase_data["hand"].shanten[1]
         chaser_ukeire = chase_data["ukeire"]
         your_seat = chase_data["your_seat"]
-        your_wait = chase_data["your_wait"]
+        your_wait = chase_data["your_hand"].shanten[1]
         your_ukeire = chase_data["your_ukeire"]
         try:
             winner_seat = data[i+flags[i:].index(Flags.CHASER_GAINED_POINTS)]["seat"]
@@ -515,7 +514,7 @@ def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]],
 @injustice(require=[Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT], forbid=[Flags.YOU_DEALT_INTO_DAMA, Flags.YOU_DEALT_INTO_IPPATSU, Flags.WINNER_GOT_HAITEI, Flags.YOU_DEALT_INTO_DOUBLE_RON])
 def dealt_into_something_dumb(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     winner = data[flags.index(Flags.WINNER)]["seat"]
-    score = data[flags.index(Flags.WINNER)]["score"]
+    score = data[flags.index(Flags.WINNER)]["score_object"].to_points()
     is_dama = Flags.YOU_DEALT_INTO_DAMA in flags
     is_ippatsu = Flags.YOU_DEALT_INTO_IPPATSU in flags
     is_haitei = Flags.WINNER_GOT_HAITEI in flags
@@ -548,7 +547,7 @@ def dealt_into_something_dumb(flags: List[Flags], data: List[Dict[str, Any]], ky
 def someone_got_bad_wait_ippatsu_tsumo(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     win_data = data[flags.index(Flags.WINNER_HAD_BAD_WAIT)]
     winner = win_data["seat"]
-    wait = win_data["wait"]
+    wait = win_data["hand"].shanten[1]
     ukeire = win_data["ukeire"]
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject=relative_seat_name(player, winner),
@@ -585,7 +584,7 @@ def your_tenpai_tile_dealt_in(flags: List[Flags], data: List[Dict[str, Any]], ky
 def drew_tile_completing_past_wait(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     tile_data = data[flags.index(Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE)]
     tile = tile_data["tile"]
-    wait = tile_data["wait"]
+    wait = tile_data["hand"].shanten[1]
     shanten = tile_data["shanten"]
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
@@ -686,14 +685,14 @@ def you_got_head_bumped(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
 # Print if someone else's below-mangan win destroyed your mangan+ tenpai
 @injustice(require=[Flags.YOU_HAD_LIMIT_TENPAI, Flags.WINNER],
             forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_GAINED_POINTS,
-                    Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.WINNER_GOT_MANGAN])
+                    Flags.WINNER_GOT_MANGAN])
 def your_mangan_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     hand_str = data[len(data) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["hand_str"]
     yaku_str = data[len(data) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["yaku_str"]
     limit_name = data[len(data) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["limit_name"]
     han = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["han"]
     fu = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["fu"]
-    score = data[flags.index(Flags.WINNER)]["score"]
+    score = data[flags.index(Flags.WINNER)]["score_object"].to_points()
     winner = data[flags.index(Flags.WINNER)]["seat"]
 
     # it's injustice if haneman+ OR if your mangan lost to something below 3900
@@ -754,10 +753,10 @@ def dropped_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]],
 def four_sided_wait_didnt_win(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     for i, flag in reversed(list(enumerate(flags))):
         if flag == Flags.YOU_REACHED_TENPAI:
-            wait = data[i]["wait"]
+            wait = data[i]["hand"].shanten[1]
             ukeire = data[i]["ukeire"]
             winner = data[flags.index(Flags.WINNER)]["seat"]
-            winner_wait = data[flags.index(Flags.WINNER)]["wait"]
+            winner_wait = data[flags.index(Flags.WINNER)]["hand"].shanten[1]
             winner_ukeire = data[flags.index(Flags.WINNER)]["ukeire"]
             if len(wait) >= 4 and ukeire >= 8 and len(winner_wait) < 4 and winner_ukeire < ukeire:
                 return [Injustice(kyoku.round, kyoku.honba, "Injustice",
@@ -785,7 +784,7 @@ def dealt_into_chankan_while_tenpai(flags: List[Flags], data: List[Dict[str, Any
 # Print if you had an early 8 outs ryanmen (or better) and never folded, but never won
 @injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI, Flags.WINNER],
             forbid=[Flags.YOU_GAINED_POINTS, Flags.YOU_FOLDED_FROM_TENPAI])
-@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI, Flags.GAME_ENDED_WITH_RYUUKYOKU],
+@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI],
             forbid=[Flags.YOU_FOLDED_FROM_TENPAI])
 def your_early_8_outs_wait_never_won(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     for i, flag in enumerate(flags):
