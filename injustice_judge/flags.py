@@ -142,7 +142,7 @@ class KyokuPlayerInfo:
 @dataclass
 class KyokuInfo:
     kyoku: Kyoku
-    num_players: int          = 0
+    num_players: int
     tiles_in_wall: int        = 0
     starting_doras: List[int] = field(default_factory=list)
     current_doras: List[int]  = field(default_factory=list)
@@ -152,59 +152,6 @@ class KyokuInfo:
     data: List[List[Any]]     = field(default_factory=list)
     global_flags: List[Flags] = field(default_factory=list)
     global_data: List[Any]    = field(default_factory=list)
-    def __post_init__(self):
-        self.num_players = self.kyoku.num_players
-        assert self.num_players in {3,4}, f"somehow we have {num_players} players"
-        self.tiles_in_wall = 70 if self.num_players == 4 else 55
-        self.starting_doras = self.kyoku.starting_doras
-        self.current_doras = self.starting_doras.copy()
-        self.flags = [[] for i in range(self.num_players)]
-        self.data = [[] for i in range(self.num_players)]
-
-        debug_prev_flag_len = [0] * self.num_players
-        debug_prev_global_flag_len = 0
-        for i, event in enumerate(self.kyoku.events):
-            seat, event_type, *event_data = event
-
-            # ### DEBUG ###
-            # for i in range(debug_prev_global_flag_len, len(global_flags)):
-            #     print(f"  Added global flag: {global_flags[i]} {global_data[i] if global_data[i] is not None else ''}")
-            # debug_prev_global_flag_len = len(global_flags)
-            # for s in range(self.num_players):
-            #     for i in range(debug_prev_flag_len[s], len(flags[s])):
-            #         print(f"  Added flag for seat {s}: {flags[s][i]} {data[s][i] if data[s][i] is not None else ''}")
-            #     debug_prev_flag_len[s] = len(flags[s])
-            # print(round_name(kyoku.round, kyoku.honba), ":", tiles_in_wall, "tiles left |", event)
-            # ### DEBUG ###
-
-            if event_type == "haipai":
-                self.process_haipai(i, *event)
-            elif event_type == "draw":
-                self.process_draw(i, *event)
-            elif event_type in {"chii", "pon", "minkan"}:
-                self.process_chii_pon_kan(i, *event)
-            elif event_type in {"ankan", "kakan", "kita"}:
-                self.process_self_kan(i, *event)
-            elif event_type in {"discard", "riichi"}:
-                self.process_discard(i, *event[:3]) # riichi has extra args we don't care about
-            elif event_type == "end_nagashi":
-                self.process_end_nagashi(i, *event)
-            elif event_type == "shanten_change":
-                self.process_shanten_change(i, *event)
-                # check for tenpai
-                prev_shanten, new_shanten, hand, ukeire, furiten = event_data
-                if new_shanten[0] == 0:
-                    self.process_tenpai(i, *event)
-            elif event_type == "dora_indicator":
-                self.process_new_dora(i, *event)
-            elif event_type == "placement_change":
-                self.process_placement_change(i, *event)
-            elif event_type == "start_game":
-                # check if anyone's starting shanten is 2 worse than everyone else
-                self.process_start_game(i, *event)
-            elif event_type == "result":
-                self.process_result(i, *event)
-
     def get_visible_tiles(self, seat: int) -> List[int]:
         return self.visible_tiles \
              + list(self.at[seat].hand.tiles_with_kans) \
@@ -625,7 +572,7 @@ class KyokuInfo:
             self.add_global_flag(Flags.GAME_ENDED_WITH_RYUUKYOKU, {"object": draw})
 
         elif result_type == "draw":
-            self.add_global_flag(Flags.GAME_ENDED_WITH_ABORTIVE_DRAW, {"object": kyoku.result[1]})
+            self.add_global_flag(Flags.GAME_ENDED_WITH_ABORTIVE_DRAW, {"object": self.kyoku.result[1]})
 
     def process_ron_result(self, ron: Ron, num_rons: int) -> None:
         # check deal-ins
@@ -770,9 +717,61 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
     Analyze a parsed kyoku by spitting out an ordered list of all interesting facts about it (flags)
     Returns a pair of lists `(flags, data)`, where the nth entry in `data` is the data for the nth flag in `flags`
     """
+    assert kyoku.num_players in {3,4}, f"somehow we have {kyoku.num_players} players"
 
     # get all flags by parsing kyoku events
-    info = KyokuInfo(kyoku = kyoku)
+    info = KyokuInfo(kyoku = kyoku,
+                     num_players = kyoku.num_players,
+                     tiles_in_wall = 70 if kyoku.num_players == 4 else 55,
+                     starting_doras = kyoku.starting_doras.copy(),
+                     current_doras = kyoku.starting_doras.copy(),
+                     flags = [[] for i in range(kyoku.num_players)],
+                     data = [[] for i in range(kyoku.num_players)])
+
+    debug_prev_flag_len = [0] * info.num_players
+    debug_prev_global_flag_len = 0
+    for i, event in enumerate(kyoku.events):
+        seat, event_type, *event_data = event
+
+        # ### DEBUG ###
+        # for i in range(debug_prev_global_flag_len, len(global_flags)):
+        #     print(f"  Added global flag: {global_flags[i]} {global_data[i] if global_data[i] is not None else ''}")
+        # debug_prev_global_flag_len = len(global_flags)
+        # for s in range(kyoku.num_players):
+        #     for i in range(debug_prev_flag_len[s], len(flags[s])):
+        #         print(f"  Added flag for seat {s}: {flags[s][i]} {data[s][i] if data[s][i] is not None else ''}")
+        #     debug_prev_flag_len[s] = len(flags[s])
+        # print(round_name(kyoku.round, kyoku.honba), ":", tiles_in_wall, "tiles left |", event)
+        # ### DEBUG ###
+
+        if event_type == "haipai":
+            info.process_haipai(i, *event)
+        elif event_type == "draw":
+            info.process_draw(i, *event)
+        elif event_type in {"chii", "pon", "minkan"}:
+            info.process_chii_pon_kan(i, *event)
+        elif event_type in {"ankan", "kakan", "kita"}:
+            info.process_self_kan(i, *event)
+        elif event_type in {"discard", "riichi"}:
+            info.process_discard(i, *event[:3]) # riichi has extra args we don't care about
+        elif event_type == "end_nagashi":
+            info.process_end_nagashi(i, *event)
+        elif event_type == "shanten_change":
+            info.process_shanten_change(i, *event)
+            # check for tenpai
+            prev_shanten, new_shanten, hand, ukeire, furiten = event_data
+            if new_shanten[0] == 0:
+                info.process_tenpai(i, *event)
+        elif event_type == "dora_indicator":
+            info.process_new_dora(i, *event)
+        elif event_type == "placement_change":
+            info.process_placement_change(i, *event)
+        elif event_type == "start_game":
+            # check if anyone's starting shanten is 2 worse than everyone else
+            info.process_start_game(i, *event)
+        elif event_type == "result":
+            info.process_result(i, *event)
+
 
     assert len(info.global_flags) == len(info.global_data), f"somehow got a different amount of global flags ({len(info.global_flags)}) than data ({len(info.global_data)})"
     for seat in range(kyoku.num_players):
