@@ -131,7 +131,6 @@ class KyokuPlayerInfo:
     past_waits: List[List[int]]             = field(default_factory=list)
     dangerous_draws_after_riichi: List[int] = field(default_factory=list)
     respects_riichi: List[Optional[bool]]   = field(default_factory=list)
-
     def __post_init__(self):
         # respects_riichi[other_player] =
         #   True if their first discard after our riichi was a safe tile
@@ -141,14 +140,52 @@ class KyokuPlayerInfo:
 
 @dataclass
 class KyokuInfo:
-    tiles_in_wall: int # 70 if num_players == 4 else 55
-    current_doras: List[int]
+    num_players: int
+    starting_doras: List[int]
+    tiles_in_wall: int        = 0
+    current_doras: List[int]  = field(default_factory=list)
     at: List[KyokuPlayerInfo] = field(default_factory=list)
-    visible_tiles: List[int] = field(default_factory=list)
-    def get_visible_tiles(self, seat):
+    visible_tiles: List[int]  = field(default_factory=list)
+    flags: List[List[Flags]]  = field(default_factory=list)
+    data: List[List[Any]]     = field(default_factory=list)
+    global_flags: List[Flags] = field(default_factory=list)
+    global_data: List[Any]    = field(default_factory=list)
+    def __post_init__(self):
+        self.tiles_in_wall = 70 if self.num_players == 4 else 55
+        self.current_doras = self.starting_doras.copy()
+        self.flags = [[] for i in range(self.num_players)]
+        self.data = [[] for i in range(self.num_players)]
+    def get_visible_tiles(self, seat: int) -> List[int]:
         return self.visible_tiles \
              + list(self.at[seat].hand.tiles_with_kans) \
              + [DORA_INDICATOR[dora] for dora in self.current_doras if dora not in {51,52,53}]
+    def add_flag(self, seat: int, flag: Flags, data: Optional[Dict[str, Any]] = None) -> None:
+        self.flags[seat].append(flag)
+        self.data[seat].append(data)
+    def add_global_flag(self, flag: Flags, data: Optional[Dict[str, Any]] = None) -> None:
+        self.global_flags.append(flag)
+        self.global_data.append(data)
+    def process_haipai(self, seat: int, event_type: str, hand: Tuple[int]) -> None:
+        assert len(self.at) == seat, f"got haipai out of order, expected seat {len(self.at)} but got seat {seat}"
+        self.at.append(KyokuPlayerInfo(num_players=self.num_players, hand=Hand(hand)))
+        # check if we have at least 7 terminal/honor tiles
+        num_types = len(set(hand) & YAOCHUUHAI) # of terminal/honor tiles
+        if num_types >= 7:
+            self.add_flag(seat, Flags.SEVEN_TERMINAL_START, {"num_types": num_types})
+        # check if we have a 5 shanten start
+        if self.at[seat].hand.shanten[0] >= 5:
+            self.add_flag(seat, Flags.FIVE_SHANTEN_START, {"shanten": self.at[seat].hand.shanten})
+        # check if we started with 3 dora
+        starting_dora = sum(hand.count(dora) for dora in self.starting_doras)
+        if starting_dora >= 3:
+            self.add_flag(seat, Flags.STARTED_WITH_3_DORA, {"num": starting_dora})
+        # check if we started with at least two 1-4-7 shapes
+        # num_147_shapes = sum(1 for suit in (MANZU, PINZU, SOUZU)
+        #                        if tuple(tile // 10 for tile in hand if tile in suit) in {(1,4,7),(2,5,8),(3,6,9)})
+        # if num_147_shapes >= 2:
+        #     add_flag(seat, Flags.STARTED_WITH_TWO_147_SHAPES, {"hand": hand, "num": num_147_shapes})
+
+
 
 def add_event_flags(kyoku: Kyoku,
                     flags: List[List[Flags]],
@@ -192,8 +229,8 @@ def add_event_flags(kyoku: Kyoku,
     # - YOU_GAINED_PLACEMENT
     # - YOU_DROPPED_PLACEMENT
     # - LAST_DISCARD_WAS_RIICHI
-    info = KyokuInfo(tiles_in_wall = 70 if num_players == 4 else 55,
-                     current_doras = kyoku.starting_doras)
+    info = KyokuInfo(num_players = num_players,
+                     starting_doras = kyoku.starting_doras)
     debug_prev_flag_len = [0]*num_players
     debug_prev_global_flag_len = 0
     for i, event in enumerate(kyoku.events):
@@ -211,26 +248,7 @@ def add_event_flags(kyoku: Kyoku,
         # ### DEBUG ###
 
         if event_type == "haipai":
-            hand = event_data[0]
-            assert len(info.at) == seat, f"got haipai out of order, expected seat {len(info.at)} but got seat {seat}"
-            info.at.append(KyokuPlayerInfo(num_players=num_players, hand=Hand(hand)))
-            # check if we have at least 7 terminal/honor tiles
-            num_types = len(set(hand) & YAOCHUUHAI) # of terminal/honor tiles
-            if num_types >= 7:
-                add_flag(seat, Flags.SEVEN_TERMINAL_START, {"num_types": num_types})
-            # check if we have a 5 shanten start
-            if info.at[seat].hand.shanten[0] >= 5:
-                add_flag(seat, Flags.FIVE_SHANTEN_START, {"shanten": info.at[seat].hand.shanten})
-            # check if we started with 3 dora
-            starting_dora = sum(hand.count(dora) for dora in kyoku.starting_doras)
-            if starting_dora >= 3:
-                add_flag(seat, Flags.STARTED_WITH_3_DORA, {"num": starting_dora})
-            # check if we started with at least two 1-4-7 shapes
-            # num_147_shapes = sum(1 for suit in (MANZU, PINZU, SOUZU)
-            #                        if tuple(tile // 10 for tile in hand if tile in suit) in {(1,4,7),(2,5,8),(3,6,9)})
-            # if num_147_shapes >= 2:
-            #     add_flag(seat, Flags.STARTED_WITH_TWO_147_SHAPES, {"hand": hand, "num": num_147_shapes})
-
+            info.process_haipai(*event)
         elif event_type == "draw":
             tile = event_data[0]
             info.at[seat].hand = info.at[seat].hand.add(tile)
