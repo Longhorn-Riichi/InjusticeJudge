@@ -148,6 +148,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 unparsed_result = event_data[0]
                 hand_is_hidden = [len(hand.open_part) == 0 for hand in kyoku.hands]
                 kyoku.result = parse_result(unparsed_result, kyoku.round, metadata.num_players, hand_is_hidden, [h.kita_count for h in kyoku.hands])
+                kyoku.events.append((0, "result", *kyoku.result))
                 # emit events for placement changes
                 placement_before = to_placement(kyoku.start_scores)
                 new_scores = apply_delta_scores(kyoku.start_scores, kyoku.result[1].score_delta)
