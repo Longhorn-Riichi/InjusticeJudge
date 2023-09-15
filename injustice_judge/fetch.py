@@ -8,7 +8,7 @@ from typing import *
 from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Score, Tsumo, GameMetadata, Dir
 from .constants import DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
 from .utils import is_mangan, ph, apply_delta_scores, normalize_red_five, round_name, sorted_hand, to_placement, translate_tenhou_yaku
-from .yaku import get_yakuman_tenpais, get_yakuman_waits, debug_yaku
+from .yaku import debug_yaku
 from pprint import pprint
 
 # This file contains all the logic for fetching and parsing game logs into `Kyoku`s.
@@ -114,14 +114,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                     ukeire = kyoku.hands[seat].ukeire(visible_tiles + dora_indicators[:num_doras])
                     kyoku.furiten[seat] = new_shanten[0] == 0 and any(w in kyoku.pond[seat] for w in new_shanten[1])
                     kyoku.events.append((seat, "shanten_change", old_shanten, new_shanten, kyoku.hands[seat], ukeire, kyoku.furiten[seat]))
-                    if new_shanten[0] == 0:
-                        # check for yakuman tenpai, excluding kazoe yakuman
-                        yakuman_waits: List[Tuple[str, Set[int]]] = [(y, get_yakuman_waits(kyoku.hands[seat], y)) for y in get_yakuman_tenpais(kyoku.hands[seat])]
-                        # only report the yakuman if the waits are not dead
-                        visible = visible_tiles + dora_indicators[:num_doras] + list(kyoku.hands[seat].tiles)
-                        yakuman_types: Set[str] = {t for t, waits in yakuman_waits if not all(visible.count(wait) == 4 for wait in waits)}
-                        if len(yakuman_types) > 0:
-                            kyoku.events.append((seat, "yakuman_tenpai", yakuman_types, yakuman_waits))
                 # check for nagashi
                 if nagashi_eligible[seat] and tile not in YAOCHUUHAI:
                     kyoku.events.append((seat, "end_nagashi", seat, "discard", tile))
