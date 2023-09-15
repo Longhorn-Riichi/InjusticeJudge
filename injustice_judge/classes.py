@@ -390,8 +390,6 @@ class Kyoku:
     pond: List[List[int]]                         = field(default_factory=list)
     # `furiten` keeps track of whether a player is in furiten
     furiten: List[bool]                           = field(default_factory=list)
-    # `riichi_index` keeps track of which tile in `pond` is the riichi discard
-    riichi_index: List[Optional[int]]             = field(default_factory=list)
 
     # we also keep track of some facts for each player
     # store the scores of each player at the beginning of the kyoku
