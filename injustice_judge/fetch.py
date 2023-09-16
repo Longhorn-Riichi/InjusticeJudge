@@ -740,24 +740,27 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
     return postprocess_events(all_events, parsed_metadata), parsed_metadata
 
-async def parse_game_link(link: str, specified_player: int = 0) -> Tuple[List[Kyoku], GameMetadata, int]:
+
+
+
+async def parse_game_link(link: str, specified_players: Set[int] = set()) -> Tuple[List[Kyoku], GameMetadata, Set[int]]:
     """Given a game link, fetch and parse the game into kyokus"""
-    # print(f"Analyzing game {link}:")
     if "tenhou.net/" in link:
         tenhou_log, metadata, player = fetch_tenhou(link)
         if metadata["name"][3] == "":
-            assert (specified_player or player) < 3, "Can't specify North player in a sanma game"
+            assert player < 3 or all(p < 3 for p in specified_players), "Can't specify North player in a sanma game"
         kyokus, parsed_metadata = parse_tenhou(tenhou_log, metadata)
     elif "mahjongsoul" in link or "maj-soul" or "majsoul" in link:
         # EN: `mahjongsoul.game.yo-star.com`; CN: `maj-soul.com`; JP: `mahjongsoul.com`
         # Old CN (?): http://majsoul.union-game.com/0/?paipu=190303-335e8b25-7f5c-4bd1-9ac0-249a68529e8d_a93025901
         majsoul_log, metadata, player = await fetch_majsoul(link)
-        assert (specified_player or player) < len(metadata["accounts"]), "Can't specify North player in a sanma game"
+        if len(metadata["accounts"]) == 3:
+            assert player < 3 or all(p < 3 for p in specified_players), "Can't specify North player in a sanma game"
         kyokus, parsed_metadata = parse_majsoul(majsoul_log, metadata)
     else:
         raise Exception("expected tenhou link similar to `tenhou.net/0/?log=`"
                         " or mahjong soul link similar to `mahjongsoul.game.yo-star.com/?paipu=`")
     kyokus[-1].is_final_round = True
-    if specified_player is not None:
-        player = specified_player
-    return kyokus, parsed_metadata, player
+    if len(specified_players) == 0:
+        specified_players = {player}
+    return kyokus, parsed_metadata, specified_players

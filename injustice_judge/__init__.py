@@ -6,10 +6,10 @@ from .injustices import evaluate_game
 # Essentially calls `parse_game_link` from `fetch.py`
 # and gives the result to `evaluate_injustices` from `injustices.py`.
 
-async def analyze_game(link: str, specified_player = None, look_for: Set[str] = {"injustice"}) -> List[str]:
+async def analyze_game(link: str, specified_players: Set[int] = set(), look_for: Set[str] = {"injustice"}) -> List[str]:
     """Given a game link, fetch and parse the game into kyokus, then evaluate each kyoku"""
     # print(f"Analyzing game {link}:")
-    kyokus, game_metadata, player = await parse_game_link(link, specified_player)
+    kyokus, game_metadata, players = await parse_game_link(link, specified_players)
 
     # # debug hand printing, by printing all final hands assuming they are tenpai
     # from .utils import sorted_hand, try_remove_all_tiles, print_full_hand, round_name
@@ -22,4 +22,4 @@ async def analyze_game(link: str, specified_player = None, look_for: Set[str] = 
     #         final_tile = kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw
     #         furiten = kyoku.furiten[winner]
     #         print(round_name(kyoku.round, kyoku.honba), print_full_hand(final_closed_hand, final_call_info, (0, final_waits), final_ukeire, final_tile, furiten), final_tile, furiten)
-    return [result for kyoku in kyokus for result in evaluate_game(kyoku, player, look_for)]
+    return [result for kyoku in kyokus for result in evaluate_game(kyoku, players, game_metadata.name, look_for)]

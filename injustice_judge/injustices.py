@@ -42,7 +42,7 @@ class Injustice(CheckResult):
 class Skill(CheckResult):
     pass
 
-def evaluate_game(kyoku: Kyoku, player: int, look_for: Set[str] = {"injustice"}) -> List[str]:
+def evaluate_game(kyoku: Kyoku, players: Set[int], player_names: List[str], look_for: Set[str] = {"injustice"}) -> List[str]:
     """
     Run each injustice function (defined below this function) against a parsed kyoku.
     Relevant injustice functions should return a list of Injustice objects each.
@@ -62,81 +62,86 @@ def evaluate_game(kyoku: Kyoku, player: int, look_for: Set[str] = {"injustice"})
 
     # go through all the injustices and see if they apply
     # collect the resulting CheckResult objects in all_results
-    all_results: List[CheckResult] = []
-    for check in checks:
-        if check["type"] in look_for:
-            if all(flag in flags[player]     for flag in check["required_flags"]) \
-               and all(flag not in flags[player] for flag in check["forbidden_flags"]):
-                result = check["callback"](flags[player], data[player], kyoku, player)
-                all_results.extend(result)
-            else:
-                pass
-                # print("player", player, "|",
-                #       round_name(kyoku.round, kyoku.honba), "|",
-                #       i["callback"].__name__, "was not called because it lacks the flag(s)",
-                #       set(i["required_flags"]) - set(flags[player]),
-                #       "and/or has the flag(s)",
-                #       set(i["forbidden_flags"]) & set(flags[player]))
+    all_results: Dict[int, List[CheckResult]] = {}
+    for player in players:
+        all_results[player] = []
+        for check in checks:
+            if check["type"] in look_for:
+                if     all(flag in flags[player]     for flag in check["required_flags"]) \
+                   and all(flag not in flags[player] for flag in check["forbidden_flags"]):
+                    result = check["callback"](flags[player], data[player], kyoku, player)
+                    all_results[player].extend(result)
+                else:
+                    pass
+                    # print("player", player, "|",
+                    #       round_name(kyoku.round, kyoku.honba), "|",
+                    #       i["callback"].__name__, "was not called because it lacks the flag(s)",
+                    #       set(i["required_flags"]) - set(flags[player]),
+                    #       "and/or has the flag(s)",
+                    #       set(i["forbidden_flags"]) & set(flags[player]))
 
-    # `all_results` contains a list of injustices for this kyoku,
+    # `all_results[seat]` contains a list of injustices for this kyoku,
     #   but we need to group them up before we print.
     # This outputs a header like "- Injustice detected in **East 1**:"
     #   followed by `injustice.desc` joined by ", and"
     #   for every injustice in all_results
-    if len(all_results) > 0:
-        # get the name of the longest name out of all the injustices
-        longest_name_length = max(len(r.name) for r in all_results)
-        longest_name = next(r.name for r in all_results if len(r.name) == longest_name_length)
-        # assemble the header
-        header = f"- {longest_name} detected in **{round_name(all_results[0].round, all_results[0].honba)}**:"
-        # now print the subject of the first injustice clause followed by content
-        # whenever the subject of the next clause is the same as the subject of the previous clause,
-        # we omit the subject and just write ", and <content>"
-        # return a list containing a single string
-        ret = header
-        last_clause = None
-        seen_results: Set[Tuple[str, str, str]] = set() # (subject, content)
-        for result in all_results:
-            clause = result.clause
-            # skip things we've already said
-            if (clause.subject, clause.object, clause.content) in seen_results:
-                continue
-            seen_results.add((clause.subject, clause.verb, clause.object))
+    rets = []
+    for seat, result_list in all_results.items():
+        if len(result_list) > 0:
+            # get the name of the longest name out of all the injustices
+            longest_name_length = max(len(r.name) for r in result_list)
+            longest_name = next(r.name for r in result_list if len(r.name) == longest_name_length)
+            verb_str = f"shown by **{player_names[seat]}**" if any(isinstance(r, Skill) for r in result_list) else f"detected for **{player_names[seat]}**"
 
-            # add ", and" unless it's the first clause
-            if last_clause is not None:
-                ret += ", and"
-            else:
-                last_clause = CheckClause(subject="",verb="")
+            # assemble the header
+            header = f"- {longest_name} {verb_str} in **{round_name(result_list[0].round, result_list[0].honba)}**:"
+            # now print the subject of the first injustice clause followed by content
+            # whenever the subject of the next clause is the same as the subject of the previous clause,
+            # we omit the subject and just write ", and <content>"
+            # return a list containing a single string
+            ret = header
+            last_clause = None
+            seen_results: Set[Tuple[str, str, str]] = set() # (subject, content)
+            for result in result_list:
+                clause = result.clause
+                # skip things we've already said
+                if (clause.subject, clause.object, clause.content) in seen_results:
+                    continue
+                seen_results.add((clause.subject, clause.verb, clause.object))
 
-            # print subject if subject changed
-            if clause.subject != last_clause.subject:
-                ret += " " + clause.subject
-                # print subject description
-                # this is basically part of the subject,
-                # but we don't want it to be used for comparing subjects
-                if clause.subject_description is not None:
-                    ret += " " + clause.subject_description
-                current_subject = clause.subject
+                # add ", and" unless it's the first clause
+                if last_clause is not None:
+                    ret += ", and"
+                else:
+                    last_clause = CheckClause(subject="",verb="")
 
-            # print verb if verb changed or if subject changed
-            if clause.verb != last_clause.verb or clause.subject != last_clause.subject:
-                ret += " " + clause.verb
+                # print subject if subject changed
+                if clause.subject != last_clause.subject:
+                    ret += " " + clause.subject
+                    # print subject description
+                    # this is basically part of the subject,
+                    # but we don't want it to be used for comparing subjects
+                    if clause.subject_description is not None:
+                        ret += " " + clause.subject_description
+                    current_subject = clause.subject
 
-            # print object always (if any)
-            if clause.object is not None:
-                ret += " " + clause.object
-            # print content always (if any)
-            if clause.content is not None:
-                ret += " " + clause.content
+                # print verb if verb changed or if subject changed
+                if clause.verb != last_clause.verb or clause.subject != last_clause.subject:
+                    ret += " " + clause.verb
 
-            # if the clause ends on another subject, change current subject to that
-            if clause.last_subject is not None:
-                current_subject = clause.last_subject
-            last_clause = clause
-        return [ret]
-    else:
-        return []
+                # print object always (if any)
+                if clause.object is not None:
+                    ret += " " + clause.object
+                # print content always (if any)
+                if clause.content is not None:
+                    ret += " " + clause.content
+
+                # if the clause ends on another subject, change current subject to that
+                if clause.last_subject is not None:
+                    current_subject = clause.last_subject
+                last_clause = clause
+            rets.append(ret)
+    return rets
 
 ###
 ### injustice definitions
@@ -275,7 +280,7 @@ def iishanten_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku
     return [Skill(kyoku.round, kyoku.honba, "Skill",
             CheckClause(subject="you",
                         verb="started with",
-                        content=f"{shanten_name(hand.shanten)} {hand.to_str(doras=kyoku.doras)}"))]
+                        content=f"{shanten_name(hand.shanten)} ({hand.to_str(doras=kyoku.doras)})"))]
 
 @skill(require=[Flags.YOU_ACHIEVED_NAGASHI])
 def won_nagashi(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:

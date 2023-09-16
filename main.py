@@ -10,10 +10,11 @@ dotenv.load_dotenv("config.env")
 if __name__ == "__main__":
     assert len(sys.argv) >= 2, "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
     link = sys.argv[1]
-    player = int(sys.argv[2]) if len(sys.argv) == 3 else None
+    players: Set[int] = {int(i) for i in sys.argv[2:]}
     assert link != "", "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
-    assert player in {0,1,2,3,None}, "expected second argument to be 0,1,2,3"
-    print("\n".join(asyncio.run(analyze_game(link, player, look_for={"injustice", "skill"}))))
+    assert all(player in {0,1,2,3} for player in players), "expected second argument to be 0,1,2,3"
+    # print("\n".join(asyncio.run(analyze_game(link, player, look_for={"injustice"}))))
+    print("\n".join(asyncio.run(analyze_game(link, players, look_for={"skill"}))))
 
     # from injustice_judge.yaku import test_get_yakuman_tenpais
     # test_get_yakuman_tenpais()
