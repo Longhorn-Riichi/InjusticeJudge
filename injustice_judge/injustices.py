@@ -252,13 +252,22 @@ def robbed_riichi_stick(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
                         verb="robbed",
                         content=f"{relative_seat_name(player, seat)}'s riichi stick by winning right after they declared riichi"))]
 
-@skill(require=[Flags.FINAL_ROUND, Flags.REACHED_DOUBLE_STARTING_POINTS])
+@skill(require=[Flags.FINAL_ROUND, Flags.REACHED_DOUBLE_STARTING_POINTS],
+        forbid=[Flags.REACHED_TRIPLE_STARTING_POINTS])
 def ended_with_double_starting_points(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     points = data[flags.index(Flags.REACHED_DOUBLE_STARTING_POINTS)]["points"]
     return [Skill(kyoku.round, kyoku.honba, "Skill",
             CheckClause(subject="you",
                         verb="ended",
                         content=f"the game with double starting points ({points})"))]
+
+@skill(require=[Flags.FINAL_ROUND, Flags.REACHED_TRIPLE_STARTING_POINTS])
+def ended_with_triple_starting_points(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    points = data[flags.index(Flags.REACHED_DOUBLE_STARTING_POINTS)]["points"]
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="ended",
+                        content=f"the game with triple starting points ({points})"))]
 
 @skill(require=[Flags.YOU_ACHIEVED_NAGASHI])
 def won_nagashi(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:

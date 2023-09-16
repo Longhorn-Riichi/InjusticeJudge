@@ -63,6 +63,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " MULTIPLE_RON"
     " NINE_DRAWS_NO_IMPROVEMENT"
     " REACHED_DOUBLE_STARTING_POINTS"
+    " REACHED_TRIPLE_STARTING_POINTS"
     " SEVEN_TERMINAL_START"
     " SIX_DISCARDS_TSUMOGIRI_HONOR"
     " SIX_TSUMOGIRI_WITHOUT_TENPAI"
@@ -527,6 +528,8 @@ class KyokuInfo:
         # check if we're got double starting points
         for player in range(self.num_players):
             end_points = prev_scores[player] + delta_scores[player]
+            if end_points >= 3 * self.kyoku.get_starting_score():
+                self.add_flag(player, Flags.REACHED_TRIPLE_STARTING_POINTS, {"points": end_points})
             if end_points >= 2 * self.kyoku.get_starting_score():
                 self.add_flag(player, Flags.REACHED_DOUBLE_STARTING_POINTS, {"points": end_points})
 
