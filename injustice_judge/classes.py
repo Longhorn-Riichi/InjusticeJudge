@@ -283,7 +283,7 @@ class Score:
                 name_str, han_str = y.split("(")
                 name = TRANSLATE[name_str]
                 han = int(han_str.split("飜")[0])
-                if name in "dora":
+                if "dora" in name:
                     dora_index = i # keep track of where "dora" is in the list
                     yaku_dora += han
                 elif name == "aka":

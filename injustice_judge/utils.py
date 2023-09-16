@@ -139,7 +139,7 @@ def translate_tenhou_yaku(yaku: str) -> Tuple[str, int]:
         han = 13
     else: # e.g. "ドラ(2飜)"
         han = int(rest.split("飜")[0])
-    if "ドラ" in name and han > 1:
+    if name in {"dora", "aka", "ura", "kita"} and han > 1:
         name = f"{name} {han}"
     return name, han
 
