@@ -173,6 +173,30 @@ skill = make_check_decorator("skill")
 ### early game skills
 ###
 
+@skill(require=[Flags.YOU_WON, Flags.WINNER_GOT_DOUBLE_WIND])
+def started_with_double_wind(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    hand = data[flags.index(Flags.YOU_WON)]["hand"]
+    haipai = kyoku.haipai[player]
+    wind = [41,42,43,44][player]
+    starting_winds = haipai.tiles.count(wind)
+    if starting_winds == 2:
+        return [Skill(kyoku.round, kyoku.honba, "Skill",
+                CheckClause(subject="you",
+                            verb="won",
+                            content=f"while starting with your double wind {ph((wind,wind), doras=kyoku.starting_doras)} and calling it"))]
+    elif starting_winds == 3:
+        return [Skill(kyoku.round, kyoku.honba, "Skill",
+                CheckClause(subject="you",
+                            verb="won",
+                            content=f"while starting with a triplet of your double wind {ph((wind,wind,wind), doras=kyoku.starting_doras)}"))]
+    elif starting_winds == 4:
+        return [Skill(kyoku.round, kyoku.honba, "Skill",
+                CheckClause(subject="you",
+                            verb="won",
+                            content=f"while starting with four of your double winds {ph((wind,wind,wind,wind), doras=kyoku.starting_doras)}"))]
+    else:
+        return []
+
 @skill(require=[Flags.IISHANTEN_START])
 def iishanten_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     hand = data[flags.index(Flags.IISHANTEN_START)]["hand"]
@@ -337,6 +361,24 @@ def won_after_changing_wait(flags: List[Flags], data: List[Dict[str, Any]], kyok
         CheckClause(subject="you",
                     verb="changed your hand's wait from",
                     content=f"{ph(hand.prev_shanten[1], doras=doras)} to {ph(hand.shanten[1], doras=doras)} and immediately won on {pt(winning_tile + 100 if winning_tile in doras else winning_tile)}"))]
+
+@skill(require=[Flags.YOU_WON, Flags.YOU_ARE_DEALER, Flags.YOU_WERE_FIRST])
+def won_first_place_3_honba(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    points = data[flags.index(Flags.YOU_WON)]["score_object"].to_points()
+    if kyoku.honba >= 3:
+        return [Skill(kyoku.round, kyoku.honba, "Skill",
+                CheckClause(subject="you",
+                            verb="won",
+                            content=f"a {points} point hand as first place dealer with {kyoku.honba} honba"))]
+    else:
+        return []
+
+@skill(require=[Flags.YOU_WON, Flags.WINNER_HAD_NAKED_TANKI])
+def won_with_naked_tanki(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="won",
+                        content=f"with a naked tanki wait"))]
 
 @skill(require=[Flags.LAST_DRAW_TENPAI, Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.YOU_GAINED_POINTS])
 def last_draw_tenpai(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:

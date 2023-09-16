@@ -74,6 +74,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " TURN_SKIPPED_BY_PON"
     " WINNER"
     " WINNER_GOT_BAIMAN"
+    " WINNER_GOT_DOUBLE_WIND"
     " WINNER_GOT_HAITEI"
     " WINNER_GOT_HANEMAN"
     " WINNER_GOT_HIDDEN_DORA_3"
@@ -84,6 +85,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " WINNER_GOT_URA_3"
     " WINNER_GOT_YAKUMAN"
     " WINNER_HAD_BAD_WAIT"
+    " WINNER_HAD_NAKED_TANKI"
     " WINNER_IPPATSU_TSUMO"
     " WINNER_WAS_DAMA"
     " WINNER_WAS_FURITEN"
@@ -766,11 +768,17 @@ class KyokuInfo:
             assert haitei_type != "", f"unknown haitei type for yaku {result.score.yaku}"
             self.add_global_flag(Flags.WINNER_GOT_HAITEI, {"seat": result.winner, "yaku": haitei_type})
         # check for dama
-        if not self.at[result.winner].opened_hand and not self.at[result.winner].in_riichi:
+        if len(self.at[result.winner].hand.open_part) > 0 and not self.at[result.winner].in_riichi:
             self.add_global_flag(Flags.WINNER_WAS_DAMA, {"seat": result.winner, "score": result.score.to_points()})
+        # check for naked tanki
+        if len(self.at[result.winner].hand.hidden_part) == 1:
+            self.add_global_flag(Flags.WINNER_HAD_NAKED_TANKI, {"seat": result.winner})
         # check for ippatsu
         if result.score.has_ippatsu():
             self.add_global_flag(Flags.WINNER_GOT_IPPATSU, {"seat": result.winner, "score": result.score.to_points()})
+        # check for double wind
+        if any(result.score.yaku.count((wind, 1)) == 2 for wind in ("ton","nan","shaa","pei")):
+            self.add_global_flag(Flags.WINNER_GOT_DOUBLE_WIND, {"seat": result.winner})
         # check if the win was immediately after changing waits
         if self.at[result.winner].hand.shanten != self.at[result.winner].hand.prev_shanten \
            and self.at[result.winner].hand.prev_shanten[0] == 0:
