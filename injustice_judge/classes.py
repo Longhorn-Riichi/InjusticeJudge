@@ -229,7 +229,7 @@ class Score:
         else:
             if self.tsumo:
                 assert len(winners) == 1
-                for payer in {0,1,2,3} - {winners[0]}:
+                for payer in set(range(self.num_players)) - {winners[0]}:
                     oya_payment = (winners[0] == round%4) or (payer == round%4)
                     score_deltas[payer] -= (OYA_TSUMO_SCORE if oya_payment else KO_TSUMO_SCORE)[self.han][self.fu]  # type: ignore[index]
                     score_deltas[payer] -= 100 * honba
