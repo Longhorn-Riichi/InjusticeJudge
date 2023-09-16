@@ -788,17 +788,23 @@ class KyokuInfo:
                                   "doras": self.current_doras.copy()})
         # check if the win was immediately after calling 2+ times
         call_count = 0
+        break_on_draw = False
         for seat, event_type, *_ in self.kyoku.events[::-1]:
             if seat == result.winner:
-                if event_type in {"discard", "riichi"}:
-                    if call_count >= 2:
-                        self.add_global_flag(Flags.WINNER_WON_WITH_PON_PON_RON,
-                                             {"hand": self.at[result.winner].hand,
-                                              "winning_tile": winning_tile,
-                                              "num_calls": call_count})
-                    break
+                # break when we see "discard" followed by "draw"
+                if event_type == "draw":
+                    if break_on_draw:
+                        break
+                elif event_type in {"discard", "riichi"}:
+                    break_on_draw = True
                 elif event_type in {"chii", "pon", "minkan", "ankan", "kakan", "kita"}:
                     call_count += 1
+                    break_on_draw = False
+        if call_count >= 2:
+            self.add_global_flag(Flags.WINNER_WON_WITH_PON_PON_RON,
+                                 {"hand": self.at[result.winner].hand,
+                                  "winning_tile": winning_tile,
+                                  "num_calls": call_count})
 
 def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]]]:
     """
