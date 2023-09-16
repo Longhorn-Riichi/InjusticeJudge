@@ -669,7 +669,7 @@ def tenpai_status_string(flags: List[Flags]) -> str:
 
 # Print if your riichi discard passed, but someone stole your riichi stick before your next draw
 @injustice(require=[Flags.LAST_DISCARD_WAS_RIICHI, Flags.WINNER],
-            forbid=[Flags.YOUR_TENPAI_TILE_DEALT_IN])
+            forbid=[Flags.YOUR_TENPAI_TILE_DEALT_IN, Flags.YOU_WON])
 def riichi_stick_robbed(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     winner = data[flags.index(Flags.WINNER)]["seat"]
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
