@@ -714,7 +714,7 @@ class KyokuInfo:
         winning_hand = self.at[result.winner].hand
         import os
         if os.getenv("debug"):
-            assert han == expected_han, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong han ({han}) for a {expected_han} han hand {winning_hand.to_str(doras=self.kyoku.doras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[winning_tile]}"
+            assert han == expected_han, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong han ({han}) for a {expected_han} han hand {winning_hand.to_str(doras=self.kyoku.doras, uras=self.kyoku.uras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[winning_tile]}"
         # compare the resulting score to make sure we calculated it right
         is_dealer = result.winner == self.kyoku.round % 4
         calculated_score = get_score(han, fu, is_dealer, is_tsumo, self.num_players)
@@ -724,7 +724,7 @@ class KyokuInfo:
             if (calculated_score, stored_score) in {(7700, 8000), (7900, 8000), (11600, 12000), (11700, 12000)}: # ignore kiriage mangan differences for now
                 pass
             else:
-                assert calculated_score == stored_score, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong {tsumo_string} score ({calculated_score}) for a {stored_score} point hand {winning_hand.to_str(doras=self.kyoku.doras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[winning_tile]}"
+                assert calculated_score == stored_score, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong {tsumo_string} score ({calculated_score}) for a {stored_score} point hand {winning_hand.to_str(doras=self.kyoku.doras, uras=self.kyoku.uras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[winning_tile]}"
 
         # Add potentially several WINNER flags depending on the limit hand
         # e.g. haneman wins will get WINNER_GOT_HANEMAN plus all the flags before that

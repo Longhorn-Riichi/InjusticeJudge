@@ -566,9 +566,6 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
 
     # ura: same as dora, except our hand has to have riichi in order to have ura
     ura = sum(uras.count(tile) for tile in hand_without_reds)
-    # kita can be ura too
-    if 44 in uras:
-        ura += hand.kita_count * uras.count(44)
     for wait in waits:
         if ("riichi", 1) in yaku_for_wait[wait]:
             if wait in uras:

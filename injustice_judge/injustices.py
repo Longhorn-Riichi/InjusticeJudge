@@ -253,7 +253,7 @@ def every_draw_helped(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyo
 
 # Print if you ever called kan and got 4 dora
 @skill(require=[Flags.YOU_FLIPPED_DORA_BOMB])
-def won_with_3_ura(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+def called_kan_and_got_4_dora(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     doras = data[flags.index(Flags.YOU_FLIPPED_DORA_BOMB)]["doras"]
     call = data[flags.index(Flags.YOU_FLIPPED_DORA_BOMB)]["call"]
     hand = data[flags.index(Flags.YOU_FLIPPED_DORA_BOMB)]["hand"]
@@ -333,8 +333,11 @@ def won_something_silly(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
     win_string = "with a " + " ".join(y[0] for y in silly_yaku if y in score.yaku)
     if win_string == "with a ":
         win_string = "with a"
-    if turn <= 6 and ("chinitsu", 5) in score.yaku or ("chinitsu", 6) in score.yaku:
-        win_string += " first row chinitsu"
+    for yaku, han in score.yaku:
+        if han >= 3 and yaku.startswith("ura"):
+            win_string += " ura 3"
+        elif turn <= 6 and yaku == "chinitsu":
+            win_string += " first row chinitsu"
     if ("ippatsu", 1) in score.yaku and ("tsumo", 1) in score.yaku:
         if win_string == "with a ":
             win_string = "with an "

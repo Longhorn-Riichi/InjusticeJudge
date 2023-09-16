@@ -5,7 +5,7 @@ from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
-from .classes import CallInfo, Draw, Event, Hand, Kyoku, Ron, Score, Tsumo, GameMetadata, Dir
+from .classes import CallInfo, Draw, Event, GameRules, Hand, Kyoku, Ron, Score, Tsumo, GameMetadata, Dir
 from .constants import DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
 from .utils import is_mangan, ph, apply_delta_scores, normalize_red_five, round_name, sorted_hand, to_placement, translate_tenhou_yaku
 from .yaku import debug_yaku
@@ -69,6 +69,14 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
         nagashi_eligible: List[int] = [True] * metadata.num_players
         visible_tiles: List[int] = []
         num_doras = 1
+        flip_kan_dora_next_discard = False
+        def flip_kan_dora(call_info: CallInfo):
+            nonlocal num_doras
+            # need to check if there's dora since it's possible to have called kan and not reveal a dora
+            # (it's when you kan, but win on rinshan before the dora flip)
+            if num_doras < len(dora_indicators):
+                kyoku.events.append((seat, "dora_indicator", dora_indicators[num_doras], call_info))
+            num_doras += 1
         for i, (seat, event_type, *event_data) in enumerate(events):
             kyoku.events.append(events[i]) # copy every event we process
             # if len(kyoku.hands) == metadata.num_players:
@@ -86,8 +94,8 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.round, kyoku.honba, kyoku.riichi_sticks, kyoku.start_scores = event_data
                 kyoku.num_players = metadata.num_players
                 kyoku.tiles_in_wall = 70 if kyoku.num_players == 4 else 55
-                kyoku.doras = [DORA[d] for d in dora_indicators] + ([51, 52, 53] if metadata.use_red_fives else [])
-                kyoku.starting_doras = [DORA[dora_indicators[0]]] + ([51, 52, 53] if metadata.use_red_fives else [])
+                kyoku.doras = [DORA[d] for d in dora_indicators] + ([51, 52, 53] if metadata.rules.use_red_fives else [])
+                kyoku.starting_doras = [DORA[dora_indicators[0]]] + ([51, 52, 53] if metadata.rules.use_red_fives else [])
                 kyoku.uras = [DORA[d] for d in ura_indicators]
                 kyoku.haipai_ukeire = [hand.ukeire(dora_indicators[:num_doras]) for hand in kyoku.hands]
             elif event_type == "draw":
@@ -167,13 +175,14 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 for seat in range(kyoku.num_players):
                     ukeire = kyoku.hands[seat].ukeire(visible_tiles + dora_indicators[:num_doras])
                     kyoku.final_ukeire.append(ukeire)
-            # emit dora event, and increment doras for kans
+            # flip kan dora
+            if flip_kan_dora_next_discard and event_type in {"discard", "riichi"}:
+                flip_kan_dora(CallInfo(event_type, called_tile, call_dir, call_tiles))
             if event_type in {"minkan", "ankan", "kakan"}:
-                called_tile, call_tiles, call_dir = event_data
-                # might not have another dora if we get rinshan right after this
-                if num_doras < len(dora_indicators):
-                    kyoku.events.append((seat, "dora_indicator", dora_indicators[num_doras], CallInfo(event_type, called_tile, call_dir, call_tiles)))
-                num_doras += 1
+                if metadata.rules.immediate_kan_dora:
+                    flip_kan_dora(CallInfo(event_type, called_tile, call_dir, call_tiles))
+                else:
+                    flip_kan_dora_next_discard = True
 
         assert len(kyoku.hands) > 0, f"somehow we never initialized the kyoku at index {len(kyokus)}"
         if len(kyokus) == 0:
@@ -347,6 +356,7 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
                 print("Calling fetchGameRecord...")
                 record = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=f"web-{MS_VERSION}")
         save_cache(filename=f"game-{identifier}.log", data=record.SerializeToString())
+
     parsed = parse_wrapped_bytes(record.data)[1]
     if parsed.actions != []:
         actions = [parse_wrapped_bytes(action.result) for action in parsed.actions if len(action.result) > 0]
@@ -377,6 +387,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     ura_indicators: List[int] = []
     convert_tile = lambda tile: {"m": 51, "p": 52, "s": 53}[tile[1]] if tile[0] == "0" else {"m": 10, "p": 20, "s": 30, "z": 40}[tile[1]] + int(tile[0])
     majsoul_hand_to_tenhou = lambda hand: list(sorted_hand(map(convert_tile, hand)))
+    majsoul_hand_to_tenhou_unsorted = lambda hand: list(map(convert_tile, hand))
     last_seat = 0
     all_events: List[List[Event]] = []
     events: List[Event] = []
@@ -472,8 +483,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 yakus = [name for _, name in sorted((fan.id, f"{YAKU_NAMES[fan.id]}({'役満' if fan.id in YAKUMAN.keys() else str(fan.val)+'飜'})") for fan in h.fans if fan.val)]
                 result.append(list(action.delta_scores))
                 result.append([h.seat, last_seat, pao_seat, score_string+point_string, *yakus])
-                dora_indicators = majsoul_hand_to_tenhou(h.doras)
-                ura_indicators = majsoul_hand_to_tenhou(h.li_doras)
+                dora_indicators = majsoul_hand_to_tenhou_unsorted(h.doras)
+                ura_indicators = majsoul_hand_to_tenhou_unsorted(h.li_doras)
             end_round(result)
         elif name == "RecordNoTile":
             if len(action.scores[0].delta_scores) == 0: # everybody/nobody is tenpai, so no score change
@@ -509,7 +520,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                                    final_score = [result_data[i][2] for i in range(num_players)],
                                    dora_indicators = all_dora_indicators,
                                    ura_indicators = all_ura_indicators,
-                                   use_red_fives = True)
+                                   rules=GameRules.from_majsoul_detail_rule(metadata["config"]["mode"]["detailRule"]))
+
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
     return postprocess_events(all_events, parsed_metadata), parsed_metadata
 
@@ -735,7 +747,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                                    final_score = list(map(lambda s: int(1000*s), metadata["sc"][1::2])),
                                    dora_indicators = all_dora_indicators,
                                    ura_indicators = all_ura_indicators,
-                                   use_red_fives = use_red_fives)
+                                   rules = GameRules.from_tenhou_rules(metadata["rule"]))
 
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
     return postprocess_events(all_events, parsed_metadata), parsed_metadata

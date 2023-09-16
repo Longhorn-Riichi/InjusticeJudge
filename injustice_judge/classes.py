@@ -411,6 +411,18 @@ class Kyoku:
         return (sum(self.start_scores) + 1000*self.riichi_sticks) // self.num_players
 
 @dataclass
+class GameRules:
+    use_red_fives: bool = True        # whether the game uses red fives
+    immediate_kan_dora: bool = False  # whether kan immediately reveals a dora
+    @classmethod
+    def from_majsoul_detail_rule(cls, rules):
+        return cls(use_red_fives = "doraCount" not in rules or rules["doraCount"] > 0,
+                   immediate_kan_dora = "mingDoraImmediatelyOpen" in rules and rules["mingDoraImmediatelyOpen"])
+    @classmethod
+    def from_tenhou_rules(cls, rules):
+        return cls(use_red_fives = "aka51" in rules and rules["aka51"])
+
+@dataclass
 class GameMetadata:
     """Facts that apply across every kyoku"""
     num_players: int
@@ -421,4 +433,4 @@ class GameMetadata:
     # (they are parsed first from the raw log, and then used to populate Kyoku)
     dora_indicators: List[List[int]] # lists of dora indicators, one for each kyoku
     ura_indicators: List[List[int]]  # lists of ura indicators, one for each kyoku
-    use_red_fives: bool              # whether the game uses red fives (only checks tenhou right now)
+    rules: GameRules                 # game rules
