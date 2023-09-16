@@ -91,7 +91,11 @@ def evaluate_game(kyoku: Kyoku, players: Set[int], player_names: List[str], look
             # get the name of the longest name out of all the injustices
             longest_name_length = max(len(r.name) for r in result_list)
             longest_name = next(r.name for r in result_list if len(r.name) == longest_name_length)
-            verb_str = f"shown by **{player_names[seat]}**" if any(isinstance(r, Skill) for r in result_list) else f"detected for **{player_names[seat]}**"
+            verb_str = f"shown by **{player_names[seat]}**" \
+                       if any(isinstance(r, Skill) for r in result_list) else \
+                       f"detected for **{player_names[seat]}**" \
+                       if len(all_results) > 1 else \
+                       "detected"
 
             # assemble the header
             header = f"- {longest_name} {verb_str} in **{round_name(result_list[0].round, result_list[0].honba)}**:"
