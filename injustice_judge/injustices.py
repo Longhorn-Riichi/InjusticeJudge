@@ -173,17 +173,150 @@ skill = make_check_decorator("skill")
 #                         object="the round"))]
 
 # TODO:
-# you head bump'd someone (hard)
+# - you head bump'd someone
+# - only safe draws after riichi
 
-@skill(require=[Flags.YOU_WON])
-def won_hell_wait(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    ukeire = data[flags.index(Flags.YOU_WON)]["ukeire"]
-    winning_tile = data[flags.index(Flags.YOU_WON)]["winning_tile"]
-    if ukeire == 1:
+# Print if you gained placement only because of ura
+@skill(require=[Flags.YOU_WON, Flags.YOU_GAINED_PLACEMENT],
+        forbid=[])
+def gained_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    score: Score = data[flags.index(Flags.YOU_WON)]["score_object"]
+    won_from: int = data[flags.index(Flags.YOU_WON)]["won_from"]
+    prev_scores: List[int] = data[flags.index(Flags.YOU_GAINED_PLACEMENT)]["prev_scores"]
+    old_placement: int = data[flags.index(Flags.YOU_GAINED_PLACEMENT)]["old"]
+    new_placement: int = data[flags.index(Flags.YOU_GAINED_PLACEMENT)]["new"]
+    ura = score.count_ura()
+    if ura > 0:
+        # check if placement would have stayed constant had there been no ura
+        orig_placement = to_placement(prev_scores)
+        orig_points = score.to_points()
+        score.add_dora("ura", -ura)
+        uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round, kyoku.honba, [player], won_from))
+        uraless_points = score.to_points()
+        score.add_dora("ura", ura)
+        if orig_placement == uraless_placement:
+            return [Skill(kyoku.round, kyoku.honba, "Injustice",
+                    CheckClause(subject="you",
+                                verb="went from",
+                                content=f"{PLACEMENTS[old_placement]} to {PLACEMENTS[new_placement]},"
+                                        f" which only happened because you got ura {ura},"
+                                        f" pushing your point gain from {uraless_points} to {orig_points}",
+                                last_subject=""))]
+    return []
+
+@skill(require=[Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, Flags.YOU_WON])
+def won_to_deny_three_dora(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    dora_data = {data[i]["seat"]: data[i] for i, flag in enumerate(flags) if flag == Flags.SOMEONE_HAS_THREE_DORA_VISIBLE}
+    if player in dora_data.keys():
+        del dora_data[player]
+    seats = set(dora_data.keys())
+    num_dora_shown = sum(d["amount"] for d in dora_data.values())
+    if len(seats) >= 1:
+        player_str = " and ".join(map(lambda seat: relative_seat_name(player, seat), seats))
+        was_str = "were collectively" if "and" in player_str else "was"
         return [Skill(kyoku.round, kyoku.honba, "Skill",
                 CheckClause(subject="you",
                             verb="won",
-                            content=f"a hell wait on {pt(winning_tile + 100 if winning_tile in kyoku.doras else winning_tile)}"))]
+                            content=f"while {player_str} {was_str} showing {num_dora_shown} dora on the table"))]
+    else:
+        return []
+
+@skill(require=[Flags.EVERYONE_RESPECTED_YOUR_RIICHI, Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.YOU_GAINED_POINTS])
+def everyone_respected_your_riichi(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    points = data[flags.index(Flags.YOU_GAINED_POINTS)]["amount"]
+    if points == 3000: # TODO depends on ruleset?
+        return [Skill(kyoku.round, kyoku.honba, "Skill",
+                CheckClause(subject="you",
+                            verb="declared",
+                            content=f"riichi and everyone respected it and paid you noten payments"))]
+    else:
+        return []
+
+@skill(require=[Flags.FINAL_ROUND, Flags.REACHED_DOUBLE_STARTING_POINTS])
+def ended_with_double_starting_points(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    points = data[flags.index(Flags.REACHED_DOUBLE_STARTING_POINTS)]["points"]
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="ended",
+                        content=f"the game with double starting points ({points})"))]
+
+@injustice(require=[Flags.YOU_WON_AFTER_SOMEONES_RIICHI],
+            forbid=[Flags.YOU_WON_OFF_TENPAI_TILE])
+def robbed_riichi_stick(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    seat = data[flags.index(Flags.YOU_WON_AFTER_SOMEONES_RIICHI)]["seat"]
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="robbed",
+                        content=f"{relative_seat_name(player, seat)}'s riichi stick by winning right after they declared riichi"))]
+
+@skill(require=[Flags.YOU_REACHED_TENPAI])
+def every_draw_helped(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    turn = data[flags.index(Flags.YOU_REACHED_TENPAI)]["turn"]
+    haipai = data[flags.index(Flags.YOU_REACHED_TENPAI)]["haipai"]
+    if haipai.shanten[0] == turn:
+        return [Skill(kyoku.round, kyoku.honba, "Skill",
+                CheckClause(subject="you",
+                            verb="reached",
+                            content=f"tenpai where every draw (or call) brought you closer to tenpai"))]
+    else:
+        return []
+
+@skill(require=[Flags.YOU_WON, Flags.FIVE_SHANTEN_START])
+def won_with_five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    hand = data[flags.index(Flags.FIVE_SHANTEN_START)]["hand"]
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="won",
+                        content=f"despite starting at {shanten_name(hand.shanten)} with {hand.to_str(doras=kyoku.doras)}"))]
+
+@skill(require=[Flags.IISHANTEN_START])
+def iishanten_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    hand = data[flags.index(Flags.IISHANTEN_START)]["hand"]
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="started with",
+                        content=f"{shanten_name(hand.shanten)} {hand.to_str(doras=kyoku.doras)}"))]
+
+@skill(require=[Flags.YOU_ACHIEVED_NAGASHI])
+def won_nagashi(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="got",
+                        content="nagashi mangan"))]
+
+@skill(require=[Flags.YOU_WON])
+def won_something_silly(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    ukeire = data[flags.index(Flags.YOU_WON)]["ukeire"]
+    turn = data[flags.index(Flags.YOU_WON)]["turn"]
+    score = data[flags.index(Flags.YOU_WON)]["score_object"]
+    winning_tile = data[flags.index(Flags.YOU_WON)]["winning_tile"]
+
+    won_hell_wait = ukeire == 1
+    silly_yaku = {("rinshan", 1),
+                  ("chankan", 1),
+                  ("haitei", 1),
+                  ("houtei", 1),
+                  ("sankantsu", 2),
+                  ("ryanpeikou", 3),
+                  ("sanshoku doukou", 2),
+                  ("double riichi", 1)}
+    win_string = "with a " + " ".join(y[0] for y in silly_yaku if y in score.yaku)
+    if win_string == "with a ":
+        win_string = "with a"
+    if turn <= 6 and ("chinitsu", 5) in score.yaku or ("chinitsu", 6) in score.yaku:
+        win_string += " first row chinitsu"
+    if ("ippatsu", 1) in score.yaku and ("tsumo", 1) in score.yaku:
+        win_string += " ippatsu tsumo"
+    if won_hell_wait:
+        win_string += f" hell wait on {pt(winning_tile + 100 if winning_tile in kyoku.doras else winning_tile)}"
+    else:
+        win_string += " hand"
+
+    if win_string != "with a hand":
+        return [Skill(kyoku.round, kyoku.honba, "Skill",
+                CheckClause(subject="you",
+                            verb="won",
+                            content=win_string))]
     else:
         return []
 
@@ -220,13 +353,15 @@ def won_chase_with_ippatsu(flags: List[Flags], data: List[Dict[str, Any]], kyoku
                         verb="got",
                         content=f"ippatsu after chasing {relative_seat_name(player, chased_player)}'s tenpai"))]
 
-@skill(require=[Flags.YOU_GAINED_POINTS, Flags.WINNER_GOT_YAKUMAN])
-def got_yakuman(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    yaku = data[flags.index(Flags.WINNER_GOT_YAKUMAN)]["score_object"].yaku
+@skill(require=[Flags.YOU_GAINED_POINTS, Flags.WINNER_GOT_SANBAIMAN])
+def got_sanbaiman_or_yakuman(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    score = data[flags.index(Flags.WINNER_GOT_SANBAIMAN)]["score_object"]
+    yaku = score.yaku
+    limit_name = score.get_limit_hand_name()
     return [Skill(kyoku.round, kyoku.honba, "Skill",
         CheckClause(subject="you",
                     verb="got",
-                    content=f"yakuman ({', '.join(y for y, _ in yaku)})"))]
+                    content=f"{limit_name} ({', '.join(y for y, _ in yaku)})"))]
 
 # Print if you ever called kan and got 4 dora
 @skill(require=[Flags.YOU_FLIPPED_DORA_BOMB])
@@ -272,7 +407,7 @@ def got_out_of_last_place(flags: List[Flags], data: List[Dict[str, Any]], kyoku:
 def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     shanten: Tuple[int, List[int]]
     if Flags.FIVE_SHANTEN_START in flags:
-        shanten = data[flags.index(Flags.FIVE_SHANTEN_START)]["shanten"]
+        shanten = data[flags.index(Flags.FIVE_SHANTEN_START)]["hand"].shanten
     elif Flags.DREW_WORST_HAIPAI_SHANTEN in flags:
         shanten = data[flags.index(Flags.DREW_WORST_HAIPAI_SHANTEN)]["shanten"]
         second_worst_shanten: int = data[flags.index(Flags.DREW_WORST_HAIPAI_SHANTEN)]["second_worst_shanten"]
@@ -761,7 +896,7 @@ def couldnt_avoid_last_with_3_dora(flags: List[Flags], data: List[Dict[str, Any]
                                 f" but you couldn't since {relative_seat_name(player, winner)} won"))]
 
 # Print if someone took your points and you dropped placement only because of ura
-@injustice(require=[Flags.FINAL_ROUND, Flags.YOU_DEALT_IN, Flags.YOU_DROPPED_PLACEMENT, Flags.WINNER],
+@injustice(require=[Flags.YOU_DEALT_IN, Flags.YOU_DROPPED_PLACEMENT, Flags.WINNER],
             forbid=[])
 def dropped_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     score: Score = data[flags.index(Flags.WINNER)]["score_object"]
@@ -785,7 +920,8 @@ def dropped_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]],
                                 content=f"{PLACEMENTS[old_placement]} to {PLACEMENTS[new_placement]},"
                                         f" which only happened because {relative_seat_name(player, winner)} got ura {ura},"
                                         f" pushing their point gain from {uraless_points} to {orig_points}",
-                                last_subject=relative_seat_name(player, winner)))]
+                                last_subject=""))]
+
     return []
 
 # Print if your good 4+ sided wait lost to someone else's worse wait
@@ -849,12 +985,13 @@ def you_tsumogiri_honors_6_times(flags: List[Flags], data: List[Dict[str, Any]],
                         verb="drew",
                         content=f"and had to discard honors {num_discards} times in a row"))]
 
+# Print if you tsumogiri 6 times in a row while not in tenpai
 @injustice(require=[Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI],
             forbid=[Flags.YOU_GAINED_POINTS])
 def you_tsumogiri_6_times_without_tenpai(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     num_discards = data[len(flags) - 1 - flags[::-1].index(Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI)]["num_discards"]
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
-                        verb="drew",
-                        content=f"what you discarded {num_discards} times in a row while not in tenpai"))]
+                        verb="discarded",
+                        content=f"what you drew {num_discards} times in a row while not in tenpai"))]
 
