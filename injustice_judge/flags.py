@@ -528,7 +528,7 @@ class KyokuInfo:
         for player in range(self.num_players):
             end_points = prev_scores[player] + delta_scores[player]
             if end_points >= 2 * self.kyoku.get_starting_score():
-                self.add_flag(seat, Flags.REACHED_DOUBLE_STARTING_POINTS, {"points": end_points})
+                self.add_flag(player, Flags.REACHED_DOUBLE_STARTING_POINTS, {"points": end_points})
 
     def process_start_game(self, i: int, seat: int, event_type: str,
                            round: int, honba: int, riichi_sticks: int, scores: List[int]) -> None:
