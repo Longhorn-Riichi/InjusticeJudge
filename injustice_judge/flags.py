@@ -88,6 +88,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " WINNER_WAS_DAMA"
     " WINNER_WAS_FURITEN"
     " WINNER_WON_AFTER_CHANGING_WAIT"
+    " WINNER_WON_WITH_PON_PON_RON"
     " YOU_ACHIEVED_NAGASHI"
     " YOU_ARE_DEALER"
     " YOU_AVOIDED_LAST_PLACE"
@@ -136,7 +137,6 @@ class KyokuPlayerInfo:
     last_draw: int                          = 0
     last_discard: int                       = 0
     last_discard_was_riichi: int            = False
-    opened_hand: bool                       = False
     nagashi: bool                           = True
     in_riichi: bool                         = False
     riichi_index: Optional[int]             = None
@@ -267,7 +267,6 @@ class KyokuInfo:
         if event_type != "minkan":
             self.at[seat].hand = self.at[seat].hand.add(called_tile)
         self.at[seat].hand = self.at[seat].hand.add_call(CallInfo(event_type, called_tile, call_dir, call_tiles))
-        self.at[seat].opened_hand = True
         # for everyone whose turn was skipped, add Flags.TURN_SKIPPED_BY_PON
         if event_type in {"pon", "minkan"}:
             if call_dir in {Dir.TOIMEN, Dir.SHIMOCHA}:
@@ -713,7 +712,7 @@ class KyokuInfo:
         winning_hand = self.at[result.winner].hand
         import os
         if os.getenv("debug"):
-            assert han == expected_han, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong han ({han}) for a {expected_han} han hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[winning_tile]}"
+            assert han == expected_han, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong han ({han}) for a {expected_han} han hand {winning_hand.to_str(doras=self.kyoku.doras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[winning_tile]}"
         # compare the resulting score to make sure we calculated it right
         is_dealer = result.winner == self.kyoku.round % 4
         calculated_score = get_score(han, fu, is_dealer, is_tsumo, self.num_players)
@@ -723,7 +722,7 @@ class KyokuInfo:
             if (calculated_score, stored_score) in {(7700, 8000), (7900, 8000), (11600, 12000), (11700, 12000)}: # ignore kiriage mangan differences for now
                 pass
             else:
-                assert calculated_score == stored_score, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong {tsumo_string} score ({calculated_score}) for a {stored_score} point hand {winning_hand!s}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[winning_tile]}"
+                assert calculated_score == stored_score, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong {tsumo_string} score ({calculated_score}) for a {stored_score} point hand {winning_hand.to_str(doras=self.kyoku.doras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[winning_tile]}"
 
         # Add potentially several WINNER flags depending on the limit hand
         # e.g. haneman wins will get WINNER_GOT_HANEMAN plus all the flags before that
@@ -779,6 +778,19 @@ class KyokuInfo:
                                  {"hand": self.at[result.winner].hand,
                                   "winning_tile": winning_tile,
                                   "doras": self.current_doras.copy()})
+        # check if the win was immediately after calling 2+ times
+        call_count = 0
+        for seat, event_type, *_ in self.kyoku.events[::-1]:
+            if seat == result.winner:
+                if event_type in {"discard", "riichi"}:
+                    if call_count >= 2:
+                        self.add_global_flag(Flags.WINNER_WON_WITH_PON_PON_RON,
+                                             {"hand": self.at[result.winner].hand,
+                                              "winning_tile": winning_tile,
+                                              "num_calls": call_count})
+                    break
+                elif event_type in {"chii", "pon", "minkan", "ankan", "kakan", "kita"}:
+                    call_count += 1
 
 def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]]]:
     """

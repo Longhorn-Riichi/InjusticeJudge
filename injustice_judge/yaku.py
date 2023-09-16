@@ -547,9 +547,6 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
     hand_without_reds = tuple(normalize_red_fives(full_hand))
     non_red_dora = [dora for dora in doras if dora not in {51,52,53}]
     dora = sum(non_red_dora.count(tile) for tile in hand_without_reds)
-    # kita can be dora too
-    if 44 in doras:
-        dora += hand.kita_count * doras.count(44)
     # now add dora to the yaku list
     for wait in waits:
         if wait in doras:

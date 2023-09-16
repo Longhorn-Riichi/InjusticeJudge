@@ -239,6 +239,20 @@ def won_with_3_ura(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku,
                         verb="gave you",
                         content=f"four dora {pt(doras[-1]+100)} in hand {hand.to_str(doras=doras)}"))]
 
+# Print if you melded consecutively 2+ times and then immediately won
+@skill(require=[Flags.YOU_WON, Flags.WINNER_WON_WITH_PON_PON_RON])
+def won_by_pon_pon_ron(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    hand = data[flags.index(Flags.WINNER_WON_WITH_PON_PON_RON)]["hand"]
+    winning_tile = data[flags.index(Flags.WINNER_WON_WITH_PON_PON_RON)]["winning_tile"]
+    num_calls = data[flags.index(Flags.WINNER_WON_WITH_PON_PON_RON)]["num_calls"]
+    call_str = "\u2007".join(map(lambda call: call.to_str(doras=kyoku.doras), hand.ordered_calls[-num_calls:]))
+    win_str = "tsumo" if Flags.GAME_ENDED_WITH_TSUMO in flags else "ron"
+    tile_str = pt(winning_tile + 100 if winning_tile in kyoku.doras else winning_tile)
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="won by",
+                        content=f"consecutively calling {call_str} and then immediately calling {win_str} on {tile_str}"))]
+
 ###
 ### end game skills
 ###

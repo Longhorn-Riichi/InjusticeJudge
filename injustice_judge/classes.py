@@ -38,6 +38,8 @@ class CallInfo:
                 return ph((50, TOGGLE_RED_FIVE[tile], tile, 50))
             else:
                 return ph((50, tile, tile, 50))
+        elif self.type == "kita":
+            return pt(tile)
         elif self.type == "kakan": # print two consecutive sideways tiles
             sideways = pt(other_tiles[0], is_sideways=True) + sideways
             other_tiles = other_tiles[1:]
@@ -63,20 +65,21 @@ def _hidden_part(hand: Tuple[int], calls: Tuple[int]) -> Tuple[int, ...]:
 @dataclass(frozen=True)
 class Hand:
     """Immutable object describing the state of a single hand"""
-    tiles: Tuple[int, ...]                              # all tiles in the hand
-    calls: List[CallInfo] = field(default_factory=list) # every call the hand has made, in order
-    open_part: Tuple[int, ...] = ()                     # all tiles currently shown as a call
-    hidden_part: Tuple[int, ...] = ()                   # tiles - open_part
-    closed_part: Tuple[int, ...] = ()                   # hidden_part + any ankans
-    shanten: Tuple[float, List[int]] = (-1, [])         # shanten for the hand, or -1 if the hand is 14 tiles
-                                                        # (like when it's in the middle of a draw or call)
-    prev_shanten: Tuple[float, List[int]] = (-1, [])    # shanten for the hand right before said draw or call
-    tiles_with_kans: Tuple[int, ...] = ()               # all tiles in the hand including kans
-    kita_count: int = 0                                 # number of kita calls for this hand
+    tiles: Tuple[int, ...]                                      # all tiles in the hand
+    calls: List[CallInfo] = field(default_factory=list)         # every call the hand has made, in order of appearance
+    ordered_calls: List[CallInfo] = field(default_factory=list) # every call the hand has made, in order of calling them
+    open_part: Tuple[int, ...] = ()                             # all tiles currently shown as a call
+    hidden_part: Tuple[int, ...] = ()                           # tiles - open_part
+    closed_part: Tuple[int, ...] = ()                           # hidden_part + any ankans
+    shanten: Tuple[float, List[int]] = (-1, [])                 # shanten for the hand, or -1 if the hand is 14 tiles
+                                                                # (like when it's in the middle of a draw or call)
+    prev_shanten: Tuple[float, List[int]] = (-1, [])            # shanten for the hand right before said draw or call
+    tiles_with_kans: Tuple[int, ...] = ()                       # all tiles in the hand including kans
+    kita_count: int = 0                                         # number of kita calls for this hand
     def __post_init__(self):
         """You only need to provide `tiles` (and `calls`, if any), this calculates the rest"""
         super().__setattr__("tiles", sorted_hand(self.tiles))
-        super().__setattr__("open_part", tuple(tile for call in self.calls for tile in call.tiles[:3]))
+        super().__setattr__("open_part", tuple(tile for call in self.calls if call.type != "kita" for tile in call.tiles[:3]))
         super().__setattr__("hidden_part", _hidden_part(self.tiles, self.open_part))
         super().__setattr__("tiles_with_kans", (*self.hidden_part, *(tile for call in self.calls for tile in call.tiles)))
         # for closed part, add any ankan back in as triplets
@@ -102,15 +105,15 @@ class Hand:
 
     def add(self, tile: int) -> "Hand":
         """Immutable update for drawing a tile"""
-        return Hand((*self.tiles, tile), [*self.calls], prev_shanten=self.shanten, kita_count=self.kita_count)
-    def add_call(self, calls: CallInfo) -> "Hand":
+        return Hand((*self.tiles, tile), [*self.calls], [*self.ordered_calls], prev_shanten=self.shanten, kita_count=self.kita_count)
+    def add_call(self, call: CallInfo) -> "Hand":
         """Immutable update for calling a tile"""
-        return Hand(self.tiles, [*self.calls, calls], prev_shanten=self.shanten, kita_count=self.kita_count)
+        return Hand(self.tiles, [*self.calls, call], [*self.ordered_calls, call], prev_shanten=self.shanten, kita_count=self.kita_count)
     def remove(self, tile: int) -> "Hand":
         """Immutable update for discarding a tile"""
         tiles = list(self.tiles)
         tiles.remove(tile)
-        return Hand(tuple(tiles), [*self.calls], prev_shanten=self.shanten, kita_count=self.kita_count)
+        return Hand(tuple(tiles), [*self.calls], [*self.ordered_calls], prev_shanten=self.shanten, kita_count=self.kita_count)
     def kakan(self, called_tile: int):
         """Immutable update for adding a tile to an existing pon call (kakan)"""
         pon_index = next((i for i, calls in enumerate(self.calls) if calls.type == "pon" and normalize_red_five(calls.tile) == normalize_red_five(called_tile)), None)
@@ -118,11 +121,15 @@ class Hand:
         orig_direction = self.calls[pon_index].dir
         orig_tiles = [*self.calls[pon_index].tiles, called_tile]
         calls_copy = [*self.calls]
-        calls_copy[pon_index] = CallInfo("kakan", called_tile, orig_direction, orig_tiles)
-        return Hand(self.tiles, calls_copy, prev_shanten=self.shanten, kita_count=self.kita_count)
+        call = CallInfo("kakan", called_tile, orig_direction, orig_tiles)
+        calls_copy[pon_index] = call
+        return Hand(self.tiles, calls_copy, [*self.ordered_calls, call], prev_shanten=self.shanten, kita_count=self.kita_count)
     def kita(self):
         """Immutable update for adding kita"""
-        return Hand(self.tiles, self.calls, prev_shanten=self.prev_shanten, kita_count=self.kita_count+1)
+        calls_copy = [*self.calls]
+        call = CallInfo("kita", 44, Dir.SELF, (44,))
+        calls_copy.append(call)
+        return Hand(self.tiles, calls_copy, [*self.ordered_calls, call], prev_shanten=self.prev_shanten, kita_count=self.kita_count+1)
     def print_hand_details(self,
                            ukeire: int,
                            final_tile: Optional[int] = None,
