@@ -418,7 +418,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             round = action.chang*4 + action.ju
             honba = action.ben
             riichi_sticks = action.liqibang
-            events.append((t, "start_game", round, honba, riichi_sticks, list(action.scores)))
+            events.append((t, "start_game", round, honba, riichi_sticks, tuple(action.scores)))
             # pretend we drew the first tile
             events.append((action.ju, "draw", first_tile))
             dora_indicators = [convert_tile(dora) for dora in action.doras]
@@ -621,7 +621,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         i = [0] * num_players
         for seat in range(num_players):
             events.append((seat, "haipai", sorted_hand(haipai[seat])))
-        events.append((seat, "start_game", round, honba, riichi_sticks, scores))
+        events.append((seat, "start_game", round, honba, riichi_sticks, tuple(scores)))
 
         # Emit events for draws and discards and calls, in order
         # stops when the current player has no more draws; remaining

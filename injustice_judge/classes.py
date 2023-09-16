@@ -393,13 +393,15 @@ class Kyoku:
 
     # we also keep track of some facts for each player
     # store the scores of each player at the beginning of the kyoku
-    start_scores: List[int]                       = field(default_factory=list)
+    start_scores: Tuple[int, ...]                 = ()
     # store the starting hand of each player
     haipai: List[Hand]                            = field(default_factory=list)
     # store each player's ukeire count at the start and the end of a round (if tenpai)
     # -1 if the player is not tenpai
     haipai_ukeire: List[int]                      = field(default_factory=list)
     final_ukeire: List[int]                       = field(default_factory=list)
+    def get_starting_score(self):
+        return (sum(self.start_scores) + 1000*self.riichi_sticks) // self.num_players
 
 @dataclass
 class GameMetadata:
