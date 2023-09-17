@@ -155,7 +155,7 @@ class Hand:
         if shanten >= 2:
             return 0
         relevant_tiles = set(normalize_red_fives(waits))
-        visible = list(normalize_red_fives(list(self.tiles) + list(visible)))
+        visible = list(normalize_red_fives(list(self.tiles_with_kans) + list(visible)))
         return 4 * len(relevant_tiles) - sum(visible.count(wait) for wait in relevant_tiles)
 
 # hand interpretations and yaku

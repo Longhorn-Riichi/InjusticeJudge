@@ -706,9 +706,9 @@ def against_triple_riichi(flags: List[Flags], data: List[Dict[str, Any]], kyoku:
 #                             content=f"yet {relative_seat_name(player, their_seat)}'s {SHANTEN_NAMES[their_shanten]} starting hand did"))]
 
 # Print if you were ever iishanten with zero tiles left
-@injustice(require=[Flags.IISHANTEN_WITH_0_TILES])
-def iishanten_with_0_tiles(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    shanten = data[flags.index(Flags.IISHANTEN_WITH_0_TILES)]["shanten"]
+@injustice(require=[Flags.IISHANTEN_WITH_ZERO_TILES])
+def iishanten_with_zero_tiles(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    shanten = data[flags.index(Flags.IISHANTEN_WITH_ZERO_TILES)]["shanten"]
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject=f"your {shanten_name(shanten)}",
                         verb="had",

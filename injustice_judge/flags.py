@@ -54,7 +54,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " GAME_ENDED_WITH_TSUMO"
     " IISHANTEN_HAIPAI_ABORTED"
     " IISHANTEN_START"
-    " IISHANTEN_WITH_0_TILES"
+    " IISHANTEN_WITH_ZERO_TILES"
     " IMMEDIATELY_DREW_DISCARDED_DORA"
     " IMMEDIATELY_DREW_DISCARDED_TILE"
     " LAST_DISCARD_WAS_RIICHI"
@@ -174,9 +174,8 @@ class KyokuInfo:
     data: List[List[Any]]     = field(default_factory=list)
     global_flags: List[Flags] = field(default_factory=list)
     global_data: List[Any]    = field(default_factory=list)
-    def get_visible_tiles(self, seat: int) -> List[int]:
+    def get_visible_tiles(self) -> List[int]:
         return self.visible_tiles \
-             + list(self.at[seat].hand.tiles_with_kans) \
              + [DORA_INDICATOR[dora] for dora in self.current_doras if dora not in {51,52,53}]
     def add_flag(self, seat: int, flag: Flags, data: Optional[Dict[str, Any]] = None) -> None:
         self.flags[seat].append(flag)
@@ -261,15 +260,14 @@ class KyokuInfo:
             self.add_flag(seat, Flags.FOUR_SHANTEN_AFTER_FIRST_ROW, {"shanten": self.at[seat].hand.prev_shanten})
         # check if we're iishanten with zero tiles left
         if 1 <= self.at[seat].hand.shanten[0] < 2:
-            ukeire = self.at[seat].hand.ukeire(self.get_visible_tiles(seat))
+            ukeire = self.at[seat].hand.ukeire(self.get_visible_tiles())
             if ukeire == 0:
-                print(self.at[seat].hand, self.at[seat].hand.shanten, self.at[seat].hand.prev_shanten)
-                self.add_flag(seat, Flags.IISHANTEN_WITH_0_TILES, {"shanten": self.at[seat].hand.shanten})
+                self.add_flag(seat, Flags.IISHANTEN_WITH_ZERO_TILES, {"shanten": self.at[seat].hand.shanten})
         # check if there's a riichi, we drew a dangerous tile, and we have no safe tiles
         for opponent, at in enumerate(self.at):
             if seat == opponent or not at.in_riichi:
                 continue
-            safe = lambda t: is_safe(t, self.at[opponent].genbutsu, self.get_visible_tiles(seat))
+            safe = lambda t: is_safe(t, self.at[opponent].genbutsu, self.get_visible_tiles())
             if not safe(tile) and not any(safe(t) for t in self.at[seat].hand.hidden_part):
                 self.at[seat].dangerous_draws_after_riichi.append(tile)
                 if len(self.at[seat].dangerous_draws_after_riichi) >= 4:
@@ -385,7 +383,7 @@ class KyokuInfo:
         # check if this discard respects/disrespects anyone's riichi
         for opponent, at in enumerate(self.at):
             if at.in_riichi and self.at[opponent].respects_riichi[seat] is None: # first discard after opponent's riichi
-                self.at[opponent].respects_riichi[seat] = is_safe(tile, self.at[opponent].genbutsu, self.get_visible_tiles(seat))
+                self.at[opponent].respects_riichi[seat] = is_safe(tile, self.at[opponent].genbutsu, self.get_visible_tiles())
                 if all(self.at[opponent].respects_riichi[player] == False for player in range(self.num_players) if player != opponent):
                     self.add_flag(opponent, Flags.EVERYONE_DISRESPECTED_YOUR_RIICHI)
                 elif all(self.at[opponent].respects_riichi[player] == True for player in range(self.num_players) if player != opponent):
@@ -427,23 +425,24 @@ class KyokuInfo:
                     continue
                 if Flags.YOU_REACHED_TENPAI in self.flags[other]:
                     other_data = self.data[other][len(self.flags[other]) - 1 - self.flags[other][::-1].index(Flags.YOU_REACHED_TENPAI)]
+                    visible_tiles = self.get_visible_tiles()
                     self.add_flag(seat, Flags.YOU_CHASED,
                                          {"your_seat": seat,
                                           "your_hand": hand,
-                                          "your_ukeire": hand.ukeire(self.get_visible_tiles(seat)),
+                                          "your_ukeire": hand.ukeire(visible_tiles),
                                           "your_furiten": furiten,
                                           "seat": other,
                                           "hand": other_data["hand"],
-                                          "ukeire": other_data["hand"].ukeire(self.get_visible_tiles(other)),
+                                          "ukeire": other_data["hand"].ukeire(visible_tiles),
                                           "furiten": other_data["furiten"]})
                     self.add_flag(other, Flags.YOU_GOT_CHASED,
                                          {"seat": seat,
                                           "hand": hand,
-                                          "ukeire": hand.ukeire(self.get_visible_tiles(seat)),
+                                          "ukeire": hand.ukeire(visible_tiles),
                                           "furiten": furiten,
                                           "your_seat": other,
                                           "your_hand": other_data["hand"],
-                                          "your_ukeire": other_data["hand"].ukeire(self.get_visible_tiles(other)),
+                                          "your_ukeire": other_data["hand"].ukeire(visible_tiles),
                                           "your_furiten": other_data["furiten"]})
         self.add_global_flag(Flags.SOMEONE_REACHED_TENPAI,
                              {"seat": seat,
@@ -453,7 +452,7 @@ class KyokuInfo:
                               "haipai": self.kyoku.haipai[seat]})
         self.add_flag(seat, Flags.YOU_REACHED_TENPAI,
                             {"hand": hand,
-                             "ukeire": hand.ukeire(self.get_visible_tiles(seat)),
+                             "ukeire": hand.ukeire(self.get_visible_tiles()),
                              "furiten": furiten,
                              "turn": len(self.at[seat].pond),
                              "haipai": self.kyoku.haipai[seat]})
@@ -514,7 +513,7 @@ class KyokuInfo:
         # first, do standard yakuman, otherwise, try kazoe yakuman
         yakuman_waits: List[Tuple[str, Set[int]]] = [(y, get_yakuman_waits(self.kyoku.hands[seat], y)) for y in get_yakuman_tenpais(self.kyoku.hands[seat])]
         # only report the yakuman if the waits are not dead
-        visible = self.get_visible_tiles(seat)
+        visible = self.get_visible_tiles()
         yakuman_types: Set[str] = {t for t, waits in yakuman_waits if not all(visible.count(wait) == 4 for wait in waits)}
         if len(yakuman_types) > 0:
             self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": yakuman_types, "waits": yakuman_waits})
