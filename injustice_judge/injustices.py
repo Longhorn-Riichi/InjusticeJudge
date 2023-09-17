@@ -601,6 +601,10 @@ def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, p
     shanten = shanten_data["shanten"]
     ret = []
     reached_tenpai_str = " before you finally reached tenpai" if Flags.YOU_REACHED_TENPAI in flags else ", and never reached tenpai"
+    if Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI in flags:
+        num_discards = data[len(flags) - 1 - flags[::-1].index(Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI)]["num_discards"]
+        if num_discards >= 9:
+            return [] # we'd be repeating the message in `you_tsumogiri_6_times_without_tenpai`
     if Flags.YOU_REACHED_TENPAI in flags:
         ret.append(Injustice(kyoku.round, kyoku.honba, "Injustice",
                    CheckClause(subject="you",
@@ -737,6 +741,56 @@ def four_dangerous_draws_after_riichi(flags: List[Flags], data: List[Dict[str, A
                         content=f"dangerous tile after dangerous tile ({ph(tiles, kyoku.doras)}) after"
                                     f" {relative_seat_name(player, opponent)}'s riichi"
                                     f" (their discards: {pond_str})"))]
+
+# Print if all tiles in your hand are deal-in tiles
+@injustice(require=[Flags.YOUR_TILES_ALL_DEAL_IN, Flags.YOU_DEALT_IN])
+def your_tiles_all_deal_in(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    hand = data[flags.index(Flags.YOUR_TILES_ALL_DEAL_IN)]["hand"]
+    waits = data[flags.index(Flags.YOUR_TILES_ALL_DEAL_IN)]["waits"]
+    wait_string = " and ".join(f"{relative_seat_name(player, seat)} was waiting on {ph(wait, doras=kyoku.doras)}" for seat, wait in waits.items())
+    return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+            CheckClause(subject="your hand",
+                        subject_description=ph(hand.hidden_part, doras=kyoku.doras),
+                        verb="only had",
+                        content=f"tiles that would deal in ({wait_string})"))]
+
+# Print if you tsumogiri honors 6 times in a row and are not going for nagashi
+@injustice(require=[Flags.SIX_DISCARDS_TSUMOGIRI_HONOR],
+            forbid=[Flags.YOU_GAINED_POINTS])
+def you_tsumogiri_honors_6_times(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    num_discards = data[len(flags) - 1 - flags[::-1].index(Flags.SIX_DISCARDS_TSUMOGIRI_HONOR)]["num_discards"]
+    return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+            CheckClause(subject="you",
+                        verb="drew",
+                        content=f"and had to discard honors {num_discards} times in a row"))]
+
+# Print if you tsumogiri 6 times in a row while not in tenpai
+@injustice(require=[Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI],
+            forbid=[Flags.YOU_GAINED_POINTS])
+def you_tsumogiri_6_times_without_tenpai(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    num_discards = data[len(flags) - 1 - flags[::-1].index(Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI)]["num_discards"]
+    shanten = data[len(flags) - 1 - flags[::-1].index(Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI)]["shanten"]
+    return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+            CheckClause(subject="you",
+                        verb="discarded",
+                        content=f"what you drew {num_discards} times in a row while in {shanten_name(shanten)}"))]
+
+# Print if you had an early 8 outs ryanmen (or better) and never folded, but never won
+@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI, Flags.WINNER],
+            forbid=[Flags.YOU_GAINED_POINTS, Flags.YOU_FOLDED_FROM_TENPAI])
+@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI],
+            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.WINNER])
+def your_early_8_outs_wait_never_won(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    for i, flag in enumerate(flags):
+        if flag == Flags.YOU_REACHED_TENPAI:
+            ukeire = data[i]["ukeire"]
+            if ukeire >= 8:
+                return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+                        CheckClause(subject="you",
+                                    verb="had",
+                                    object=f"an early {ukeire} outs wait",
+                                    content="but never won with it"))]
+    return []
 
 ###
 ### end game injustices
@@ -1052,41 +1106,3 @@ def dealt_into_chankan_while_tenpai(flags: List[Flags], data: List[Dict[str, Any
                             content="and dealt in while tenpai"))]
     else:
         return []
-
-# Print if you had an early 8 outs ryanmen (or better) and never folded, but never won
-@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI, Flags.WINNER],
-            forbid=[Flags.YOU_GAINED_POINTS, Flags.YOU_FOLDED_FROM_TENPAI])
-@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI],
-            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.WINNER])
-def your_early_8_outs_wait_never_won(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    for i, flag in enumerate(flags):
-        if flag == Flags.YOU_REACHED_TENPAI:
-            ukeire = data[i]["ukeire"]
-            if ukeire >= 8:
-                return [Injustice(kyoku.round, kyoku.honba, "Injustice",
-                        CheckClause(subject="you",
-                                    verb="had",
-                                    object=f"an early {ukeire} outs wait",
-                                    content="but never won with it"))]
-    return []
-
-# Print if you tsumogiri honors 6 times in a row and are not going for nagashi
-@injustice(require=[Flags.SIX_DISCARDS_TSUMOGIRI_HONOR],
-            forbid=[Flags.YOU_GAINED_POINTS])
-def you_tsumogiri_honors_6_times(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    num_discards = data[len(flags) - 1 - flags[::-1].index(Flags.SIX_DISCARDS_TSUMOGIRI_HONOR)]["num_discards"]
-    return [Injustice(kyoku.round, kyoku.honba, "Injustice",
-            CheckClause(subject="you",
-                        verb="drew",
-                        content=f"and had to discard honors {num_discards} times in a row"))]
-
-# Print if you tsumogiri 6 times in a row while not in tenpai
-@injustice(require=[Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI],
-            forbid=[Flags.YOU_GAINED_POINTS])
-def you_tsumogiri_6_times_without_tenpai(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    num_discards = data[len(flags) - 1 - flags[::-1].index(Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI)]["num_discards"]
-    return [Injustice(kyoku.round, kyoku.honba, "Injustice",
-            CheckClause(subject="you",
-                        verb="discarded",
-                        content=f"what you drew {num_discards} times in a row while not in tenpai"))]
-

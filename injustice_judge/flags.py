@@ -133,6 +133,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOUR_LAST_DISCARD_ENDED_NAGASHI"
     " YOUR_LAST_NAGASHI_TILE_CALLED"
     " YOUR_TENPAI_TILE_DEALT_IN"
+    " YOUR_TILES_ALL_DEAL_IN"
     )
 
 @dataclass
@@ -334,6 +335,7 @@ class KyokuInfo:
     def process_discard(self, i: int, seat: int, event_type: str, tile: int) -> None:
         if event_type == "riichi":
             self.at[seat].riichi_index = len(self.at[seat].pond)
+        prev_hand = self.at[seat].hand
         self.at[seat].hand = self.at[seat].hand.remove(tile)
         self.visible_tiles.append(tile)
         self.at[seat].pond.append(tile)
@@ -363,10 +365,19 @@ class KyokuInfo:
                 self.add_flag(seat, Flags.YOUR_TENPAI_TILE_DEALT_IN, {"tile": tile})
                 for win in self.kyoku.result[1:]:
                     self.add_flag(win.winner, Flags.YOU_WON_OFF_TENPAI_TILE, {"seat": seat, "tile": tile})
-
             # check if we're tenpai and this would have been our last discard before noten payments
             if already_tenpai and self.tiles_in_wall <= 3:
                 self.add_flag(seat, Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT, {"tile": tile})
+            # check if we had no choice but to deal in
+            waits = {player: wait
+                     for player in range(self.num_players)
+                     if player != seat
+                     for (shanten, wait) in (self.at[player].hand.shanten,)
+                     if shanten == 0
+                     if any(tile in wait for tile in self.at[seat].hand.hidden_part)}
+            if all(any(tile in wait for wait in waits.values()) for tile in self.at[seat].hand.hidden_part):
+                self.add_flag(seat, Flags.YOUR_TILES_ALL_DEAL_IN, {"hand": prev_hand, "waits": waits})
+
         # check if this was tsumogiri honors (and you're not going for nagashi)
         is_tsumogiri = tile == self.at[seat].last_draw
         if not self.at[seat].nagashi and 41 <= tile <= 47 and is_tsumogiri:
@@ -379,7 +390,7 @@ class KyokuInfo:
         if Flags.YOU_REACHED_TENPAI not in self.flags[seat] and is_tsumogiri:
             self.at[seat].tsumogiri_without_tenpai += 1
             if self.at[seat].tsumogiri_without_tenpai >= 6:
-                self.add_flag(seat, Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI, {"num_discards": self.at[seat].tsumogiri_without_tenpai})
+                self.add_flag(seat, Flags.SIX_TSUMOGIRI_WITHOUT_TENPAI, {"num_discards": self.at[seat].tsumogiri_without_tenpai, "shanten": self.at[seat].hand.shanten})
         else:
             self.at[seat].tsumogiri_without_tenpai = 0
         # check if this discard respects/disrespects anyone's riichi
