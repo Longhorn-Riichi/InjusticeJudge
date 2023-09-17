@@ -67,8 +67,10 @@ Flags = Enum("Flags", "_SENTINEL"
     " SEVEN_TERMINAL_START"
     " SIX_DISCARDS_TSUMOGIRI_HONOR"
     " SIX_TSUMOGIRI_WITHOUT_TENPAI"
+    " SOMEONE_FOLDED_FROM_TENPAI"
     " SOMEONE_HAS_THREE_DORA_VISIBLE"
     " SOMEONE_REACHED_TENPAI"
+    " SOMEONE_WAITED_ON_WINNING_TILE"
     " STARTED_WITH_3_DORA"
     " TENPAI_ON_LAST_DISCARD"
     " TURN_SKIPPED_BY_PON"
@@ -180,10 +182,15 @@ class KyokuInfo:
     def add_global_flag(self, flag: Flags, data: Optional[Dict[str, Any]] = None) -> None:
         self.global_flags.append(flag)
         self.global_data.append(data)
-    def remove_global_flag(self, flag: Flags) -> None:
-        ix = self.global_flags.index(flag)
-        del self.global_flags[ix]
-        del self.global_data[ix]
+    def remove_global_flag(self, flag: Flags, data: Optional[Dict[str, Any]] = None) -> None:
+        ix = None
+        for i, f in enumerate(self.global_flags):
+            if f == flag and (data is None or self.global_data[i] == data):
+                ix = i
+                break
+        if ix is not None:
+            del self.global_flags[ix]
+            del self.global_data[ix]
 
     def process_haipai(self, i: int, seat: int, event_type: str, hand: Tuple[int]) -> None:
         assert len(self.at) == seat, f"got haipai out of order, expected seat {len(self.at)} but got seat {seat}"
@@ -387,6 +394,7 @@ class KyokuInfo:
             self.at[seat].past_waits.append(prev_shanten[1])
             if new_shanten[0] > 0:
                 self.add_flag(seat, Flags.YOU_FOLDED_FROM_TENPAI)
+                self.add_global_flag(Flags.SOMEONE_FOLDED_FROM_TENPAI, {"seat": seat})
         # bunch of things to check if we're tenpai
 
     def process_tenpai(self, i: int, seat: int, event_type: str,
@@ -460,6 +468,7 @@ class KyokuInfo:
         # remove YOU_FOLDED_FROM_TENPAI flag if any
         if Flags.YOU_FOLDED_FROM_TENPAI in self.flags[seat]:
             self.remove_flag(seat, Flags.YOU_FOLDED_FROM_TENPAI)
+            self.remove_global_flag(Flags.SOMEONE_FOLDED_FROM_TENPAI, {"seat": seat})
 
         # check if we are mangan+ tenpai
         is_haitei = self.kyoku.tiles_in_wall == 0 and seat == self.kyoku.final_draw_seat
@@ -687,6 +696,8 @@ class KyokuInfo:
             if self.at[seat].hand.shanten[0] == 0:
                 if normalize_red_five(winning_tile) in self.at[seat].hand.shanten[1]:
                     self.add_flag(seat, Flags.YOU_WAITED_ON_WINNING_TILE, {"tile": winning_tile, "wait": self.at[seat].hand.shanten[1]})
+                    self.add_global_flag(Flags.SOMEONE_WAITED_ON_WINNING_TILE, {"seat": seat, "tile": winning_tile, "wait": self.at[seat].hand.shanten[1]})
+
 
         # calculate the yaku, han, and fu for the winning hand
         # check calculated values with the han and points given in the result data

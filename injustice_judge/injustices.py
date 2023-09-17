@@ -281,6 +281,22 @@ def won_by_pon_pon_ron(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
 ### end game skills
 ###
 
+@skill(require=[Flags.YOU_WON, Flags.WINNER, Flags.GAME_ENDED_WITH_RON, Flags.SOMEONE_WAITED_ON_WINNING_TILE],
+        forbid=[])
+def head_bumped_someone(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    waiters = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.SOMEONE_WAITED_ON_WINNING_TILE}
+    winners = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.WINNER}
+    folders = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.SOMEONE_FOLDED_FROM_TENPAI}
+    got_head_bumped = waiters - (winners - folders)
+    print(round_name(kyoku.round, kyoku.honba), got_head_bumped)
+    if len(got_head_bumped) >= 1:
+        return [Skill(kyoku.round, kyoku.honba, "Skill",
+                CheckClause(subject="you",
+                            verb="head bumped",
+                            content=" and ".join(relative_seat_name(player, seat) for seat in got_head_bumped)))]
+    else:
+        return []
+
 @skill(require=[Flags.YOU_WON_AFTER_SOMEONES_RIICHI],
         forbid=[Flags.YOU_WON_OFF_TENPAI_TILE])
 def robbed_riichi_stick(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
@@ -922,15 +938,16 @@ def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], k
                         last_subject=last_subject))]
 
 # Print if you got head bumped (or you skipped your ron)
-@injustice(require=[Flags.YOU_WAITED_ON_WINNING_TILE, Flags.GAME_ENDED_WITH_RON],
+@injustice(require=[Flags.YOU_WAITED_ON_WINNING_TILE, Flags.GAME_ENDED_WITH_RON, Flags.WINNER],
             forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_GAINED_POINTS])
 def you_got_head_bumped(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     tile = data[flags.index(Flags.YOU_WAITED_ON_WINNING_TILE)]["tile"]
     wait = data[flags.index(Flags.YOU_WAITED_ON_WINNING_TILE)]["wait"]
+    winner = data[flags.index(Flags.WINNER)]["seat"]
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="were",
-                        content=f"tenpai waiting on {ph(wait, kyoku.doras)} but then got head bumped"))]
+                        content=f"tenpai waiting on {ph(wait, kyoku.doras)}, and would have won, but instead you got head bumped by {relative_seat_name(player, winner)}"))]
 
 # Print if someone else's below-mangan win destroyed your mangan+ tenpai
 @injustice(require=[Flags.YOU_HAD_LIMIT_TENPAI, Flags.WINNER],
@@ -1036,7 +1053,7 @@ def dealt_into_chankan_while_tenpai(flags: List[Flags], data: List[Dict[str, Any
 @injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI, Flags.WINNER],
             forbid=[Flags.YOU_GAINED_POINTS, Flags.YOU_FOLDED_FROM_TENPAI])
 @injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI],
-            forbid=[Flags.YOU_FOLDED_FROM_TENPAI])
+            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.WINNER])
 def your_early_8_outs_wait_never_won(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     for i, flag in enumerate(flags):
         if flag == Flags.YOU_REACHED_TENPAI:
