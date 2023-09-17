@@ -1,6 +1,6 @@
 from .classes import CallInfo, Dir, Draw, Event, Hand, Kyoku, Ron, Tsumo, Win
 from dataclasses import dataclass, field
-from .constants import DORA, DORA_INDICATOR, MANZU, PINZU, SOUZU, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
+from .constants import DORA, DORA_INDICATOR, MANZU, PINZU, SOUZU, JIHAI, LIMIT_HANDS, TOGGLE_RED_FIVE, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from enum import Enum
 from typing import *
 from .utils import get_majority_suit, is_mangan, normalize_red_five, print_pond, round_name, to_placement, translate_tenhou_yaku
@@ -71,7 +71,8 @@ Flags = Enum("Flags", "_SENTINEL"
     " SOMEONE_HAS_THREE_DORA_VISIBLE"
     " SOMEONE_REACHED_TENPAI"
     " SOMEONE_WAITED_ON_WINNING_TILE"
-    " SOMEONE_WAS_YAKULESS"
+    " SOMEONES_FURITEN_HAND_COULD_HAVE_WON"
+    " SOMEONES_YAKULESS_HAND_COULD_HAVE_WON"
     " STARTED_WITH_3_DORA"
     " TENPAI_ON_LAST_DISCARD"
     " TURN_SKIPPED_BY_PON"
@@ -107,7 +108,8 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_FOLDED_FROM_TENPAI"
     " YOU_GAINED_PLACEMENT"
     " YOU_GAINED_POINTS"
-    " YOU_WERE_YAKULESS"
+    " YOUR_FURITEN_HAND_COULD_HAVE_WON"
+    " YOUR_YAKULESS_HAND_COULD_HAVE_WON"
     " YOU_GOT_CHASED"
     " YOU_HAD_LIMIT_TENPAI"
     " YOU_LOST_POINTS"
@@ -144,6 +146,7 @@ class KyokuPlayerInfo:
     last_draw: int                          = 0
     last_discard: int                       = 0
     last_discard_was_riichi: int            = False
+    furiten: bool                           = False
     nagashi: bool                           = True
     in_riichi: bool                         = False
     riichi_index: Optional[int]             = None
@@ -260,6 +263,7 @@ class KyokuInfo:
         if 1 <= self.at[seat].hand.shanten[0] < 2:
             ukeire = self.at[seat].hand.ukeire(self.get_visible_tiles(seat))
             if ukeire == 0:
+                print(self.at[seat].hand, self.at[seat].hand.shanten, self.at[seat].hand.prev_shanten)
                 self.add_flag(seat, Flags.IISHANTEN_WITH_0_TILES, {"shanten": self.at[seat].hand.shanten})
         # check if there's a riichi, we drew a dangerous tile, and we have no safe tiles
         for opponent, at in enumerate(self.at):
@@ -333,6 +337,9 @@ class KyokuInfo:
         self.at[seat].hand = self.at[seat].hand.remove(tile)
         self.visible_tiles.append(tile)
         self.at[seat].pond.append(tile)
+        # check if this makes us furiten
+        if self.at[seat].hand.shanten[0] == 0 and normalize_red_five(tile) in self.at[seat].hand.shanten[1]:
+            self.at[seat].furiten = True
         # add to genbutsu for this player + all the riichi players
         for player in {player for player, at in enumerate(self.at) if at.in_riichi} | {seat}:
             self.at[player].genbutsu.add(tile)
@@ -409,6 +416,7 @@ class KyokuInfo:
     def process_tenpai(self, i: int, seat: int, event_type: str,
                        prev_shanten: Tuple[float, List[int]], new_shanten: Tuple[float, List[int]],
                        hand: Hand, ukeire: int, furiten: bool) -> None:
+        self.at[seat].furiten = furiten
         # check if we're the first to tenpai
         if Flags.SOMEONE_REACHED_TENPAI not in self.global_flags:
             self.add_flag(seat, Flags.YOU_TENPAI_FIRST)
@@ -708,8 +716,12 @@ class KyokuInfo:
                         # check if we were yakuless, which would prevent us from winning
                         our_yaku = get_final_yaku(self.kyoku, seat, check_rons=not is_tsumo, check_tsumos=is_tsumo)[normalize_red_five(winning_tile)]
                         if our_yaku.is_yakuless():
-                            self.add_flag(seat, Flags.YOU_WERE_YAKULESS, {"tile": winning_tile, "wait": self.at[seat].hand.shanten[1], "yaku": our_yaku})
-                            self.add_global_flag(Flags.SOMEONE_WAS_YAKULESS, {"seat": seat, "tile": winning_tile, "wait": self.at[seat].hand.shanten[1], "yaku": our_yaku})
+                            self.add_flag(seat, Flags.YOUR_YAKULESS_HAND_COULD_HAVE_WON, {"tile": winning_tile, "wait": self.at[seat].hand.shanten[1], "yaku": our_yaku})
+                            self.add_global_flag(Flags.SOMEONES_YAKULESS_HAND_COULD_HAVE_WON, {"seat": seat, "tile": winning_tile, "wait": self.at[seat].hand.shanten[1], "yaku": our_yaku})
+                        # check if we were furiten, which would prevent us from ronning
+                        if not is_tsumo and self.at[seat].furiten:
+                            self.add_flag(seat, Flags.YOUR_FURITEN_HAND_COULD_HAVE_WON, {"tile": winning_tile, "wait": self.at[seat].hand.shanten[1]})
+                            self.add_global_flag(Flags.SOMEONES_FURITEN_HAND_COULD_HAVE_WON, {"seat": seat, "tile": winning_tile, "wait": self.at[seat].hand.shanten[1]})
 
                     self.add_flag(seat, Flags.YOU_WAITED_ON_WINNING_TILE, {"tile": winning_tile, "wait": self.at[seat].hand.shanten[1]})
                     self.add_global_flag(Flags.SOMEONE_WAITED_ON_WINNING_TILE, {"seat": seat, "tile": winning_tile, "wait": self.at[seat].hand.shanten[1]})
