@@ -281,8 +281,8 @@ def won_by_pon_pon_ron(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
 ### end game skills
 ###
 
-@injustice(require=[Flags.YOU_WON_AFTER_SOMEONES_RIICHI],
-            forbid=[Flags.YOU_WON_OFF_TENPAI_TILE])
+@skill(require=[Flags.YOU_WON_AFTER_SOMEONES_RIICHI],
+        forbid=[Flags.YOU_WON_OFF_TENPAI_TILE])
 def robbed_riichi_stick(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     seat = data[flags.index(Flags.YOU_WON_AFTER_SOMEONES_RIICHI)]["seat"]
     return [Skill(kyoku.round, kyoku.honba, "Skill",
