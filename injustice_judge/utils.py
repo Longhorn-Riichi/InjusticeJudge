@@ -185,7 +185,9 @@ def get_waits(hand: Tuple[int, ...]) -> Set[int]:
         if len(hand) <= 1: # done
             waits |= set().union(*map(get_taatsu_wait, taatsus))
             continue
-        for tile in hand:
+        for i, tile in enumerate(hand):
+            if tile in (*hand[:i], *hand[i+1:]): # pair, ignore
+                to_update.add((try_remove_all_tiles(hand, (tile, tile)), taatsus))
             if SUCC[tile] in hand:
                 taatsu = (tile, SUCC[tile])
                 to_update.add((try_remove_all_tiles(hand, taatsu), (*taatsus, taatsu)))
