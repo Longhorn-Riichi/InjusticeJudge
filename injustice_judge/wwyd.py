@@ -5,13 +5,13 @@ from typing import *
 
 SUJI_VALUES = {1: (4,), 2: (5,), 3: (6,), 4: (1,7), 5: (2,8), 6: (3,9), 7: (4,), 8: (5,), 9: (6,)}
 SUJI = {k+n: tuple(x+n for x in v) for k, v in SUJI_VALUES.items() for n in {10,20,30}}
-def is_safe(tile: int, opponent_pond: List[int], visible_tiles: List[int]) -> bool:
+def is_safe(tile: int, opponent_genbutsu: Set[int], visible_tiles: List[int]) -> bool:
     # genbutsu
-    if tile in opponent_pond:
+    if tile in opponent_genbutsu:
         return True
     if tile not in JIHAI:
         # suji
-        if all(suji in opponent_pond for suji in SUJI[normalize_red_five(tile)]):
+        if all(suji in opponent_genbutsu for suji in SUJI[normalize_red_five(tile)]):
             return True
         # one-chance
         # check all possible taatsu waiting on this tile

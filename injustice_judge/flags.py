@@ -134,6 +134,7 @@ class KyokuPlayerInfo:
     num_players: int
     hand: Hand
     pond: List[int]                         = field(default_factory=list)
+    genbutsu: Set[int]                      = field(default_factory=set)
     draws_since_shanten_change: int         = 0
     tsumogiri_honor_discards: int           = 0
     tsumogiri_without_tenpai: int           = 0
@@ -262,7 +263,7 @@ class KyokuInfo:
         for opponent, at in enumerate(self.at):
             if seat == opponent or not at.in_riichi:
                 continue
-            safe = lambda t: is_safe(t, self.at[opponent].pond, self.get_visible_tiles(seat))
+            safe = lambda t: is_safe(t, self.at[opponent].genbutsu, self.get_visible_tiles(seat))
             if not safe(tile) and not any(safe(t) for t in self.at[seat].hand.tiles):
                 self.at[seat].dangerous_draws_after_riichi.append(tile)
                 if len(self.at[seat].dangerous_draws_after_riichi) >= 4:
@@ -297,6 +298,9 @@ class KyokuInfo:
     def process_self_kan(self, i: int, seat: int, event_type: str, called_tile: int, call_tiles: List[int], call_dir: Dir) -> None:
         if event_type == "kakan":
             self.at[seat].hand = self.at[seat].hand.kakan(called_tile)
+            # add to genbutsu for this player + all the riichi players
+            for player in {player for player, at in enumerate(self.at) if at.in_riichi} | {seat}:
+                self.at[player].genbutsu.add(called_tile)
         elif event_type == "ankan":
             self.at[seat].hand = self.at[seat].hand.add_call(CallInfo("ankan", called_tile, Dir.SELF, [called_tile]*4))
         elif event_type == "kita":
@@ -327,6 +331,9 @@ class KyokuInfo:
         self.at[seat].hand = self.at[seat].hand.remove(tile)
         self.visible_tiles.append(tile)
         self.at[seat].pond.append(tile)
+        # add to genbutsu for this player + all the riichi players
+        for player in {player for player, at in enumerate(self.at) if at.in_riichi} | {seat}:
+            self.at[player].genbutsu.add(tile)
         self.at[seat].num_discards += 1
         self.at[seat].last_discard = tile
         self.at[seat].last_discard_was_riichi = event_type == "riichi"
@@ -369,7 +376,7 @@ class KyokuInfo:
         # check if this discard respects/disrespects anyone's riichi
         for opponent, at in enumerate(self.at):
             if at.in_riichi and self.at[opponent].respects_riichi[seat] is None: # first discard after opponent's riichi
-                self.at[opponent].respects_riichi[seat] = is_safe(tile, self.at[opponent].pond, self.get_visible_tiles(seat))
+                self.at[opponent].respects_riichi[seat] = is_safe(tile, self.at[opponent].genbutsu, self.get_visible_tiles(seat))
                 if all(self.at[opponent].respects_riichi[player] == False for player in range(self.num_players) if player != opponent):
                     self.add_flag(opponent, Flags.EVERYONE_DISRESPECTED_YOUR_RIICHI)
                 elif all(self.at[opponent].respects_riichi[player] == True for player in range(self.num_players) if player != opponent):

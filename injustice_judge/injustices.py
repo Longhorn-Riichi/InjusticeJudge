@@ -288,7 +288,6 @@ def head_bumped_someone(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
     winners = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.WINNER}
     folders = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.SOMEONE_FOLDED_FROM_TENPAI}
     got_head_bumped = waiters - (winners - folders)
-    print(round_name(kyoku.round, kyoku.honba), got_head_bumped)
     if len(got_head_bumped) >= 1:
         return [Skill(kyoku.round, kyoku.honba, "Skill",
                 CheckClause(subject="you",
