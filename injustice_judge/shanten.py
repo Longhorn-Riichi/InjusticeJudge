@@ -1,9 +1,10 @@
 import functools
 import itertools
+from .classes import Interpretation
 from .constants import PRED, SUCC, TANYAOHAI, YAOCHUUHAI
 from .display import ph, pt
-from .utils import get_taatsu_wait, get_waits, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles, remove_some, remove_all, fix
-from .utils2 import get_tenpai_waits
+from .utils import get_taatsu_wait, get_waits, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
+
 from typing import *
 from pprint import pprint
 
@@ -23,6 +24,21 @@ from pprint import pprint
 ###
 
 # helpers for removing tiles from hand
+fix = lambda f, x: next(x for _ in itertools.cycle([None]) if x == (x := f(x)))
+remove_some = lambda hands, tile_to_groups: hands if hands == {()} else set(try_remove_all_tiles(hand, group) for hand in hands for tile in set(hand) for group in tile_to_groups(tile))
+def remove_all(hands: Set[Tuple[int, ...]], tile_to_groups: Callable[[int], Tuple[Tuple[int, ...], ...]]):
+    # Tries to remove the maximum number of groups in tile_to_groups(tile) from the hand.
+    # Basically same as remove_some but filters the result for min length hands.
+    assert isinstance(hands, set)
+    if len(hands) == 0:
+        return hands
+    result = remove_some(hands, tile_to_groups)
+    assert len(result) > 0
+    min_length = min(map(len, result), default=0)
+    ret = set(filter(lambda hand: len(hand) == min_length, result))
+    assert len(ret) > 0
+    # print(list(map(ph,hands)),"\n=>\n",list(map(ph,result)), "\n=>\n",list(map(ph,ret)),"\n")
+    return ret
 make_groups = lambda tile: ((SUCC[SUCC[tile]], SUCC[tile], tile), (tile, tile, tile))
 remove_all_groups = lambda hands: functools.reduce(lambda hs, _: remove_all(hs, make_groups), range(4), hands)
 remove_some_groups = lambda hands: functools.reduce(lambda hs, _: remove_some(hs, make_groups), range(4), hands)
@@ -35,6 +51,10 @@ remove_all_pairs = lambda hands: fix(lambda hs: remove_all(hs, make_pairs), hand
 make_taatsus_pairs = lambda tile: ((tile, tile),(SUCC[tile], tile), (SUCC[SUCC[tile]], tile))
 remove_some_taatsus_pairs = lambda hands: fix(lambda hs: remove_some(hs, make_taatsus_pairs), hands)
 remove_all_taatsus_pairs = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus_pairs), hands)
+
+@functools.lru_cache(maxsize=2048)
+def get_tenpai_waits(hand: Tuple[int, ...]) -> Set[int]:
+    return {wait for i in Interpretation(hand).generate_all_interpretations() for wait in i.get_waits()}
 
 @functools.lru_cache(maxsize=2048)
 def contains_1_floating_tile(hand: Tuple[int, ...]) -> bool:

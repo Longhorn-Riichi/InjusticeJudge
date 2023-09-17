@@ -4,13 +4,12 @@ import functools
 from typing import *
 
 from .classes import CallInfo, Dir, Interpretation
-from .constants import LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
+from .constants import MANZU, PINZU, SOUZU, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
 from .display import ph, pt, shanten_name
-from .utils import is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, translate_tenhou_yaku, try_remove_all_tiles
+from .utils import is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten
 
-# these classes depend on shanten.py, which depends on utils2.py,
-# which depends on classes.py, so we can't put them in classes.py
+# these classes depend on shanten.py, which depends on classes.py, so we can't put them in classes.py
 
 @functools.lru_cache(maxsize=2048)
 def _hidden_part(hand: Tuple[int], calls: Tuple[int]) -> Tuple[int, ...]:
@@ -116,6 +115,34 @@ class Hand:
         relevant_tiles = set(normalize_red_fives(waits))
         visible = list(normalize_red_fives(list(self.tiles_with_kans) + list(visible)))
         return 4 * len(relevant_tiles) - sum(visible.count(wait) for wait in relevant_tiles)
+    def get_majority_suit(self) -> Optional[Set[int]]:
+        # returns one of {MANZU, PINZU, SOUZU}
+        # or None if there is no majority suit (i.e. there's a tie)
+        num_manzu = sum(1 for tile in self.tiles if tile in MANZU)
+        num_pinzu = sum(1 for tile in self.tiles if tile in PINZU)
+        num_souzu = sum(1 for tile in self.tiles if tile in SOUZU)
+        if num_manzu > max(num_pinzu, num_souzu):
+            return MANZU
+        elif num_pinzu > max(num_manzu, num_souzu):
+            return PINZU
+        elif num_souzu > max(num_manzu, num_pinzu):
+            return SOUZU
+        else:
+            return None
+
+# takes in "場風 東(1飜)", "ドラ(2飜)", "裏ドラ(1飜)"
+# outputs ("ton", 1), ("dora 2", 2), ("ura", 1)
+@functools.lru_cache(maxsize=2048)
+def translate_tenhou_yaku(yaku: str) -> Tuple[str, int]:
+    name, rest = yaku.split("(")
+    name = TRANSLATE[name]
+    if "役満" in yaku: # e.g. "大三元(役満)"
+        han = 13
+    else: # e.g. "ドラ(2飜)"
+        han = int(rest.split("飜")[0])
+    if name in {"dora", "aka", "ura", "kita"} and han > 1:
+        name = f"{name} {han}"
+    return name, han
 
 YakuForWait = Dict[int, List[Tuple[str, int]]]
 @dataclass

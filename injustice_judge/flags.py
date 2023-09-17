@@ -1,10 +1,10 @@
 from .classes import CallInfo, Dir
 from .classes2 import Draw, Event, Hand, Kyoku, Ron, Tsumo, Win
 from dataclasses import dataclass, field
-from .constants import DORA, DORA_INDICATOR, MANZU, PINZU, SOUZU, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
+from .constants import DORA, DORA_INDICATOR, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, print_pond, round_name
 from enum import Enum
-from .utils import get_majority_suit, is_mangan, normalize_red_five, to_placement
+from .utils import is_mangan, normalize_red_five, to_placement
 from .wwyd import is_safe
 from .yaku import get_final_yaku, get_score, get_takame_score, get_yakuman_tenpais, get_yakuman_waits
 from typing import *
@@ -241,7 +241,7 @@ class KyokuInfo:
                 self.add_flag(seat, Flags.IMMEDIATELY_DREW_DISCARDED_DORA, {"tile": tile})
         # check if we're going for honitsu and drew an off-suit tile
         going_for_honitsu = False
-        majority_suit = get_majority_suit(self.at[seat].hand.tiles)
+        majority_suit = self.at[seat].hand.get_majority_suit()
         if majority_suit is not None and tile not in majority_suit | JIHAI:
             honitsu_tiles = majority_suit | JIHAI
             majority_tiles = tuple(tile for tile in self.at[seat].hand.tiles if tile in honitsu_tiles)

@@ -4,7 +4,6 @@ from .classes2 import Event, Hand, Kyoku, Score, YakuForWait
 from .constants import LIMIT_HANDS, YAOCHUUHAI
 from .display import ph, pt, round_name, shanten_name
 from .utils import get_score, get_taatsu_wait, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand
-from .utils2 import generate_hand_interpretations
 from pprint import pprint
 
 # This file details some algorithms for checking the yaku of a given `Hand` object.
@@ -188,7 +187,7 @@ def get_hand_interpretations(hand: Hand, yakuhai: Tuple[int, ...]) -> Set[Interp
                                             calls=frozen_hand_calls)
 
     # let's get all the interpretations of the hand
-    interpretations = generate_hand_interpretations(initial_interpretation, yakuhai, base_ron_fu, base_tsumo_fu, frozen_hand_calls)
+    interpretations = initial_interpretation.generate_all_interpretations(yakuhai, base_ron_fu, base_tsumo_fu, frozen_hand_calls)
             
     return interpretations if len(interpretations) > 0 else {initial_interpretation}
 
