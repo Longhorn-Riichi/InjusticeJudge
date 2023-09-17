@@ -8,7 +8,8 @@ from typing import *
 from .classes import CallInfo, GameRules, GameMetadata, Dir
 from .classes2 import Draw, Event, Hand, Kyoku, Ron, Score, Tsumo
 from .constants import DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
-from .utils import is_mangan, ph, apply_delta_scores, normalize_red_five, round_name, sorted_hand, to_placement, translate_tenhou_yaku
+from .display import ph, pt, round_name
+from .utils import apply_delta_scores, is_mangan, normalize_red_five, sorted_hand, to_placement, translate_tenhou_yaku
 from .yaku import debug_yaku
 from pprint import pprint
 

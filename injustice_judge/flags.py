@@ -2,11 +2,12 @@ from .classes import CallInfo, Dir
 from .classes2 import Draw, Event, Hand, Kyoku, Ron, Tsumo, Win
 from dataclasses import dataclass, field
 from .constants import DORA, DORA_INDICATOR, MANZU, PINZU, SOUZU, JIHAI, LIMIT_HANDS, TOGGLE_RED_FIVE, TRANSLATE, YAKUMAN, YAOCHUUHAI
+from .display import ph, pt, print_pond, round_name
 from enum import Enum
-from typing import *
-from .utils import get_majority_suit, is_mangan, normalize_red_five, print_pond, round_name, to_placement, translate_tenhou_yaku
+from .utils import get_majority_suit, is_mangan, normalize_red_five, to_placement, translate_tenhou_yaku
 from .wwyd import is_safe
 from .yaku import get_final_yaku, get_score, get_takame_score, get_yakuman_tenpais, get_yakuman_waits
+from typing import *
 from pprint import pprint
 
 # This file provides a `Flags` enum and a single function, `determine_flags`,

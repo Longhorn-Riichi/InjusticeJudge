@@ -1,7 +1,8 @@
 import functools
 from .constants import LIMIT_HANDS, PRED, SUCC, YAOCHUUHAI
 from .classes import Interpretation, CallInfo
-from .utils import fix, get_score, get_taatsu_wait, is_mangan, pt, ph, normalize_red_five, normalize_red_fives, round_name, shanten_name, sorted_hand, try_remove_all_tiles
+from .display import ph, pt, round_name, shanten_name
+from .utils import fix, get_score, get_taatsu_wait, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
 from typing import *
 from pprint import pprint
 

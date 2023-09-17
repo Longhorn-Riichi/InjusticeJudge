@@ -1,9 +1,10 @@
 import functools
 import itertools
 from .constants import PRED, SUCC, TANYAOHAI, YAOCHUUHAI
-from typing import *
-from .utils import get_taatsu_wait, get_waits, pt, ph, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles, remove_some, remove_all, fix
+from .display import ph, pt
+from .utils import get_taatsu_wait, get_waits, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles, remove_some, remove_all, fix
 from .utils2 import get_tenpai_waits
+from typing import *
 from pprint import pprint
 
 # This file details a shanten algorithm. It's not super efficient, but the

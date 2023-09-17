@@ -4,7 +4,8 @@ import functools
 from typing import *
 
 from .constants import LIMIT_HANDS, TOGGLE_RED_FIVE, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
-from .utils import get_waits, is_mangan, ph, pt, normalize_red_five, normalize_red_fives, shanten_name, sorted_hand, translate_tenhou_yaku, try_remove_all_tiles
+from .display import ph, pt, shanten_name
+from .utils import get_waits, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, translate_tenhou_yaku, try_remove_all_tiles
 
 # This file contains most of the classes used in InjusticeJudge.
 # It also contains some printing logic in the form of __str__ overloads.

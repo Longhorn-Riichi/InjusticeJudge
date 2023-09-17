@@ -5,7 +5,8 @@ from typing import *
 
 from .classes import CallInfo, Dir, Interpretation
 from .constants import LIMIT_HANDS, TOGGLE_RED_FIVE, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
-from .utils import is_mangan, ph, pt, normalize_red_five, normalize_red_fives, shanten_name, sorted_hand, translate_tenhou_yaku, try_remove_all_tiles
+from .display import ph, pt, shanten_name
+from .utils import is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, translate_tenhou_yaku, try_remove_all_tiles
 from .shanten import calculate_shanten
 
 # these classes depend on shanten.py, which depends on utils2.py,
