@@ -489,15 +489,16 @@ class KyokuInfo:
         # check if we are mangan+ tenpai
         is_haitei = self.kyoku.tiles_in_wall == 0 and seat == self.kyoku.final_draw_seat
         is_houtei = self.kyoku.tiles_in_wall == 0 and seat != self.kyoku.final_draw_seat
-        best_score, takame = get_takame_score(hand = hand,
-                                              events = self.kyoku.events,
-                                              doras = self.kyoku.doras,
-                                              uras = self.kyoku.uras,
-                                              round = self.kyoku.round,
-                                              seat = seat,
-                                              is_haitei = is_haitei,
-                                              is_houtei = is_houtei,
-                                              num_players = self.kyoku.num_players)
+        best_score, takame, all_scores = get_takame_score(
+            hand = hand,
+            events = self.kyoku.events,
+            doras = self.kyoku.doras,
+            uras = self.kyoku.uras,
+            round = self.kyoku.round,
+            seat = seat,
+            is_haitei = is_haitei,
+            is_houtei = is_houtei,
+            num_players = self.kyoku.num_players)
         han = best_score.han
         fu = best_score.fu
         if han >= 5 or is_mangan(han, fu):
@@ -518,9 +519,9 @@ class KyokuInfo:
         if len(yakuman_types) > 0:
             self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": yakuman_types, "waits": yakuman_waits})
         elif han >= 13 and not any(y in map(TRANSLATE.get, YAKUMAN.values()) for y, _ in best_score.yaku):
-            # TODO filter for only the waits that let you reach kazoe yakuman
-            waits = new_shanten[1]
-            self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": {f"kazoe yakuman ({', '.join(y for y, _ in best_score.yaku)})"}, "waits": waits})
+            # filter for only the waits that let you reach kazoe yakuman
+            kazoe_waits = {wait for wait, score in all_scores.items() if score.han >= 13}
+            self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": {f"kazoe yakuman ({', '.join(y for y, _ in best_score.yaku)})"}, "waits": kazoe_waits})
 
     def process_new_dora(self, i: int, seat: int, event_type: str,
                          dora_indicator: int, kan_call: CallInfo) -> None:
@@ -883,7 +884,17 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
         elif event_type in {"chii", "pon", "minkan"}:
             info.process_chii_pon_daiminkan(i, *event)
         elif event_type in {"ankan", "kakan", "kita"}:
+            prev_shanten = info.at[seat].hand.shanten
             info.process_self_kan(i, *event)
+            new_shanten = info.at[seat].hand.shanten
+            # self kans change the value of our tenpai
+            if new_shanten[0] == 0:
+                info.process_tenpai(i, seat, event_type,
+                    prev_shanten = prev_shanten,
+                    new_shanten = new_shanten,
+                    hand = info.at[seat].hand,
+                    ukeire = info.at[seat].hand.ukeire(info.get_visible_tiles()),
+                    furiten = info.at[seat].furiten)
         elif event_type in {"discard", "riichi"}:
             info.process_discard(i, *event[:3]) # riichi has extra args we don't care about
         elif event_type == "end_nagashi":

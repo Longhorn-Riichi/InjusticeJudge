@@ -827,7 +827,7 @@ def get_takame_score(hand: Hand,
                      seat: int,
                      is_haitei: bool,
                      is_houtei: bool,
-                     num_players: int) -> Tuple[Score, int]:
+                     num_players: int) -> Tuple[Score, int, Dict[int, Score]]:
     assert hand.shanten[0] == 0
     
     # if no calls, use tsumo score. else, get ron score
@@ -868,7 +868,7 @@ def get_takame_score(hand: Hand,
         if LIMIT_HANDS[ron_han] == LIMIT_HANDS[han] or (is_mangan(han, fu) and is_mangan(ron_han, ron_fu)):
             best_score = best_ron_score
             takame = ron_takame
-    return best_score, takame
+    return best_score, takame, scores
 
 ###
 ### for debug use
