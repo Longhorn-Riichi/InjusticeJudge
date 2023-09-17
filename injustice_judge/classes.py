@@ -7,8 +7,8 @@ from .constants import PRED, SUCC, TOGGLE_RED_FIVE, YAOCHUUHAI
 from .display import ph, pt, shanten_name
 from .utils import get_waits, normalize_red_fives, sorted_hand, try_remove_all_tiles
 
-# This file contains most of the classes used in InjusticeJudge.
-# It also contains some printing logic in the form of __str__ overloads.
+# This file and classes2.py contain most of the classes used in InjusticeJudge.
+# They also contain some printing logic in the form of __str__ overloads.
 
 class Dir(IntEnum):
     """Enum representing a direction, add to a seat mod 4 to get the indicated seat"""
@@ -81,11 +81,37 @@ class Interpretation:
             else: # ryanmen, kanchan, penchan
                 return get_waits(self.hand)
         return set()
-    def generate_all_interpretations(self,
-                                     yakuhai: Tuple[int, ...] = (),
-                                     base_ron_fu: int = 20,
-                                     base_tsumo_fu: int = 22,
-                                     frozen_hand_calls: Tuple[CallInfo, ...] = ()) -> Set["Interpretation"]:
+    def generate_all_interpretations(self, yakuhai: Tuple[int, ...] = (), is_closed_hand: bool = False) -> Set["Interpretation"]:
+        """
+        From this Interpretation, remove all combinations of sequences,
+        triplets, and pair from self.hand to arrive at several
+        Interpretations. Calculates fu obtained in the process, after you
+        pass in the yakuhai tiles, base ron fu, and base tsumo fu.
+        """
+
+        # first, use the call info to filter some groups out of the hand
+        base_fu = 20
+        for call in self.calls:
+            if call.type == "chii":
+                self.sequences = (*self.sequences, tuple(call.tiles))
+            if call.type == "pon":
+                base_fu += 4 if call.tile in YAOCHUUHAI else 2
+                # print(f"add {4 if call.tile in YAOCHUUHAI else 2} for open triplet {pt(call.tile)}")
+                self.triplets = (*self.triplets, tuple(call.tiles))
+            if "kan" in call.type: 
+                base_fu += 16 if call.tile in YAOCHUUHAI else 8
+                if call.type == "ankan":
+                    base_fu += 16 if call.tile in YAOCHUUHAI else 8
+                    # print(f"add {32 if call.tile in YAOCHUUHAI else 16} for closed kan {pt(call.tile)}")
+                else:
+                    pass
+                    # print(f"add {16 if call.tile in YAOCHUUHAI else 8} for open kan {pt(call.tile)}")
+                self.triplets = (*self.triplets, tuple(call.tiles[:3]))
+        # print(f"base fu + calls = {base_fu} fu")
+        base_ron_fu = base_fu + (10 if is_closed_hand else 0)
+        base_tsumo_fu = base_fu + 2
+
+        # finally, iterate through all possible interpretations of the hand
         interpretations: Set[Interpretation] = set()
         to_update: Set[Interpretation] = {self}
         already_processed: Set[Tuple[int, ...]] = set()
@@ -104,13 +130,13 @@ class Interpretation:
                     # add fu for this triplet
                     triplet_fu = 8 if tile in YAOCHUUHAI else 4
                     # print(f"add {triplet_fu} for closed triplet {pt(tile)}, {ph(unprocessed_part)}")
-                    to_update.add(Interpretation(removed_triplet, fu + triplet_fu, fu + triplet_fu, sequences, add_group(triplets, triplet), pair, calls=frozen_hand_calls))
+                    to_update.add(Interpretation(removed_triplet, fu + triplet_fu, fu + triplet_fu, sequences, add_group(triplets, triplet), pair, calls=self.calls))
 
                 # remove a sequence
                 sequence = (SUCC[SUCC[tile]], SUCC[tile], tile)
                 removed_sequence = try_remove_all_tiles(unprocessed_part, sequence)
                 if removed_sequence != unprocessed_part: # removal was a success
-                    to_update.add(Interpretation(removed_sequence, fu, fu, add_group(sequences, sequence), triplets, pair, calls=frozen_hand_calls))
+                    to_update.add(Interpretation(removed_sequence, fu, fu, add_group(sequences, sequence), triplets, pair, calls=self.calls))
 
                 # remove a pair, if we haven't yet
                 if pair is None:
@@ -118,7 +144,7 @@ class Interpretation:
                     # print(f"add {yakuhai_fu} for yakuhai pair {pt(tile)}, {ph(unprocessed_part)}")
                     removed_pair = try_remove_all_tiles(unprocessed_part, (tile, tile))
                     if removed_pair != unprocessed_part: # removal was a success
-                        to_update.add(Interpretation(removed_pair, fu + yakuhai_fu, fu + yakuhai_fu, sequences, triplets, (tile, tile), calls=frozen_hand_calls))
+                        to_update.add(Interpretation(removed_pair, fu + yakuhai_fu, fu + yakuhai_fu, sequences, triplets, (tile, tile), calls=self.calls))
                 
             if len(unprocessed_part) == 2:
                 # now evaluate the remaining taatsu
@@ -132,7 +158,7 @@ class Interpretation:
                 if True in {is_ryanmen, is_shanpon, is_penchan, is_kanchan}:
                     ron_fu = base_ron_fu + fu + single_wait_fu
                     tsumo_fu = base_tsumo_fu + fu + single_wait_fu
-                    interpretations.add(Interpretation(unprocessed_part, ron_fu, tsumo_fu, sequences, triplets, pair, calls=frozen_hand_calls))
+                    interpretations.add(Interpretation(unprocessed_part, ron_fu, tsumo_fu, sequences, triplets, pair, calls=self.calls))
             elif len(unprocessed_part) == 1:
                 # either a tanki or aryanmen wait for pinfu
                 # first take care of the tanki possibility:
@@ -141,7 +167,7 @@ class Interpretation:
                 yakuhai_fu = 2 * yakuhai.count(tile)
                 ron_fu = base_ron_fu + fu + yakuhai_fu + 2
                 tsumo_fu = base_tsumo_fu + fu + yakuhai_fu + 2
-                interpretations.add(Interpretation(unprocessed_part, ron_fu, tsumo_fu, sequences, triplets, calls=frozen_hand_calls))
+                interpretations.add(Interpretation(unprocessed_part, ron_fu, tsumo_fu, sequences, triplets, calls=self.calls))
                 # then take care of the pinfu aryanmen possibility:
                 if len(triplets) == 0: # all sequences
                     # check that it's a tanki overlapping a sequence
@@ -159,8 +185,8 @@ class Interpretation:
                             has_pair = True
                             break
                     if has_pair == True:
-                        interpretations.add(Interpretation(ryanmen, 30, 22, remaining_seqs, triplets, (tanki, tanki), calls=frozen_hand_calls))
-        return interpretations
+                        interpretations.add(Interpretation(ryanmen, 30, 22, remaining_seqs, triplets, (tanki, tanki), calls=self.calls))
+        return interpretations if len(interpretations) > 0 else {self}
 
 @dataclass
 class GameRules:

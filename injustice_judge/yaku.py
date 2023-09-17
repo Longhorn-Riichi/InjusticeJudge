@@ -147,50 +147,6 @@ def test_get_yakuman_tenpais():
 ### yaku calculation
 ###
 
-def get_hand_interpretations(hand: Hand, yakuhai: Tuple[int, ...]) -> Set[Interpretation]:
-    if hand.shanten[0] != 0:
-        return set()
-    waits = set(hand.shanten[1])
-
-    is_closed_hand = len(hand.closed_part) == 13
-    base_fu = 20
-
-    # first, use the call info to filter some groups out of the hand
-    called_sequences = []
-    called_triplets = []
-    for call in hand.calls:
-        if call.type == "chii":
-            called_sequences.append(tuple(call.tiles))
-        if call.type == "pon":
-            base_fu += 4 if call.tile in YAOCHUUHAI else 2
-            # print(f"add {4 if call.tile in YAOCHUUHAI else 2} for open triplet {pt(call.tile)}")
-            called_triplets.append(tuple(call.tiles))
-        if "kan" in call.type: 
-            base_fu += 16 if call.tile in YAOCHUUHAI else 8
-            if call.type == "ankan":
-                base_fu += 16 if call.tile in YAOCHUUHAI else 8
-                # print(f"add {32 if call.tile in YAOCHUUHAI else 16} for closed kan {pt(call.tile)}")
-            else:
-                pass
-                # print(f"add {16 if call.tile in YAOCHUUHAI else 8} for open kan {pt(call.tile)}")
-            called_triplets.append(tuple(call.tiles[:3]))
-
-    # print(f"base fu + calls = {base_fu} fu")
-
-    base_ron_fu = base_fu + (10 if is_closed_hand else 0)
-    base_tsumo_fu = base_fu + 2
-
-    frozen_hand_calls = tuple(hand.calls)
-    initial_interpretation = Interpretation(hand.hidden_part,
-                                            sequences=tuple(called_sequences),
-                                            triplets=tuple(called_triplets),
-                                            calls=frozen_hand_calls)
-
-    # let's get all the interpretations of the hand
-    interpretations = initial_interpretation.generate_all_interpretations(yakuhai, base_ron_fu, base_tsumo_fu, frozen_hand_calls)
-            
-    return interpretations if len(interpretations) > 0 else {initial_interpretation}
-
 # checks for:
 # - tanyao, honroutou, toitoi, chinitsu, honitsu, shousangen,
 # - pinfu, iitsu, sanshoku, sanshoku doukou, 
@@ -632,13 +588,8 @@ def get_yaku(hand: Hand,
         return {}
 
     waits = set(hand.shanten[1])
-    is_closed_hand = len(hand.closed_part) == 13
     assert len(waits) > 0, f"hand {hand!s} is tenpai, but has no waits?"
 
-    # now for each of the waits we calculate their possible yaku
-    interpretations = get_hand_interpretations(hand, yakuhai=(45,46,47,(round//4)+41,((seat-round)%4)+41))
-
-    assert len(interpretations) > 0, f"tenpai hand {hand!s} had no interpretations?"
     # best_score[wait] = the Score value representing the best interpretation for that wait
     best_score: Dict[int, Score] = {}
     def add_best_score(wait, new_score):
@@ -651,8 +602,11 @@ def get_yaku(hand: Hand,
 
     # we want to get the best yaku for each wait
     # each hand interpretation gives han and fu for some number of waits
-    # get the best han and fu for each wait acrosss all interpretations
-    for interpretation in interpretations:
+    # get the best han and fu for each wait across all interpretations
+    yakuhai = (45,46,47,(round//4)+41,((seat-round)%4)+41)
+    is_closed_hand = len(hand.closed_part) == 13
+    for interpretation in Interpretation(hand.hidden_part, calls=tuple(hand.calls)) \
+            .generate_all_interpretations(yakuhai=yakuhai, is_closed_hand=is_closed_hand):
         # print("========")
         # for k, v in best_score.items():
         #     print(f"{pt(k)}, {v.hand!s}")
@@ -672,11 +626,10 @@ def get_yaku(hand: Hand,
         # if it's a terminal pair then it's +4 fu for ron and +8 for tsumo
         # otherwise it's +2 fu for ron and +4 for tsumo
         is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
-        shanpon_tiles = set()
         shanpon_fu = {wait: 0 for wait in yaku_for_wait.keys()} # times 2 for tsumo
-        if is_pair(interpretation.hand) and interpretation.pair is not None:
-            shanpon_tiles = {interpretation.hand[0], interpretation.pair[0]}
-            for tile in shanpon_tiles:
+        if is_pair(interpretation.hand):
+            assert interpretation.pair is not None, "somehow got a shanpon tenpai hand without a pair"
+            for tile in (interpretation.hand[0], interpretation.pair[0]):
                 shanpon_fu[tile] = 4 if tile in YAOCHUUHAI else 2
 
         # now total up the fu for each wait
@@ -719,81 +672,6 @@ def get_final_yaku(kyoku: Kyoku,
                    check_rons = check_rons,
                    check_tsumos = check_tsumos)
     return ret
-
-def test_get_yaku():
-    from .shanten import calculate_shanten
-    def test_hand(hand):
-        return get_yaku(hand = Hand(hand),
-                   events = [],
-                   doras = [],
-                   uras = [],
-                   round = 0,
-                   seat = 0,
-                   is_haitei = False,
-                   check_rons = True,
-                   check_tsumos = True)
-
-    pprint(test_hand((13,14,14,15,51,16,25,26,31,32,33,46,46)))
-    
-    
-    
-    
-    # print(test_hand((11,12,13,21,22,23,31,32,33,38,37,25,25))) # pinfu, sansuoku
-    # print(test_hand((11,11,12,12,13,13,23,24,25,26,27,28,31))) # iipeikou
-    # print(test_hand((11,11,12,12,13,31,23,24,25,26,27,28,31))) # iipeikou
-    # print(test_hand((11,12,12,13,13,14,15,16,21,22,23,24,24))) # pinfu, iipeikou
-    # print(test_hand((11,12,12,13,13,22,22,23,23,24,24,33,33))) # pinfu, ryanpeikou
-
-def get_takame_score(hand: Hand,
-                     events: List[Event],
-                     doras: List[int],
-                     uras: List[int],
-                     round: int,
-                     seat: int,
-                     is_haitei: bool,
-                     is_houtei: bool,
-                     num_players: int) -> Tuple[Score, int, Dict[int, Score]]:
-    assert hand.shanten[0] == 0
-    
-    # if no calls, use tsumo score. else, get ron score
-    calls_present = len(hand.calls) > 0
-    scores: Dict[int, Score] = get_yaku(hand = hand,
-                                        events = events,
-                                        doras = doras,
-                                        uras = uras,
-                                        round = round,
-                                        seat = seat,
-                                        is_haitei = is_haitei,
-                                        is_houtei = is_houtei,
-                                        num_players = num_players,
-                                        check_rons = calls_present,
-                                        check_tsumos = not calls_present)
-    best_score, takame = max((score, wait) for wait, score in scores.items())
-    han = best_score.han
-    fu = best_score.fu   
-    # if we added tsumo, then we might not need the extra han from menzentsumo
-    # (e.g. 6 han + tsumo -> 7 han, still haneman, no need for tsumo)
-    # recalculate fu for a ron, and return that score if it results in the same limit hand
-    recalculate = han in {7, 9, 10, 12} or (han == 5 and fu >= 40) or (han == 4 and fu >= 70)
-    if recalculate and not calls_present:
-        ron_scores: Dict[int, Score] = get_yaku(hand = hand,
-                                                events = events,
-                                                doras = doras,
-                                                uras = uras,
-                                                round = round,
-                                                seat = seat,
-                                                is_haitei = is_haitei,
-                                                is_houtei = is_houtei,
-                                                num_players = num_players,
-                                                check_rons = True,
-                                                check_tsumos = False)
-        best_ron_score, ron_takame = max((score, wait) for wait, score in ron_scores.items())
-        ron_han = best_score.han
-        ron_fu = best_score.fu
-        if LIMIT_HANDS[ron_han] == LIMIT_HANDS[han] or (is_mangan(han, fu) and is_mangan(ron_han, ron_fu)):
-            best_score = best_ron_score
-            takame = ron_takame
-    return best_score, takame, scores
 
 ###
 ### for debug use

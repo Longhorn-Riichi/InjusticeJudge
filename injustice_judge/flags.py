@@ -1,12 +1,12 @@
 from .classes import CallInfo, Dir
-from .classes2 import Draw, Event, Hand, Kyoku, Ron, Tsumo, Win
+from .classes2 import Draw, Event, Hand, Kyoku, Ron, Score, Tsumo, Win
 from dataclasses import dataclass, field
 from .constants import DORA, DORA_INDICATOR, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, print_pond, round_name
 from enum import Enum
 from .utils import is_mangan, normalize_red_five, to_placement
 from .wwyd import is_safe
-from .yaku import get_final_yaku, get_score, get_takame_score, get_yakuman_tenpais, get_yakuman_waits
+from .yaku import get_final_yaku, get_score, get_yaku, get_yakuman_tenpais, get_yakuman_waits
 from typing import *
 from pprint import pprint
 
@@ -129,7 +129,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_WON"
     " YOU_WON_OFF_TENPAI_TILE"
     " YOU_WON_AFTER_SOMEONES_RIICHI"
-    " YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN"
+    # " YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN"
     " YOUR_LAST_DISCARD_ENDED_NAGASHI"
     " YOUR_LAST_NAGASHI_TILE_CALLED"
     " YOUR_TENPAI_TILE_DEALT_IN"
@@ -464,17 +464,17 @@ class KyokuInfo:
         # check for last draw tenpai
         if self.tiles_in_wall <= 3:
             self.add_flag(seat, Flags.LAST_DRAW_TENPAI, {"seat": seat, "turn": self.at[seat].num_discards})
-        # check if we started from 5-shanten and reached tenpai
-        # add a flag to everyone who had a 3-shanten start but couldn't reach tenpai
-        if Flags.FIVE_SHANTEN_START in self.flags[seat]:
-            for player in range(self.num_players):
-                if seat == player:
-                    continue
-                if self.kyoku.haipai[player].shanten[0] <= 3 and Flags.YOU_REACHED_TENPAI not in self.flags[player]:
-                    self.add_flag(player, Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN,
-                                          {"seat": seat,
-                                           "your_shanten": self.kyoku.haipai[player].shanten[0],
-                                           "their_shanten": self.kyoku.haipai[seat].shanten[0]})
+        # # check if we started from 5-shanten and reached tenpai
+        # # add a flag to everyone who had a 3-shanten start but couldn't reach tenpai
+        # if Flags.FIVE_SHANTEN_START in self.flags[seat]:
+        #     for player in range(self.num_players):
+        #         if seat == player:
+        #             continue
+        #         if self.kyoku.haipai[player].shanten[0] <= 3 and Flags.YOU_REACHED_TENPAI not in self.flags[player]:
+        #            self.add_flag(player, Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN,
+        #                                   {"seat": seat,
+        #                                    "your_shanten": self.kyoku.haipai[player].shanten[0],
+        #                                    "their_shanten": self.kyoku.haipai[seat].shanten[0]})
 
         # check if you entered tenpai on your last discard
         was_last_discard_of_the_game = i >= self.kyoku.final_discard_event_index[seat]
@@ -489,18 +489,35 @@ class KyokuInfo:
             self.remove_global_flag(Flags.SOMEONE_FOLDED_FROM_TENPAI, {"seat": seat})
 
         # check if we are mangan+ tenpai
-        is_haitei = self.kyoku.tiles_in_wall == 0 and seat == self.kyoku.final_draw_seat
-        is_houtei = self.kyoku.tiles_in_wall == 0 and seat != self.kyoku.final_draw_seat
-        best_score, takame, all_scores = get_takame_score(
-            hand = hand,
-            events = self.kyoku.events,
-            doras = self.kyoku.doras,
-            uras = self.kyoku.uras,
-            round = self.kyoku.round,
-            seat = seat,
-            is_haitei = is_haitei,
-            is_houtei = is_houtei,
-            num_players = self.kyoku.num_players)
+        get_yaku_args = {
+            "hand": hand,
+            "events": self.kyoku.events,
+            "doras": self.kyoku.doras,
+            "uras": self.kyoku.uras,
+            "round": self.kyoku.round,
+            "seat": seat,
+            "is_haitei": self.kyoku.tiles_in_wall == 0 and seat == self.kyoku.final_draw_seat,
+            "is_houtei": self.kyoku.tiles_in_wall == 0 and seat != self.kyoku.final_draw_seat,
+            "num_players": self.kyoku.num_players
+        }
+        # if no calls, use tsumo score. else, get ron score
+        calls_present = len(get_yaku_args["hand"].calls) > 0  # type: ignore[attr-defined]
+        all_scores = get_yaku(**get_yaku_args, check_rons = calls_present, check_tsumos = not calls_present)  # type: ignore[arg-type]
+        best_score, takame = max((score, wait) for wait, score in all_scores.items())
+        han = best_score.han
+        fu = best_score.fu   
+        # if we added tsumo, then we might not need the extra han from menzentsumo
+        # (e.g. 6 han + tsumo -> 7 han, still haneman, no need for tsumo)
+        # recalculate fu for a ron, and return that score if it results in the same limit hand
+        recalculate = han in {7, 9, 10, 12} or is_mangan(han-1, fu)
+        if recalculate and not calls_present:
+            ron_scores = get_yaku(**get_yaku_args, check_rons = True, check_tsumos = False)  # type: ignore[arg-type]
+            best_ron_score, ron_takame = max((score, wait) for wait, score in ron_scores.items())
+            ron_han = best_score.han
+            ron_fu = best_score.fu
+            if LIMIT_HANDS[ron_han] == LIMIT_HANDS[han] or (is_mangan(han, fu) and is_mangan(ron_han, ron_fu)):
+                best_score = best_ron_score
+                takame = ron_takame
         han = best_score.han
         fu = best_score.fu
         if han >= 5 or is_mangan(han, fu):
@@ -512,6 +529,7 @@ class KyokuInfo:
                             "yaku_str": ", ".join(name for name, value in best_score.yaku),
                             "han": han,
                             "fu": fu})
+
         # check if we are yakuman tenpai
         # first, do standard yakuman, otherwise, try kazoe yakuman
         yakuman_waits: List[Tuple[str, Set[int]]] = [(y, get_yakuman_waits(self.kyoku.hands[seat], y)) for y in get_yakuman_tenpais(self.kyoku.hands[seat])]
@@ -916,7 +934,6 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             info.process_start_game(i, *event)
         elif event_type == "result":
             info.process_result(i, *event)
-
 
     assert len(info.global_flags) == len(info.global_data), f"somehow got a different amount of global flags ({len(info.global_flags)}) than data ({len(info.global_data)})"
     for seat in range(kyoku.num_players):
