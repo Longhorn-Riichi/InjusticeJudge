@@ -353,12 +353,14 @@ def won_something_silly(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
         win_string = "with a"
     for yaku, han in score.yaku:
         if han >= 3 and yaku.startswith("ura"):
-            win_string += " ura 3"
+            if win_string == "with a":
+                win_string = "with an"
+            win_string += f" ura {han}"
         elif turn <= 6 and yaku == "chinitsu":
             win_string += " first row chinitsu"
     if ("ippatsu", 1) in score.yaku and ("tsumo", 1) in score.yaku:
-        if win_string == "with a ":
-            win_string = "with an "
+        if win_string == "with a":
+            win_string = "with an"
         win_string += " ippatsu tsumo"
     if won_hell_wait:
         win_string += f" hell wait on {pt(winning_tile + 100 if winning_tile in kyoku.doras else winning_tile)}"
