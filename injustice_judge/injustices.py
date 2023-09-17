@@ -1,11 +1,11 @@
 from .classes2 import Kyoku, Ron, Score, Tsumo
-from .constants import PLACEMENTS, SHANTEN_NAMES, TRANSLATE
+from .constants import PLACEMENTS, SHANTEN_NAMES
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
 from .display import ph, pt, relative_seat_name, round_name, shanten_name
 from .flags import Flags, determine_flags
-from .utils import apply_delta_scores, calculate_delta_scores, is_mangan, sorted_hand, to_placement, try_remove_all_tiles, calculate_delta_scores, apply_delta_scores
+from .utils import apply_delta_scores, to_placement
 from pprint import pprint
 
 # This file provides `evaluate_game`, which is called by `__init__.py`

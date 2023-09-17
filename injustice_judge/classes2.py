@@ -4,7 +4,7 @@ import functools
 from typing import *
 
 from .classes import CallInfo, Dir, Interpretation
-from .constants import LIMIT_HANDS, TOGGLE_RED_FIVE, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
+from .constants import LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
 from .display import ph, pt, shanten_name
 from .utils import is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, translate_tenhou_yaku, try_remove_all_tiles
 from .shanten import calculate_shanten

@@ -1,9 +1,9 @@
 from typing import *
 from .classes import CallInfo, Interpretation
 from .classes2 import Event, Hand, Kyoku, Score, YakuForWait
-from .constants import LIMIT_HANDS, PRED, SUCC, YAOCHUUHAI
+from .constants import LIMIT_HANDS, YAOCHUUHAI
 from .display import ph, pt, round_name, shanten_name
-from .utils import fix, get_score, get_taatsu_wait, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
+from .utils import get_score, get_taatsu_wait, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand
 from .utils2 import generate_hand_interpretations
 from pprint import pprint
 
