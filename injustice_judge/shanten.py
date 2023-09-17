@@ -3,6 +3,7 @@ import itertools
 from .constants import PRED, SUCC, TANYAOHAI, YAOCHUUHAI
 from typing import *
 from .utils import get_taatsu_wait, get_waits, pt, ph, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles, remove_some, remove_all, fix
+from .utils2 import get_tenpai_waits
 from pprint import pprint
 
 # This file details a shanten algorithm. It's not super efficient, but the
@@ -30,7 +31,43 @@ remove_all_taatsus = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus), 
 make_pairs = lambda tile: ((tile, tile),)
 remove_some_pairs = lambda hands: fix(lambda hs: remove_some(hs, make_pairs), hands)
 remove_all_pairs = lambda hands: fix(lambda hs: remove_all(hs, make_pairs), hands)
-count_floating = lambda hand: len(next(iter(remove_all_pairs(remove_all_taatsus({hand})))))
+make_taatsus_pairs = lambda tile: ((tile, tile),(SUCC[tile], tile), (SUCC[SUCC[tile]], tile))
+remove_some_taatsus_pairs = lambda hands: fix(lambda hs: remove_some(hs, make_taatsus_pairs), hands)
+remove_all_taatsus_pairs = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus_pairs), hands)
+
+@functools.lru_cache(maxsize=2048)
+def contains_1_floating_tile(hand: Tuple[int, ...]) -> bool:
+    # check after removing all taatsus and pairs that there is only 1 floating tile
+    for tile in hand:
+        removed_tile = try_remove_all_tiles(hand, (tile,))
+        for candidate in ((tile,), (SUCC[tile],), (SUCC[SUCC[tile]],)):
+            removed = try_remove_all_tiles(removed_tile, candidate)
+            if len(removed) < len(removed_tile):
+                return len(removed) == 1 or contains_1_floating_tile(removed)
+    return False
+
+@functools.lru_cache(maxsize=2048)
+def count_floating(hand: Tuple[int, ...]) -> int:
+    # count number of floating tiles in a given hand
+    minimum = len(hand)
+    for tile in hand:
+        removed_tile = try_remove_all_tiles(hand, (tile,))
+        for candidate in ((tile,), (SUCC[tile],), (SUCC[SUCC[tile]],)):
+            removed = try_remove_all_tiles(removed_tile, candidate)
+            if len(removed) < len(removed_tile):
+                minimum = min(minimum, count_floating(removed))
+    return minimum
+
+@functools.lru_cache(maxsize=2048)
+def get_hand_shanten(hand: Tuple[int, ...], groups_needed: int) -> float:
+    """Return the shanten of a given hand that has all of its groups, ryanmens, and kanchans removed"""
+    floating_tiles = next(iter(remove_all_pairs({hand})))
+    # needs_pair = 1 if the hand is missing a pair but is full of taatsus -- need to convert a taatsu to a pair
+    # must_discard_taatsu = 1 if the hand is 6+ blocks -- one of the taatsu is actually 2 floating tiles
+    # shanten = (3 + num_floating - num_groups) // 2, plus the above
+    needs_pair = 1 if len(floating_tiles) == len(hand) and groups_needed > len(floating_tiles) else 0
+    must_discard_taatsu = 1 if groups_needed >= 3 and len(floating_tiles) <= 1 else 0
+    return needs_pair + must_discard_taatsu + (groups_needed + len(floating_tiles) - 1) // 2
 
 def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
     # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
@@ -65,11 +102,7 @@ def get_floating_waits(hands: Set[Tuple[int, ...]], floating_tiles: Set[int]) ->
     shanpon_waits: Set[int] = set()
     for hand in hands:
         hand = tuple(normalize_red_fives(hand))
-        # check after removing all taatsus and pairs that there is only 1 floating tile
-        # TODO: optimize?
-        post_removal_possibilities = remove_all_pairs(remove_all_taatsus({hand})).union(remove_all_taatsus(remove_all_pairs({hand})))
-        contains_1_floating_tile = any(len(hand) == 1 for hand in post_removal_possibilities)
-        if not contains_1_floating_tile:
+        if not contains_1_floating_tile(hand):
             continue
         pairs = set()
         # loop through all tiles that appear at least twice in the hand
@@ -86,6 +119,7 @@ def get_floating_waits(hands: Set[Tuple[int, ...]], floating_tiles: Set[int]) ->
             shanpon_waits |= pairs
     return waits, shanpon_waits
 
+@functools.lru_cache(maxsize=2048)
 def check_headless_perfect_iishanten(starting_hand: Tuple[int, ...]) -> bool:
     # check for headless perfect iishanten, given a headless iishanten hand
     #   only true if _both_ headless shapes are ryanmen and _both_ overlap with a group
@@ -104,9 +138,10 @@ def check_headless_perfect_iishanten(starting_hand: Tuple[int, ...]) -> bool:
        tuple({(t1,t2,t2,t3,t4), (t2,t2,t3,t3,t4), (t1,t2,t2,t3,t3), (t1,t2,t3,t3,t4),
               (t1,t2,t3,t3,t3), (t1,t2,t2,t2,t2), (t1,t1,t1,t1,t2), (t1,t1,t1,t2,t3)} - penchan_shapes))[-1]
     flexible_shapes = set().union(*map(to_flexible_shapes, starting_hand))
-    possible_shapes = remove_some_pairs(remove_some_taatsus(remove_some_groups({starting_hand})))
+    possible_shapes = remove_some_taatsus_pairs(remove_some_groups({starting_hand}))
     return len(flexible_shapes & possible_shapes) >= 2 # both headless shapes are these flexible shapes
 
+@functools.lru_cache(maxsize=2048)
 def check_complete_perfect_iishanten(starting_hand):
     # given a complete iishanten hand,
     # if we can take out two ryanmen shapes then it's a perfect iishanten
@@ -115,7 +150,7 @@ def check_complete_perfect_iishanten(starting_hand):
     remove_all_ryanmen = lambda hands: fix(lambda hs: remove_all(hs, make_ryanmen), hands)
     return len(next(iter(remove_all_ryanmen(remove_all_groups({starting_hand}))))) == 3
 
-def get_iishanten_type(starting_hand: Tuple[int, ...]) -> Tuple[float, Set[int]]:
+def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Set[Tuple[int, ...]]) -> Tuple[float, Set[int]]:
     # given an iishanten hand, calculate the iishanten type and its waits
     # we'll always return 1.XXX shanten, where XXX represents the type of iishanten
     # - 1.200 kokushi musou iishanten
@@ -150,9 +185,8 @@ def get_iishanten_type(starting_hand: Tuple[int, ...]) -> Tuple[float, Set[int]]
     shanpon_waits: Set[int] = set()
 
     # figure out how many groups we need to complete
-    hands = remove_all_groups({starting_hand})
-    groups_needed = (len(next(iter(hands))) - 1) // 3
-    assert groups_needed in {1, 2}, "get_iishanten_type was not passed an iishanten hand, "
+    groups_needed = (len(next(iter(groupless_hands))) - 1) // 3
+    assert groups_needed in {1, 2}, "get_iishanten_type was not passed an iishanten hand"
 
     # one group needed = possibility for kuttsuki and headless iishanten
     # since we assume the input is an iishanten hand, we just remove some taatsus
@@ -164,7 +198,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...]) -> Tuple[float, Set[int]]
         # get all the kuttsuki tiles and headless tiles
         kuttsuki_iishanten_tiles: Set[int] = set()  # tiles that could be the floating kuttsuki tiles in hand
         headless_iishanten_tiles: Set[int] = set() # tiles that could be part of the 4 headless tiles in hand
-        for hand in remove_some_taatsus(hands):
+        for hand in remove_some_taatsus(groupless_hands):
             pairless = next(iter(remove_all_pairs({hand})))
             if len(pairless) == 2 and len(pairless) != len(hand):
                 # print(f"{ph(sorted_hand(starting_hand))} is kuttsuki iishanten on {ph(pairless)}")
@@ -206,7 +240,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...]) -> Tuple[float, Set[int]]
 
     # for each of these length 5 hands, remove pairs/taatsus to get all the possible floating tiles
     # use get_floating_waits to calculate the waits for every length 7 subhand
-    without_taatsus = remove_some_pairs(remove_some_taatsus(without_head))
+    without_taatsus = remove_some_taatsus_pairs(without_head)
     # somewhat of an assertion; it should be guaranteed that there remains only 1 tile
     floating_iishanten_tiles = set().union(*filter(lambda hand: len(hand) == 1, without_taatsus))
     floating_waits, floating_shanpon_waits = get_floating_waits(subhands, floating_iishanten_tiles) if len(floating_iishanten_tiles) > 0 else (set(), set())
@@ -271,7 +305,6 @@ def get_iishanten_type(starting_hand: Tuple[int, ...]) -> Tuple[float, Set[int]]
 
     return round(shanten, 3), waits | shanpon_waits
 
-@functools.cache
 def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]]:
     """
     Return the shanten of the hand plus its waits (if tenpai or iishanten).
@@ -292,18 +325,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     groups_needed = (len(next(iter(hands))) - 1) // 3
 
     # calculate shanten for every combination of groups removed
-    @functools.cache
-    def get_hand_shanten(hand: Tuple[int, ...]) -> float:
-        num_pairs = len(starting_hand) - len(hand)
-        """Return the shanten of a hand with all of its groups, ryanmens, and kanchans removed"""
-        floating_tiles = next(iter(remove_all_pairs({hand})))
-        # needs_pair = 1 if the hand is missing a pair but is full of taatsus -- need to convert a taatsu to a pair
-        # must_discard_taatsu = 1 if the hand is 6+ blocks -- one of the taatsu is actually 2 floating tiles
-        # shanten = (3 + num_floating - num_groups) // 2, plus the above
-        needs_pair = 1 if len(floating_tiles) == len(hand) and groups_needed > len(floating_tiles) else 0
-        must_discard_taatsu = 1 if groups_needed >= 3 and len(floating_tiles) <= 1 else 0
-        return needs_pair + must_discard_taatsu + (groups_needed + len(floating_tiles) - 1) // 2
-    shanten: float = min(map(get_hand_shanten, remove_some_taatsus(hands)))
+    shanten: float = min(get_hand_shanten(hand, groups_needed) for hand in remove_some_taatsus(hands))
     assert shanten >= 0, f"somehow calculated negative shanten for {ph(sorted_hand(starting_hand))}"
 
     # if iishanten, get the type of iishanten based on tiles remaining after removing some number of taatsus
@@ -311,7 +333,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     waits: Set[int] = set()
     if shanten == 1:
         assert groups_needed in {1,2}, f"{ph(sorted_hand(starting_hand))} is somehow iishanten with {4-groups_needed} groups"
-        shanten, waits = get_iishanten_type(starting_hand)
+        shanten, waits = get_iishanten_type(starting_hand, hands)
         assert shanten != 1, f"somehow failed to detect type of iishanten for iishanten hand {ph(sorted_hand(starting_hand))}"
 
     # if tenpai, get the waits
@@ -352,14 +374,6 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     waits_list = list(sorted_hand(waits - ankan_tiles))
     assert all(red not in waits_list for red in {51,52,53}), f"somehow returned a waits list with red five: {ph(waits_list)}"
     return round(shanten, 4), waits_list
-
-@functools.cache
-def get_tenpai_waits(hand: Tuple[int, ...]) -> Set[int]:
-    hand_copy = tuple(normalize_red_fives(hand))
-    possible_winning_tiles = {t for tile in hand_copy for t in (PRED[tile], tile, SUCC[tile])} - {0}
-    is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
-    makes_winning_hand = lambda tile: any(map(is_pair, remove_all_groups({(*hand_copy, tile)})))
-    return set(filter(makes_winning_hand, possible_winning_tiles))
 
 def calculate_shanten(starting_hand: Iterable[int]) -> Tuple[float, List[int]]:
     """This just converts the input to a sorted tuple so it can be serialized as a cache key"""

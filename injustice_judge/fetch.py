@@ -5,7 +5,8 @@ from .proto import liqi_combined_pb2 as proto
 from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
-from .classes import CallInfo, Draw, Event, GameRules, Hand, Kyoku, Ron, Score, Tsumo, GameMetadata, Dir
+from .classes import CallInfo, GameRules, GameMetadata, Dir
+from .classes2 import Draw, Event, Hand, Kyoku, Ron, Score, Tsumo
 from .constants import DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
 from .utils import is_mangan, ph, apply_delta_scores, normalize_red_five, round_name, sorted_hand, to_placement, translate_tenhou_yaku
 from .yaku import debug_yaku
@@ -275,7 +276,7 @@ class MahjongSoulAPI:
         assert not res.error.code, f"{method.full_name} request received error {res.error.code}"
         return res
 
-@functools.cache
+@functools.lru_cache(maxsize=256)
 def parse_wrapped_bytes(data):
     """Used to unwrap Mahjong Soul messages"""
     wrapper = proto.Wrapper()
@@ -578,7 +579,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
     use_red_fives = "aka51" in metadata["rule"] and metadata["rule"]["aka51"]
     # check to see if the name of the fourth player is empty; Sanma if empty, Yonma if not empty.
     num_players: int = 3 if metadata["name"][3] == "" else 4
-    @functools.cache
+    @functools.lru_cache(maxsize=2048)
     def get_call_dir(call: str):
         """
         Returns the number of seats "away" from the current
@@ -590,7 +591,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
               Dir.SHIMOCHA if call[6].isalpha() else None # call[6] is for kans from shimocha
         assert ret is not None, f"couldn't figure out direction of {draw}"
         return ret
-    @functools.cache
+    @functools.lru_cache(maxsize=2048)
     def extract_call_tiles(call: str, use_red_fives: bool) -> List[int]:
         """
         returns the called tile as the first tile;
@@ -758,9 +759,6 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
 
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
     return postprocess_events(all_events, parsed_metadata), parsed_metadata
-
-
-
 
 async def parse_game_link(link: str, specified_players: Set[int] = set()) -> Tuple[List[Kyoku], GameMetadata, Set[int]]:
     """Given a game link, fetch and parse the game into kyokus"""

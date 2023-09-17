@@ -1,4 +1,4 @@
-from .classes import Kyoku, Ron, Score, Tsumo
+from .classes2 import Kyoku, Ron, Score, Tsumo
 from .constants import PLACEMENTS, SHANTEN_NAMES, TRANSLATE
 from dataclasses import dataclass
 from enum import Enum

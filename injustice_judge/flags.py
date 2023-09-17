@@ -1,4 +1,5 @@
-from .classes import CallInfo, Dir, Draw, Event, Hand, Kyoku, Ron, Tsumo, Win
+from .classes import CallInfo, Dir
+from .classes2 import Draw, Event, Hand, Kyoku, Ron, Tsumo, Win
 from dataclasses import dataclass, field
 from .constants import DORA, DORA_INDICATOR, MANZU, PINZU, SOUZU, JIHAI, LIMIT_HANDS, TOGGLE_RED_FIVE, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from enum import Enum

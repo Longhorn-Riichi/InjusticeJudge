@@ -83,10 +83,11 @@ relative_seat_name = lambda you, other: {0: "self", 1: "shimocha", 2: "toimen", 
 is_mangan = lambda han, fu: han == 5 or (han >= 4 and fu >= 40) or (han >= 3 and fu >= 70)
 
 # helpers for removing tiles from hand
-@functools.cache
+@functools.lru_cache(maxsize=1048576) # (hashed args + result size) * 1MiB cache
 def try_remove_all_tiles(hand: Tuple[int, ...], tiles: Tuple[int, ...]) -> Tuple[int, ...]:
     """
     Tries to remove all of `tiles` from `hand`. If it can't, returns `hand` unchanged
+    On profiling a long game, the cache missed 430578/2219864 calls (19.397%)
     """
     hand_copy = list(hand)
     for tile in tiles:
@@ -95,20 +96,8 @@ def try_remove_all_tiles(hand: Tuple[int, ...], tiles: Tuple[int, ...]) -> Tuple
         else:
             return hand
     return tuple(hand_copy)
-remove_some_from = lambda hands, groups: hands if hands == {()} else set(try_remove_all_tiles(hand, group) for hand in hands for group in groups)
+
 remove_some = lambda hands, tile_to_groups: hands if hands == {()} else set(try_remove_all_tiles(hand, group) for hand in hands for tile in set(hand) for group in tile_to_groups(tile))
-def remove_all_from(hands: Set[Tuple[int, ...]], groups: Tuple[Tuple[int, ...], ...]):
-    # Tries to remove the maximum number of groups in groups from the hand.
-    # Basically same as remove_some but filters the result for min length hands.
-    assert isinstance(hands, set)
-    if len(hands) == 0:
-        return hands
-    result = remove_some_from(hands, groups)
-    min_length = min(map(len, result), default=0)
-    ret = set(filter(lambda hand: len(hand) == min_length, result))
-    assert len(ret) > 0
-    # print(list(map(ph,hands)),"\n=>\n",list(map(ph,result)), "\n=>\n",list(map(ph,ret)),"\n")
-    return ret
 def remove_all(hands: Set[Tuple[int, ...]], tile_to_groups: Callable[[int], Tuple[Tuple[int, ...], ...]]):
     # Tries to remove the maximum number of groups in tile_to_groups(tile) from the hand.
     # Basically same as remove_some but filters the result for min length hands.
@@ -173,6 +162,8 @@ to_placement = lambda scores: (ixs := sorted(range(len(scores)), key=lambda x: -
 def get_taatsu_wait(taatsu: Tuple[int, int]) -> Set[int]:
     t1, t2 = normalize_red_fives(taatsu)
     return {PRED[t1], SUCC[t2]} - {0} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
+
+@functools.lru_cache(maxsize=2048)
 def get_waits(hand: Tuple[int, ...]) -> Set[int]:
     """Get all waits in a hand full of taatsus and no floating tiles, excluding pair waits"""
     hand = sorted_hand(hand)
