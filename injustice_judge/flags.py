@@ -259,12 +259,12 @@ class KyokuInfo:
             ukeire = self.at[seat].hand.ukeire(self.get_visible_tiles(seat))
             if ukeire == 0:
                 self.add_flag(seat, Flags.IISHANTEN_WITH_0_TILES, {"shanten": self.at[seat].hand.shanten})
-        # check if there's a riichi and we drew a dangerous tile and we have no safe tiles
+        # check if there's a riichi, we drew a dangerous tile, and we have no safe tiles
         for opponent, at in enumerate(self.at):
             if seat == opponent or not at.in_riichi:
                 continue
             safe = lambda t: is_safe(t, self.at[opponent].genbutsu, self.get_visible_tiles(seat))
-            if not safe(tile) and not any(safe(t) for t in self.at[seat].hand.tiles):
+            if not safe(tile) and not any(safe(t) for t in self.at[seat].hand.hidden_part):
                 self.at[seat].dangerous_draws_after_riichi.append(tile)
                 if len(self.at[seat].dangerous_draws_after_riichi) >= 4:
                     self.add_flag(seat, Flags.FOUR_DANGEROUS_DRAWS_AFTER_RIICHI,
