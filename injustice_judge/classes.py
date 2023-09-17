@@ -248,27 +248,32 @@ class Score:
                     score_deltas[winner] += 300 * honba
                 score_deltas[winner] -= sum(score_deltas)
         return score_deltas
-    def has_riichi(self):
+    def has_riichi(self) -> bool:
         return ("riichi", 1) in self.yaku
-    def has_ippatsu(self):
+    def has_ippatsu(self) -> bool:
         return ("ippatsu", 1) in self.yaku
-    def has_haitei(self):
+    def has_haitei(self) -> bool:
         return ("haitei", 1) in self.yaku or ("houtei", 1) in self.yaku
     def get_dora_index(self, dora_type) -> Optional[int]:
         for i, (name, value) in enumerate(self.yaku):
             if name.startswith(dora_type):
                 return i
         return None
-    def count_dora(self):
+    def count_dora(self) -> int:
         dora_index = self.get_dora_index("dora")
         aka_index = self.get_dora_index("aka")
         dora = self.yaku[dora_index][1] if dora_index is not None else 0
         aka = self.yaku[aka_index][1] if aka_index is not None else 0
         return dora + aka
-    def count_ura(self):
+    def count_ura(self) -> int:
         ura_index = self.get_dora_index("ura")
         ura = self.yaku[ura_index][1] if ura_index is not None else 0
         return ura
+    def is_yakuless(self) -> bool:
+        for y, _ in self.yaku:
+            if not y.startswith(("dora", "ura", "aka", "kita")):
+                return False
+        return True
     def get_limit_hand_name(self):
         if self.han >= 6 or is_mangan(self.han, self.fu):
             return TRANSLATE[LIMIT_HANDS[self.han]]

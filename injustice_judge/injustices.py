@@ -183,17 +183,17 @@ def started_with_double_wind(flags: List[Flags], data: List[Dict[str, Any]], kyo
         return [Skill(kyoku.round, kyoku.honba, "Skill",
                 CheckClause(subject="you",
                             verb="won",
-                            content=f"while starting with your double wind {ph((wind,wind), doras=kyoku.starting_doras)} and calling it"))]
+                            content=f"after starting with your double wind {ph((wind,wind), doras=kyoku.starting_doras)} and calling it"))]
     elif starting_winds == 3:
         return [Skill(kyoku.round, kyoku.honba, "Skill",
                 CheckClause(subject="you",
                             verb="won",
-                            content=f"while starting with a triplet of your double wind {ph((wind,wind,wind), doras=kyoku.starting_doras)}"))]
+                            content=f"after starting with a triplet of your double wind {ph((wind,wind,wind), doras=kyoku.starting_doras)}"))]
     elif starting_winds == 4:
         return [Skill(kyoku.round, kyoku.honba, "Skill",
                 CheckClause(subject="you",
                             verb="won",
-                            content=f"while starting with four of your double winds {ph((wind,wind,wind,wind), doras=kyoku.starting_doras)}"))]
+                            content=f"after starting with four of your double winds {ph((wind,wind,wind,wind), doras=kyoku.starting_doras)}"))]
     else:
         return []
 
@@ -261,7 +261,7 @@ def called_kan_and_got_4_dora(flags: List[Flags], data: List[Dict[str, Any]], ky
             CheckClause(subject="your kan call",
                         subject_description=call.to_str(doras=doras),
                         verb="gave you",
-                        content=f"four dora {pt(doras[-1]+100)} in hand {hand.to_str(doras=doras)}"))]
+                        content=f"four dora {pt(doras[-1]+100)} in hand ({hand.to_str(doras=doras)})"))]
 
 # Print if you melded consecutively 2+ times and then immediately won
 @skill(require=[Flags.YOU_WON, Flags.WINNER_WON_WITH_PON_PON_RON])
@@ -287,7 +287,8 @@ def head_bumped_someone(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
     waiters = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.SOMEONE_WAITED_ON_WINNING_TILE}
     winners = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.WINNER}
     folders = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.SOMEONE_FOLDED_FROM_TENPAI}
-    got_head_bumped = waiters - (winners - folders)
+    yakuless = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.SOMEONE_WAS_YAKULESS}
+    got_head_bumped = waiters - (winners - folders - yakuless)
     if len(got_head_bumped) >= 1:
         return [Skill(kyoku.round, kyoku.honba, "Skill",
                 CheckClause(subject="you",

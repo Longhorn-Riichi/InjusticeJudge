@@ -71,6 +71,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " SOMEONE_HAS_THREE_DORA_VISIBLE"
     " SOMEONE_REACHED_TENPAI"
     " SOMEONE_WAITED_ON_WINNING_TILE"
+    " SOMEONE_WAS_YAKULESS"
     " STARTED_WITH_3_DORA"
     " TENPAI_ON_LAST_DISCARD"
     " TURN_SKIPPED_BY_PON"
@@ -106,6 +107,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_FOLDED_FROM_TENPAI"
     " YOU_GAINED_PLACEMENT"
     " YOU_GAINED_POINTS"
+    " YOU_WERE_YAKULESS"
     " YOU_GOT_CHASED"
     " YOU_HAD_LIMIT_TENPAI"
     " YOU_LOST_POINTS"
@@ -702,6 +704,13 @@ class KyokuInfo:
             # this is useful to find missed/skipped wins, or head bumps
             if self.at[seat].hand.shanten[0] == 0:
                 if normalize_red_five(winning_tile) in self.at[seat].hand.shanten[1]:
+                    if seat != result.winner:
+                        # check if we were yakuless, which would prevent us from winning
+                        our_yaku = get_final_yaku(self.kyoku, seat, check_rons=not is_tsumo, check_tsumos=is_tsumo)[normalize_red_five(winning_tile)]
+                        if our_yaku.is_yakuless():
+                            self.add_flag(seat, Flags.YOU_WERE_YAKULESS, {"tile": winning_tile, "wait": self.at[seat].hand.shanten[1], "yaku": our_yaku})
+                            self.add_global_flag(Flags.SOMEONE_WAS_YAKULESS, {"seat": seat, "tile": winning_tile, "wait": self.at[seat].hand.shanten[1], "yaku": our_yaku})
+
                     self.add_flag(seat, Flags.YOU_WAITED_ON_WINNING_TILE, {"tile": winning_tile, "wait": self.at[seat].hand.shanten[1]})
                     self.add_global_flag(Flags.SOMEONE_WAITED_ON_WINNING_TILE, {"seat": seat, "tile": winning_tile, "wait": self.at[seat].hand.shanten[1]})
 
