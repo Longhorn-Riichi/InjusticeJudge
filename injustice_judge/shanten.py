@@ -59,8 +59,8 @@ def get_tenpai_waits(hand: Tuple[int, ...]) -> Set[int]:
 @functools.lru_cache(maxsize=2048)
 def contains_1_floating_tile(hand: Tuple[int, ...]) -> bool:
     # check after removing all taatsus and pairs that there is only 1 floating tile
-    for tile in hand:
-        removed_tile = try_remove_all_tiles(hand, (tile,))
+    for i, tile in enumerate(hand):
+        removed_tile = (*hand[:i], *hand[i+1:])
         for candidate in ((tile,), (SUCC[tile],), (SUCC[SUCC[tile]],)):
             removed = try_remove_all_tiles(removed_tile, candidate)
             if len(removed) < len(removed_tile):
@@ -71,8 +71,8 @@ def contains_1_floating_tile(hand: Tuple[int, ...]) -> bool:
 def count_floating(hand: Tuple[int, ...]) -> int:
     # count number of floating tiles in a given hand
     minimum = len(hand)
-    for tile in hand:
-        removed_tile = try_remove_all_tiles(hand, (tile,))
+    for i, tile in enumerate(hand):
+        removed_tile = (*hand[:i], *hand[i+1:])
         for candidate in ((tile,), (SUCC[tile],), (SUCC[SUCC[tile]],)):
             removed = try_remove_all_tiles(removed_tile, candidate)
             if len(removed) < len(removed_tile):
@@ -82,7 +82,7 @@ def count_floating(hand: Tuple[int, ...]) -> int:
 @functools.lru_cache(maxsize=2048)
 def get_hand_shanten(hand: Tuple[int, ...], groups_needed: int) -> float:
     """Return the shanten of a given hand that has all of its groups, ryanmens, and kanchans removed"""
-    floating_tiles = next(iter(remove_all_pairs({hand})))
+    floating_tiles = {tile for tile, num in Counter(hand).items() if num == 1}
     # needs_pair = 1 if the hand is missing a pair but is full of taatsus -- need to convert a taatsu to a pair
     # must_discard_taatsu = 1 if the hand is 6+ blocks -- one of the taatsu is actually 2 floating tiles
     # shanten = (3 + num_floating - num_groups) // 2, plus the above
@@ -326,6 +326,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Set[Tupl
 
     return round(shanten, 3), waits | shanpon_waits
 
+@functools.lru_cache(maxsize=65536)
 def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]]:
     """
     Return the shanten of the hand plus its waits (if tenpai or iishanten).
@@ -342,7 +343,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     # 6. Do 3-5 for chiitoitsu and kokushi
 
     # remove as many groups as possible
-    hands = remove_all_groups({starting_hand})
+    hands = remove_all_groups({sorted_hand(starting_hand)})
     groups_needed = (len(next(iter(hands))) - 1) // 3
 
     # calculate shanten for every combination of groups removed

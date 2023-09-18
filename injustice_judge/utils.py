@@ -17,13 +17,14 @@ def try_remove_all_tiles(hand: Tuple[int, ...], tiles: Tuple[int, ...]) -> Tuple
     Tries to remove all of `tiles` from `hand`. If it can't, returns `hand` unchanged
     On profiling a long game, the cache missed 430578/2219864 calls (19.397%)
     """
-    hand_copy = list(hand)
+    orig_hand = hand
     for tile in tiles:
-        if tile in hand_copy or tile in TOGGLE_RED_FIVE and (tile := TOGGLE_RED_FIVE[tile]) in hand_copy:
-            hand_copy.remove(tile)
+        if tile in hand or tile in TOGGLE_RED_FIVE and (tile := TOGGLE_RED_FIVE[tile]) in hand:
+            i = hand.index(tile)
+            hand = (*hand[:i], *hand[i+1:])
         else:
-            return hand
-    return tuple(hand_copy)
+            return orig_hand
+    return hand
 
 @functools.lru_cache(maxsize=2048)
 def get_score(han: int, fu: int, is_dealer: bool, is_tsumo: bool, num_players: int):

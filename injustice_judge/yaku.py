@@ -160,7 +160,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
 
     # remove all red fives from the interpretation
     taatsu, ron_fu, tsumo_fu, sequences, triplets, pair = interpretation.unpack()
-    taatsu = tuple(tuple(normalize_red_fives(taatsu)))
+    taatsu = sorted_hand(normalize_red_fives(taatsu))
     sequences = tuple(tuple(normalize_red_fives(seq)) for seq in sequences)
     triplets = tuple(tuple(normalize_red_fives(tri)) for tri in triplets)
     pair_tile = None if pair is None else normalize_red_five(pair[0])
@@ -611,7 +611,6 @@ def get_yaku(hand: Hand,
         # for k, v in best_score.items():
         #     print(f"{pt(k)}, {v.hand!s}")
         yaku_for_wait: YakuForWait = get_stateless_yaku(interpretation, hand.shanten, is_closed_hand)
-
         # pprint(yaku_for_wait)
         yaku_for_wait = add_stateful_yaku(yaku_for_wait, hand, events, doras, uras, round, seat, is_haitei, is_houtei)
         # print(round_name(round, 0), yaku_for_wait)
