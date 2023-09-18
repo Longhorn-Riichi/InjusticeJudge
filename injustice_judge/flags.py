@@ -281,6 +281,7 @@ class KyokuInfo:
                                          "opponent": opponent,
                                          "pond_str": print_pond(self.at[opponent].pond, self.current_doras, self.at[opponent].riichi_index)
                                          })
+                break
 
     def process_chii_pon_daiminkan(self, i: int, seat: int, event_type: str, called_tile: int, call_tiles: List[int], call_dir: Dir) -> None:
         if event_type != "minkan":
