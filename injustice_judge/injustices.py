@@ -212,7 +212,7 @@ def won_with_five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], 
     return [Skill(kyoku.round, kyoku.honba, "Skill",
             CheckClause(subject="you",
                         verb="won",
-                        content=f"despite starting at {shanten_name(hand.shanten)} with {hand.to_str(doras=kyoku.doras)}"))]
+                        content=f"despite starting at {shanten_name(hand.shanten)} ({hand.to_str(doras=kyoku.doras)})"))]
 
 # Print if you started with 3 dora and won with 3 dora
 @skill(require=[Flags.STARTED_WITH_3_DORA, Flags.YOU_WON])
@@ -239,6 +239,15 @@ def everyone_respected_your_riichi(flags: List[Flags], data: List[Dict[str, Any]
                             content=f"riichi and everyone respected it and paid you noten payments"))]
     else:
         return []
+
+@skill(require=[Flags.PASSED_FOUR_DANGEROUS_DISCARDS],
+        forbid=[Flags.YOU_DEALT_IN])
+def you_passed_four_dangerous_discards(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    discards = data[len(flags) - 1 - flags[::-1].index(Flags.PASSED_FOUR_DANGEROUS_DISCARDS)]["discards"]
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="dealt",
+                        content=f"{len(discards)} dangerous discards ({ph(discards, doras=kyoku.doras)}) after riichi without dealing in"))]
 
 @skill(require=[Flags.YOU_REACHED_TENPAI])
 def every_draw_helped(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
@@ -307,23 +316,6 @@ def robbed_riichi_stick(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
             CheckClause(subject="you",
                         verb="robbed",
                         content=f"{relative_seat_name(player, seat)}'s riichi stick by winning right after they declared riichi"))]
-
-@skill(require=[Flags.FINAL_ROUND, Flags.REACHED_DOUBLE_STARTING_POINTS],
-        forbid=[Flags.REACHED_TRIPLE_STARTING_POINTS])
-def ended_with_double_starting_points(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    points = data[flags.index(Flags.REACHED_DOUBLE_STARTING_POINTS)]["points"]
-    return [Skill(kyoku.round, kyoku.honba, "Skill",
-            CheckClause(subject="you",
-                        verb="ended",
-                        content=f"the game with double starting points ({points})"))]
-
-@skill(require=[Flags.FINAL_ROUND, Flags.REACHED_TRIPLE_STARTING_POINTS])
-def ended_with_triple_starting_points(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    points = data[flags.index(Flags.REACHED_DOUBLE_STARTING_POINTS)]["points"]
-    return [Skill(kyoku.round, kyoku.honba, "Skill",
-            CheckClause(subject="you",
-                        verb="ended",
-                        content=f"the game with triple starting points ({points})"))]
 
 @skill(require=[Flags.YOU_ACHIEVED_NAGASHI])
 def won_nagashi(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
@@ -435,15 +427,6 @@ def got_sanbaiman_or_yakuman(flags: List[Flags], data: List[Dict[str, Any]], kyo
                     verb="got",
                     content=f"{limit_name} ({', '.join(y for y, _ in yaku)})"))]
 
-# Print if you got out of last place in the final round
-@skill(require=[Flags.FINAL_ROUND, Flags.YOU_WERE_FOURTH, Flags.YOU_GAINED_PLACEMENT])
-def got_out_of_last_place(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    new = data[flags.index(Flags.YOU_GAINED_PLACEMENT)]["new"]
-    return [Skill(kyoku.round, kyoku.honba, "Skill",
-            CheckClause(subject="you",
-                        verb="climbed out of",
-                        content=f"4th place (to {PLACEMENTS[new]}) in the final round"))]
-
 # Print if you gained placement only because of ura
 @skill(require=[Flags.YOU_WON, Flags.YOU_GAINED_PLACEMENT],
         forbid=[])
@@ -488,6 +471,36 @@ def won_to_deny_three_dora(flags: List[Flags], data: List[Dict[str, Any]], kyoku
                             content=f"{player_str} from getting the {num_dora_shown} dora they {were_str} showing on the table"))]
     else:
         return []
+
+###
+### final round skills
+###
+
+# Print if you got out of last place in the final round
+@skill(require=[Flags.FINAL_ROUND, Flags.YOU_WERE_FOURTH, Flags.YOU_GAINED_PLACEMENT])
+def got_out_of_last_place(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    new = data[flags.index(Flags.YOU_GAINED_PLACEMENT)]["new"]
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="climbed out of",
+                        content=f"4th place (to {PLACEMENTS[new]}) in the final round"))]
+
+@skill(require=[Flags.FINAL_ROUND, Flags.REACHED_DOUBLE_STARTING_POINTS],
+        forbid=[Flags.REACHED_TRIPLE_STARTING_POINTS])
+def ended_with_double_starting_points(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    points = data[flags.index(Flags.REACHED_DOUBLE_STARTING_POINTS)]["points"]
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="ended",
+                        content=f"the game with double starting points ({points})"))]
+
+@skill(require=[Flags.FINAL_ROUND, Flags.REACHED_TRIPLE_STARTING_POINTS])
+def ended_with_triple_starting_points(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    points = data[flags.index(Flags.REACHED_DOUBLE_STARTING_POINTS)]["points"]
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="ended",
+                        content=f"the game with triple starting points ({points})"))]
 
 ###
 ### early game injustices

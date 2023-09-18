@@ -64,6 +64,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " LOST_POINTS_TO_FIRST_ROW_WIN"
     " MULTIPLE_RON"
     " NINE_DRAWS_NO_IMPROVEMENT"
+    " PASSED_FOUR_DANGEROUS_DISCARDS"
     " REACHED_DOUBLE_STARTING_POINTS"
     " REACHED_TRIPLE_STARTING_POINTS"
     " SEVEN_TERMINAL_START"
@@ -148,13 +149,14 @@ class KyokuPlayerInfo:
     num_discards: int                       = 0
     last_draw: int                          = 0
     last_discard: int                       = 0
-    last_discard_was_riichi: int            = False
+    last_discard_was_riichi: bool           = False
     furiten: bool                           = False
     nagashi: bool                           = True
     in_riichi: bool                         = False
     riichi_index: Optional[int]             = None
     consecutive_off_suit_tiles: List[int]   = field(default_factory=list)
     past_waits: List[List[int]]             = field(default_factory=list)
+    dangerous_discards_passed: List[int]    = field(default_factory=list)
     dangerous_draws_after_riichi: List[int] = field(default_factory=list)
     respects_riichi: List[Optional[bool]]   = field(default_factory=list)
     def __post_init__(self):
@@ -342,9 +344,6 @@ class KyokuInfo:
         # check if this makes us furiten
         if self.at[seat].hand.shanten[0] == 0 and normalize_red_five(tile) in self.at[seat].hand.shanten[1]:
             self.at[seat].furiten = True
-        # add to genbutsu for this player + all the riichi players
-        for player in {player for player, at in enumerate(self.at) if at.in_riichi} | {seat}:
-            self.at[player].genbutsu.add(tile)
         self.at[seat].num_discards += 1
         self.at[seat].last_discard = tile
         self.at[seat].last_discard_was_riichi = event_type == "riichi"
@@ -401,6 +400,19 @@ class KyokuInfo:
                     self.add_flag(opponent, Flags.EVERYONE_DISRESPECTED_YOUR_RIICHI)
                 elif all(self.at[opponent].respects_riichi[player] == True for player in range(self.num_players) if player != opponent):
                     self.add_flag(opponent, Flags.EVERYONE_RESPECTED_YOUR_RIICHI)
+        # if we're not tenpai and there's a riichi, check if this discard passed
+        if self.at[seat].hand.shanten[0] > 0:
+            riichi_waits = {player: at.hand.shanten[1] for player, at in enumerate(self.at) if at.in_riichi}
+            if len(riichi_waits) > 0 and not any(tile in waits for waits in riichi_waits.values()):
+                # check if it was dangerous against any of the riichis
+                is_generally_safe = tile in YAOCHUUHAI
+                if not is_generally_safe and any(not is_safe(tile, self.at[player].genbutsu, self.get_visible_tiles()) for player in riichi_waits.keys()):
+                    self.at[seat].dangerous_discards_passed.append(tile)
+                    if len(self.at[seat].dangerous_discards_passed) >= 4:
+                        self.add_flag(seat, Flags.PASSED_FOUR_DANGEROUS_DISCARDS, {"discards": self.at[seat].dangerous_discards_passed})
+        # add to genbutsu for this player + all the riichi players
+        for player in {player for player, at in enumerate(self.at) if at.in_riichi} | {seat}:
+            self.at[player].genbutsu.add(tile)
 
     def process_end_nagashi(self, i: int, seat: int, event_type: str, who: int, reason: str, tile: int) -> None:
         self.at[who].nagashi = False
@@ -473,7 +485,7 @@ class KyokuInfo:
         if self.at[seat].num_discards <= 6:
             self.add_flag(seat, Flags.FIRST_ROW_TENPAI, {"seat": seat, "turn": self.at[seat].num_discards})
         # check for last draw tenpai
-        if self.tiles_in_wall <= 3:
+        if self.tiles_in_wall <= 3 and prev_shanten[0] > 0:
             self.add_flag(seat, Flags.LAST_DRAW_TENPAI, {"seat": seat, "turn": self.at[seat].num_discards})
         # # check if we started from 5-shanten and reached tenpai
         # # add a flag to everyone who had a 3-shanten start but couldn't reach tenpai
