@@ -226,6 +226,7 @@ class KyokuInfo:
         #     add_flag(seat, Flags.STARTED_WITH_TWO_147_SHAPES, {"hand": hand, "num": num_147_shapes})
 
     def process_draw(self, i: int, seat: int, event_type: str, tile: int) -> None:
+        prev_hand = self.at[seat].hand
         self.at[seat].hand = self.at[seat].hand.add(tile)
         self.tiles_in_wall -= 1
         self.at[seat].last_draw = tile
@@ -257,7 +258,7 @@ class KyokuInfo:
             if len(self.at[seat].consecutive_off_suit_tiles) >= 6:
                 self.add_flag(seat, Flags.BAD_HONITSU_DRAWS,
                                     {"tiles": self.at[seat].consecutive_off_suit_tiles,
-                                     "hand": self.at[seat].hand})
+                                     "hand": prev_hand})
         else:
             self.at[seat].consecutive_off_suit_tiles = []
         # check if we're still 4-shanten or worse after the first row of discards
