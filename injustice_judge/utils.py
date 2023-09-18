@@ -11,7 +11,7 @@ normalize_red_fives = lambda hand: map(normalize_red_five, hand)
 sorted_hand = lambda hand: tuple(sorted(hand, key=normalize_red_five))
 is_mangan = lambda han, fu: han == 5 or (han >= 4 and fu >= 40) or (han >= 3 and fu >= 70)
 
-@functools.lru_cache(maxsize=1048576) # (hashed args + result size) * 1MiB cache
+@functools.cache
 def try_remove_all_tiles(hand: Tuple[int, ...], tiles: Tuple[int, ...]) -> Tuple[int, ...]:
     """
     Tries to remove all of `tiles` from `hand`. If it can't, returns `hand` unchanged
@@ -26,7 +26,6 @@ def try_remove_all_tiles(hand: Tuple[int, ...], tiles: Tuple[int, ...]) -> Tuple
             return orig_hand
     return hand
 
-@functools.lru_cache(maxsize=2048)
 def get_score(han: int, fu: int, is_dealer: bool, is_tsumo: bool, num_players: int):
     if is_tsumo:
         oya = OYA_TSUMO_SCORE[han][fu]  # type: ignore[index]

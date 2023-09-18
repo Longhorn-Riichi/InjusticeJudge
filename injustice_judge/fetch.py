@@ -277,7 +277,6 @@ class MahjongSoulAPI:
         assert not res.error.code, f"{method.full_name} request received error {res.error.code}"
         return res
 
-@functools.lru_cache(maxsize=256)
 def parse_wrapped_bytes(data):
     """Used to unwrap Mahjong Soul messages"""
     wrapper = proto.Wrapper()
@@ -572,7 +571,7 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
     log = game_data["log"]
     del game_data["log"]
     return log, game_data, player
-
+gcd = None
 def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
     all_events: List[List[Event]] = []
     all_dora_indicators: List[List[int]] = []
@@ -580,7 +579,6 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
     use_red_fives = "aka51" in metadata["rule"] and metadata["rule"]["aka51"]
     # check to see if the name of the fourth player is empty; Sanma if empty, Yonma if not empty.
     num_players: int = 3 if metadata["name"][3] == "" else 4
-    @functools.lru_cache(maxsize=2048)
     def get_call_dir(call: str):
         """
         Returns the number of seats "away" from the current
@@ -592,7 +590,6 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
               Dir.SHIMOCHA if call[6].isalpha() else None # call[6] is for kans from shimocha
         assert ret is not None, f"couldn't figure out direction of {draw}"
         return ret
-    @functools.lru_cache(maxsize=2048)
     def extract_call_tiles(call: str, use_red_fives: bool) -> List[int]:
         """
         returns the called tile as the first tile;
@@ -610,7 +607,6 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                     call_tiles.append(call_tile)
                 return call_tiles
         assert False, f"unable to extract the call tiles from call {call}"
-
     for raw_kyoku in raw_kyokus:
         [[round, honba, riichi_sticks],
          scores, dora_indicators, ura_indicators,

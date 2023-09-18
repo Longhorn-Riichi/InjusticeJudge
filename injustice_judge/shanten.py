@@ -52,11 +52,9 @@ make_taatsus_pairs = lambda tile: ((tile, tile),(SUCC[tile], tile), (SUCC[SUCC[t
 remove_some_taatsus_pairs = lambda hands: fix(lambda hs: remove_some(hs, make_taatsus_pairs), hands)
 remove_all_taatsus_pairs = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus_pairs), hands)
 
-@functools.lru_cache(maxsize=2048)
 def get_tenpai_waits(hand: Tuple[int, ...]) -> Set[int]:
     return {wait for i in Interpretation(hand).generate_all_interpretations() for wait in i.get_waits()}
 
-@functools.lru_cache(maxsize=2048)
 def contains_1_floating_tile(hand: Tuple[int, ...]) -> bool:
     # check after removing all taatsus and pairs that there is only 1 floating tile
     for i, tile in enumerate(hand):
@@ -79,7 +77,6 @@ def count_floating(hand: Tuple[int, ...]) -> int:
                 minimum = min(minimum, count_floating(removed))
     return minimum
 
-@functools.lru_cache(maxsize=2048)
 def get_hand_shanten(hand: Tuple[int, ...], groups_needed: int) -> float:
     """Return the shanten of a given hand that has all of its groups, ryanmens, and kanchans removed"""
     floating_tiles = {tile for tile, num in Counter(hand).items() if num == 1}
@@ -140,7 +137,6 @@ def get_floating_waits(hands: Set[Tuple[int, ...]], floating_tiles: Set[int]) ->
             shanpon_waits |= pairs
     return waits, shanpon_waits
 
-@functools.lru_cache(maxsize=2048)
 def check_headless_perfect_iishanten(starting_hand: Tuple[int, ...]) -> bool:
     # check for headless perfect iishanten, given a headless iishanten hand
     #   only true if _both_ headless shapes are ryanmen and _both_ overlap with a group
@@ -162,7 +158,6 @@ def check_headless_perfect_iishanten(starting_hand: Tuple[int, ...]) -> bool:
     possible_shapes = remove_some_taatsus_pairs(remove_some_groups({starting_hand}))
     return len(flexible_shapes & possible_shapes) >= 2 # both headless shapes are these flexible shapes
 
-@functools.lru_cache(maxsize=2048)
 def check_complete_perfect_iishanten(starting_hand):
     # given a complete iishanten hand,
     # if we can take out two ryanmen shapes then it's a perfect iishanten

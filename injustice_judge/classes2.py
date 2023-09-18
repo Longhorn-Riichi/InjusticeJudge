@@ -132,7 +132,6 @@ class Hand:
 
 # takes in "場風 東(1飜)", "ドラ(2飜)", "裏ドラ(1飜)"
 # outputs ("ton", 1), ("dora 2", 2), ("ura", 1)
-@functools.lru_cache(maxsize=2048)
 def translate_tenhou_yaku(yaku: str) -> Tuple[str, int]:
     name, rest = yaku.split("(")
     name = TRANSLATE[name]
