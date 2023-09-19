@@ -22,12 +22,12 @@ from pprint import pprint
 import time
 timers = {
     "calculate_hands": 0.0,
-    "remove_some_taatsus": 0.0,
+    "remove_all_taatsus": 0.0,
     "get_hand_shanten": 0.0,
     "get_iishanten_type": 0.0,
     "get_tenpai_waits": 0.0,
     "calculate_hands_2": 0.0,
-    "remove_some_taatsus_2": 0.0,
+    "remove_all_taatsus_2": 0.0,
     "get_hand_shanten_2": 0.0,
     "get_iishanten_type_2": 0.0,
     "get_tenpai_waits_2": 0.0,
@@ -239,6 +239,45 @@ def get_hand_shanten(hand: Tuple[int, ...], groups_needed: int) -> float:
     needs_pair = 1 if len(floating_tiles) == len(hand) and groups_needed > len(floating_tiles) else 0
     must_discard_taatsu = 1 if groups_needed >= 3 and len(floating_tiles) <= 1 else 0
     return needs_pair + must_discard_taatsu + (groups_needed + len(floating_tiles) - 1) // 2
+
+def get_hand_shanten_2(suits: Suits, groups_needed: int) -> float:
+    """Return the shanten of a given hand that has all of its groups, ryanmens, and kanchans removed"""
+    # get the minimum number of floating tiles in each suit
+    floating: Dict[int, int] = {}
+    for i, hands in enumerate(suits):
+        for hand in hands:
+            num_floating = tuple(Counter(hand).values()).count(1)
+            if i not in floating:
+                floating[i] = num_floating
+            else:
+                floating[i] = min(floating[i], num_floating)
+
+    # check if we have a pair
+    # take the hand(s) with a pair that would add the least additional floating tiles to that suit
+    extra_floating = 0
+    have_pair = False
+    for i, hands in enumerate(suits):
+        for hand in hands:
+            if any(hand.count(tile) == 2 for tile in hand):
+                num_extra_floating = tuple(Counter(hand).values()).count(1) - floating[i]
+                if not have_pair:
+                    extra_floating = num_extra_floating
+                else:
+                    extra_floating = min(extra_floating, num_extra_floating)
+                have_pair = True
+    def get_shanten(total_floating: int, have_pair: bool) -> int:
+        # needs_pair = 1 if the hand is missing a pair but is full of taatsus -- need to convert a taatsu to a pair
+        # must_discard_taatsu = 1 if the hand is 6+ blocks -- one of the taatsu is actually 2 floating tiles
+        # shanten = (3 + num_floating - num_groups) // 2, plus the above
+        needs_pair = 1 if not have_pair and groups_needed > total_floating else 0
+        must_discard_taatsu = 1 if groups_needed >= 3 and total_floating <= 1 else 0
+        shanten = needs_pair + must_discard_taatsu + (groups_needed + total_floating - 1) // 2
+        return shanten
+
+    total_floating = sum(floating.values()) + extra_floating
+    return min(get_shanten(total_floating, have_pair),
+               get_shanten(total_floating - extra_floating, False))  # without the pair
+    return shanten
 
 def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
     # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
@@ -499,19 +538,22 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     # hands = remove_all_groups({sorted_hand(starting_hand)})
     # timers["calculate_hands"] += time.time() - now
 
+    suits = to_suits((starting_hand,))
     start_time = now = time.time()
-    hands = set(remove_all_groups_2((starting_hand,)))
+    hands = eliminate_groups(suits, removing_all=True)
+    hands_set = set(from_suits(hands))
     timers["calculate_hands_2"] += time.time() - now
 
-    groups_needed = (len(next(iter(hands))) - 1) // 3
+    groups_needed = (len(next(iter(hands_set))) - 1) // 3
 
     # calculate shanten for every combination of groups removed
     now = time.time()
-    removed_taatsus = remove_some_taatsus_2(hands)
-    timers["remove_some_taatsus_2"] += time.time() - now
+    removed_taatsus = eliminate_taatsus(hands)
+    timers["remove_all_taatsus_2"] += time.time() - now
+
     now = time.time()
-    shanten: float = min(get_hand_shanten(hand, groups_needed) for hand in removed_taatsus)
-    timers["get_hand_shanten"] += time.time() - now
+    shanten: float = get_hand_shanten_2(removed_taatsus, groups_needed)
+    timers["get_hand_shanten_2"] += time.time() - now
     assert shanten >= 0, f"somehow calculated negative shanten for {ph(sorted_hand(starting_hand))}"
 
     # if iishanten, get the type of iishanten based on tiles remaining after removing some number of taatsus
@@ -520,7 +562,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     if shanten == 1:
         assert groups_needed in {1,2}, f"{ph(sorted_hand(starting_hand))} is somehow iishanten with {4-groups_needed} groups"
         now = time.time()
-        shanten, waits = get_iishanten_type(starting_hand, hands)
+        shanten, waits = get_iishanten_type(starting_hand, hands_set)
         timers["get_iishanten_type"] += time.time() - now
         assert shanten != 1, f"somehow failed to detect type of iishanten for iishanten hand {ph(sorted_hand(starting_hand))}"
 
