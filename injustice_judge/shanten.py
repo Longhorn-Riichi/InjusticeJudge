@@ -58,21 +58,26 @@ make_groups = lambda tile: ((SUCC[SUCC[tile]], SUCC[tile], tile), (tile, tile, t
 remove_all_groups = lambda hands: functools.reduce(lambda hs, _: remove_all(hs, make_groups), range(4), hands)
 remove_some_groups = lambda hands: functools.reduce(lambda hs, _: remove_some(hs, make_groups), range(4), hands)
 
-def to_suits(hand: Tuple[int, ...]) -> Tuple[Set[Tuple[int, ...]], ...]:
-    suits: Dict[int, List[int]] = {1:[],2:[],3:[],4:[]}
-    for tile in sorted(hand):
-        suits[tile//10].append(tile%10)
-    return tuple({tuple(tiles)} for tiles in suits.values())
+Suits = Tuple[Set[Tuple[int, ...]], ...]
+Hands = Iterable[Tuple[int, ...]]
 
-def from_suits(suits: Tuple[Set[Tuple[int, ...]], ...]) -> Iterator[Tuple[int, ...]]:
+def to_suits(hands: Hands) -> Suits:
+    ret: Suits = (set(),set(),set(),set())
+    for hand in hands:
+        suits: Dict[int, List[int]] = {1:[],2:[],3:[],4:[]}
+        for tile in hand:
+            suits[tile//10].append(tile%10)
+        ret[0].add(tuple(suits[1]))
+        ret[1].add(tuple(suits[2]))
+        ret[2].add(tuple(suits[3]))
+        ret[3].add(tuple(suits[4]))
+    return ret
+
+def from_suits(suits: Suits) -> Iterator[Tuple[int, ...]]:
     return ((*(10+v for v in a), *(20+v for v in b), *(30+v for v in c), *(40+v for v in d))
         for a in suits[0] for b in suits[1] for c in suits[2] for d in suits[3])
 
-def remove_all_groups_2(starting_hand):
-    # the idea is to partition into suits first
-    # assumes no red fives
-    suits = to_suits(starting_hand)
-
+def eliminate_all_groups(suits: Suits):
     def remove(hand: Tuple[int, ...], do_sequences: bool = True) -> Set[Tuple[int, ...]]:
         max_length = len(hand)
         def rec(hand: Tuple[int, ...]) -> Set[Tuple[int, ...]]:
@@ -93,48 +98,49 @@ def remove_all_groups_2(starting_hand):
                 return {hand}
         return set(filter(lambda h: len(h) == max_length, rec(hand)))
 
-    return from_suits((
+    return (
         set.union(*(remove(s) for s in suits[0])),
         set.union(*(remove(s) for s in suits[1])),
         set.union(*(remove(s) for s in suits[2])),
         set.union(*(remove(s, do_sequences=False) for s in suits[3]))
-    ))
+    )
+
+def eliminate_some_taatsus(suits: Suits):
+    def remove(hand: Tuple[int, ...]) -> Set[Tuple[int, ...]]:
+        max_length = len(hand)
+        def rec(hand: Tuple[int, ...]) -> Set[Tuple[int, ...]]:
+            nonlocal max_length
+            max_length = min(max_length, len(hand))
+            candidates = set()
+            for tile in hand:
+                kanchan_removed = try_remove_all_tiles(hand, (tile+2, tile))
+                if len(kanchan_removed) < len(hand):
+                    candidates.add(kanchan_removed)
+                ryanmen_removed = try_remove_all_tiles(hand, (tile+1, tile))
+                if len(ryanmen_removed) < len(hand):
+                    candidates.add(ryanmen_removed)
+            if len(candidates) > 0:
+                return set.union(*map(rec, candidates)) | {hand}
+            else:
+                return {hand}
+        return rec(hand)
+
+    return (
+        set().union(*(remove(s) for s in suits[0])),
+        set().union(*(remove(s) for s in suits[1])),
+        set().union(*(remove(s) for s in suits[2])),
+        suits[3]
+    )
+
+def remove_all_groups_2(hands: Hands) -> Hands:
+    return from_suits(eliminate_all_groups(to_suits(hands)))
 
 make_taatsus = lambda tile: ((SUCC[tile], tile), (SUCC[SUCC[tile]], tile))
 remove_some_taatsus = lambda hands: fix(lambda hs: remove_some(hs, make_taatsus), hands)
 remove_all_taatsus = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus), hands)
 
-def _remove_some_taatsus_2(starting_hand):
-    # the idea is to partition into suits first
-    # assumes no red fives
-    suits = to_suits(starting_hand)
-
-    max_length = len(starting_hand)
-    def remove(hand: Tuple[int, ...]) -> Set[Tuple[int, ...]]:
-        nonlocal max_length
-        max_length = min(max_length, len(hand))
-        candidates = set()
-        for tile in hand:
-            kanchan_removed = try_remove_all_tiles(hand, (tile+2, tile))
-            if len(kanchan_removed) < len(hand):
-                candidates.add(kanchan_removed)
-            ryanmen_removed = try_remove_all_tiles(hand, (tile+1, tile))
-            if len(ryanmen_removed) < len(hand):
-                candidates.add(ryanmen_removed)
-        if len(candidates) > 0:
-            return set.union(*map(remove, candidates)) | {hand}
-        else:
-            return {hand}
-
-    return from_suits((
-        set.union(*(remove(s) for s in suits[0])),
-        set.union(*(remove(s) for s in suits[1])),
-        set.union(*(remove(s) for s in suits[2])),
-        suits[3]
-    ))
-
-def remove_some_taatsus_2(hands):
-    return (rem for hand in hands for rem in _remove_some_taatsus_2(hand))
+def remove_some_taatsus_2(hands: Hands) -> Hands:
+    return from_suits(eliminate_some_taatsus(to_suits(hands)))
 
 make_pairs = lambda tile: ((tile, tile),)
 remove_some_pairs = lambda hands: fix(lambda hs: remove_some(hs, make_pairs), hands)
@@ -257,7 +263,7 @@ def check_complete_perfect_iishanten(starting_hand):
     # otherwise, it's imperfect iishanten
     make_ryanmen = lambda tile: ((SUCC[tile], tile),) if tile not in {11,18,21,28,31,38} else ((),)
     remove_all_ryanmen = lambda hands: fix(lambda hs: remove_all(hs, make_ryanmen), hands)
-    return len(next(iter(remove_all_ryanmen(set(remove_all_groups_2(starting_hand)))))) == 3
+    return len(next(iter(remove_all_ryanmen(set(remove_all_groups_2((starting_hand,))))))) == 3
 
 def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Set[Tuple[int, ...]]) -> Tuple[float, Set[int]]:
     # given an iishanten hand, calculate the iishanten type and its waits
@@ -401,7 +407,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Set[Tupl
         def sequence_exists(seq):
             # check if, after removing the sequence, we still have headless/kuttsuki iishanten
             removed_sequence = try_remove_all_tiles(starting_hand, seq)
-            return len(removed_sequence) < len(starting_hand) and count_floating(next(iter(remove_all_groups_2(removed_sequence)))) <= 2
+            return len(removed_sequence) < len(starting_hand) and count_floating(next(iter(remove_all_groups_2((removed_sequence,))))) <= 2
         for tile in waits.copy():
             if PRED[PRED[PRED[tile]]] != 0 and PRED[PRED[PRED[tile]]] not in waits and sequence_exists((PRED[PRED[tile]], PRED[tile], tile)):
                 # print(f"  extended {pt(tile)} left to {pt(PRED[PRED[PRED[tile]]])}")
@@ -436,7 +442,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     # timers["calculate_hands"] += time.time() - now
 
     start_time = now = time.time()
-    hands = set(remove_all_groups_2(starting_hand))
+    hands = set(remove_all_groups_2((starting_hand,)))
     timers["calculate_hands_2"] += time.time() - now
 
     groups_needed = (len(next(iter(hands))) - 1) // 3
