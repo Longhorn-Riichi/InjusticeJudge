@@ -58,12 +58,20 @@ make_groups = lambda tile: ((SUCC[SUCC[tile]], SUCC[tile], tile), (tile, tile, t
 remove_all_groups = lambda hands: functools.reduce(lambda hs, _: remove_all(hs, make_groups), range(4), hands)
 remove_some_groups = lambda hands: functools.reduce(lambda hs, _: remove_some(hs, make_groups), range(4), hands)
 
+def to_suits(hand: Tuple[int, ...]) -> Tuple[Set[Tuple[int, ...]], ...]:
+    suits: Dict[int, List[int]] = {1:[],2:[],3:[],4:[]}
+    for tile in sorted(hand):
+        suits[tile//10].append(tile%10)
+    return tuple({tuple(tiles)} for tiles in suits.values())
+
+def from_suits(suits: Tuple[Set[Tuple[int, ...]], ...]) -> Iterator[Tuple[int, ...]]:
+    return ((*(10+v for v in a), *(20+v for v in b), *(30+v for v in c), *(40+v for v in d))
+        for a in suits[0] for b in suits[1] for c in suits[2] for d in suits[3])
+
 def remove_all_groups_2(starting_hand):
     # the idea is to partition into suits first
     # assumes no red fives
-    suits = {1:[],2:[],3:[],4:[]}
-    for tile in sorted(starting_hand):
-        suits[tile//10].append(tile%10)
+    suits = to_suits(starting_hand)
 
     def remove(hand: Tuple[int, ...], do_sequences: bool = True) -> Set[Tuple[int, ...]]:
         max_length = len(hand)
@@ -85,13 +93,12 @@ def remove_all_groups_2(starting_hand):
                 return {hand}
         return set(filter(lambda h: len(h) == max_length, rec(hand)))
 
-    possibilities = ({1:a,2:b,3:c,4:d}
-        for a in remove(tuple(suits[1]))
-        for b in remove(tuple(suits[2]))
-        for c in remove(tuple(suits[3]))
-        for d in remove(tuple(suits[4]), do_sequences=False))
-
-    return (tuple(10*k + v for k,vs in p.items() for v in vs) for p in possibilities)
+    return from_suits((
+        set.union(*(remove(s) for s in suits[0])),
+        set.union(*(remove(s) for s in suits[1])),
+        set.union(*(remove(s) for s in suits[2])),
+        set.union(*(remove(s, do_sequences=False) for s in suits[3]))
+    ))
 
 make_taatsus = lambda tile: ((SUCC[tile], tile), (SUCC[SUCC[tile]], tile))
 remove_some_taatsus = lambda hands: fix(lambda hs: remove_some(hs, make_taatsus), hands)
@@ -100,9 +107,7 @@ remove_all_taatsus = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus), 
 def _remove_some_taatsus_2(starting_hand):
     # the idea is to partition into suits first
     # assumes no red fives
-    suits = {1:[],2:[],3:[],4:[]}
-    for tile in sorted(starting_hand):
-        suits[tile//10].append(tile%10)
+    suits = to_suits(starting_hand)
 
     max_length = len(starting_hand)
     def remove(hand: Tuple[int, ...]) -> Set[Tuple[int, ...]]:
@@ -121,12 +126,12 @@ def _remove_some_taatsus_2(starting_hand):
         else:
             return {hand}
 
-    possibilities = ({1:a,2:b,3:c,4:suits[4]}
-        for a in remove(tuple(suits[1]))
-        for b in remove(tuple(suits[2]))
-        for c in remove(tuple(suits[3])))
-
-    return (tuple(10*k + v for k,vs in p.items() for v in vs) for p in possibilities)
+    return from_suits((
+        set.union(*(remove(s) for s in suits[0])),
+        set.union(*(remove(s) for s in suits[1])),
+        set.union(*(remove(s) for s in suits[2])),
+        suits[3]
+    ))
 
 def remove_some_taatsus_2(hands):
     return (rem for hand in hands for rem in _remove_some_taatsus_2(hand))
