@@ -32,6 +32,7 @@ class Hand:
                                                                 # (like when it's in the middle of a draw or call)
     prev_shanten: Tuple[float, List[int]] = (-1, [])            # shanten for the hand right before said draw or call
     tiles_with_kans: Tuple[int, ...] = ()                       # all tiles in the hand including kans
+    best_discards: Tuple[int, ...] = ()                         # best discards for this hand (only for 14-tile hands)
     kita_count: int = 0                                         # number of kita calls for this hand
     
     def __post_init__(self) -> None:
@@ -48,9 +49,29 @@ class Hand:
         super().__setattr__("closed_part", closed_part)
         if len(self.tiles) in {1, 4, 7, 10, 13}:
             super().__setattr__("shanten", calculate_shanten(self.hidden_part))
-        else:
+        elif len(self.tiles) in {2, 5, 8, 11, 14}: # this disables the below
             super().__setattr__("shanten", self.prev_shanten)
-    def to_str(self, doras=[], uras=[]):
+        elif len(self.tiles) in {2, 5, 8, 11, 14}:
+            # calculate the best shanten obtainable from this 14-tile hand"""
+            best_shanten: Tuple[float, List[int]] = self.prev_shanten
+            best_discards: List[int] = []
+            for i, tile in enumerate(self.hidden_part):
+                if self.prev_shanten[0] < 2 and tile not in self.prev_shanten[1]:
+                    continue
+                hand = (*self.hidden_part[:i], *self.hidden_part[i+1:])
+                shanten = calculate_shanten(hand)
+                (s1, w1), (s2, w2) = shanten, best_shanten
+                if int(s1) < int(s2) or (int(s1) == int(s2) and len(w1) > len(w2)):
+                    best_shanten = shanten
+                    best_discards = []
+                if shanten == best_shanten:
+                    best_discards.append(tile)
+            super().__setattr__("shanten", best_shanten)
+            super().__setattr__("best_discards", sorted_hand(best_discards))
+        else:
+            assert False, f"passed a length {len(self.tiles)} hand to Hand"
+
+    def to_str(self, doras=[], uras=[]) -> str:
         to_str = lambda call: call.to_str(doras, uras)
         call_string = "" if len(self.calls) == 0 else "\u2007" + "\u2007".join(map(to_str, reversed(self.calls)))
         as_dora = lambda tile: tile + (100 if tile in doras or tile in uras else 0)
