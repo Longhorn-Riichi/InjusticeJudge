@@ -19,6 +19,21 @@ from pprint import pprint
 # 
 # See `_calculate_shanten` for more info.
 
+import time
+timers = {
+    "calculate_hands": 0.0,
+    "remove_some_taatsus": 0.0,
+    "get_hand_shanten": 0.0,
+    "get_iishanten_type": 0.0,
+    "get_tenpai_waits": 0.0,
+    "calculate_hands_2": 0.0,
+    "remove_some_taatsus_2": 0.0,
+    "get_hand_shanten_2": 0.0,
+    "get_iishanten_type_2": 0.0,
+    "get_tenpai_waits_2": 0.0,
+    "total": 0.0,
+}
+
 ###
 ### ukeire and shanten calculations
 ###
@@ -42,9 +57,80 @@ def remove_all(hands: Set[Tuple[int, ...]], tile_to_groups: Callable[[int], Tupl
 make_groups = lambda tile: ((SUCC[SUCC[tile]], SUCC[tile], tile), (tile, tile, tile))
 remove_all_groups = lambda hands: functools.reduce(lambda hs, _: remove_all(hs, make_groups), range(4), hands)
 remove_some_groups = lambda hands: functools.reduce(lambda hs, _: remove_some(hs, make_groups), range(4), hands)
+
+def remove_all_groups_2(starting_hand):
+    # the idea is to partition into suits first
+    # assumes no red fives
+    suits = {1:[],2:[],3:[],4:[]}
+    for tile in sorted(starting_hand):
+        suits[tile//10].append(tile%10)
+
+    def remove(hand: Tuple[int, ...], do_sequences: bool = True) -> Set[Tuple[int, ...]]:
+        max_length = len(hand)
+        def rec(hand: Tuple[int, ...]) -> Set[Tuple[int, ...]]:
+            nonlocal max_length
+            max_length = min(max_length, len(hand))
+            candidates = set()
+            for tile in hand:
+                if hand.count(tile) >= 3: # triplet
+                    i = hand.index(tile)
+                    candidates.add((*hand[:i],*hand[i+3:]))
+                if do_sequences:
+                    sequence_removed = try_remove_all_tiles(hand, (tile+2, tile+1, tile))
+                    if len(sequence_removed) < len(hand):
+                        candidates.add(sequence_removed)
+            if len(candidates) > 0:
+                return set.union(*map(rec, candidates))
+            else:
+                return {hand}
+        return set(filter(lambda h: len(h) == max_length, rec(hand)))
+
+    possibilities = ({1:a,2:b,3:c,4:d}
+        for a in remove(tuple(suits[1]))
+        for b in remove(tuple(suits[2]))
+        for c in remove(tuple(suits[3]))
+        for d in remove(tuple(suits[4]), do_sequences=False))
+
+    return (tuple(10*k + v for k,vs in p.items() for v in vs) for p in possibilities)
+
 make_taatsus = lambda tile: ((SUCC[tile], tile), (SUCC[SUCC[tile]], tile))
 remove_some_taatsus = lambda hands: fix(lambda hs: remove_some(hs, make_taatsus), hands)
 remove_all_taatsus = lambda hands: fix(lambda hs: remove_all(hs, make_taatsus), hands)
+
+def _remove_some_taatsus_2(starting_hand):
+    # the idea is to partition into suits first
+    # assumes no red fives
+    suits = {1:[],2:[],3:[],4:[]}
+    for tile in sorted(starting_hand):
+        suits[tile//10].append(tile%10)
+
+    max_length = len(starting_hand)
+    def remove(hand: Tuple[int, ...]) -> Set[Tuple[int, ...]]:
+        nonlocal max_length
+        max_length = min(max_length, len(hand))
+        candidates = set()
+        for tile in hand:
+            kanchan_removed = try_remove_all_tiles(hand, (tile+2, tile))
+            if len(kanchan_removed) < len(hand):
+                candidates.add(kanchan_removed)
+            ryanmen_removed = try_remove_all_tiles(hand, (tile+1, tile))
+            if len(ryanmen_removed) < len(hand):
+                candidates.add(ryanmen_removed)
+        if len(candidates) > 0:
+            return set.union(*map(remove, candidates)) | {hand}
+        else:
+            return {hand}
+
+    possibilities = ({1:a,2:b,3:c,4:suits[4]}
+        for a in remove(tuple(suits[1]))
+        for b in remove(tuple(suits[2]))
+        for c in remove(tuple(suits[3])))
+
+    return (tuple(10*k + v for k,vs in p.items() for v in vs) for p in possibilities)
+
+def remove_some_taatsus_2(hands):
+    return (rem for hand in hands for rem in _remove_some_taatsus_2(hand))
+
 make_pairs = lambda tile: ((tile, tile),)
 remove_some_pairs = lambda hands: fix(lambda hs: remove_some(hs, make_pairs), hands)
 remove_all_pairs = lambda hands: fix(lambda hs: remove_all(hs, make_pairs), hands)
@@ -166,7 +252,7 @@ def check_complete_perfect_iishanten(starting_hand):
     # otherwise, it's imperfect iishanten
     make_ryanmen = lambda tile: ((SUCC[tile], tile),) if tile not in {11,18,21,28,31,38} else ((),)
     remove_all_ryanmen = lambda hands: fix(lambda hs: remove_all(hs, make_ryanmen), hands)
-    return len(next(iter(remove_all_ryanmen(remove_all_groups({starting_hand}))))) == 3
+    return len(next(iter(remove_all_ryanmen(set(remove_all_groups_2(starting_hand)))))) == 3
 
 def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Set[Tuple[int, ...]]) -> Tuple[float, Set[int]]:
     # given an iishanten hand, calculate the iishanten type and its waits
@@ -216,7 +302,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Set[Tupl
         # get all the kuttsuki tiles and headless tiles
         kuttsuki_iishanten_tiles: Set[int] = set()  # tiles that could be the floating kuttsuki tiles in hand
         headless_iishanten_tiles: Set[int] = set() # tiles that could be part of the 4 headless tiles in hand
-        for hand in remove_some_taatsus(groupless_hands):
+        for hand in remove_some_taatsus_2(groupless_hands):
             pairless = next(iter(remove_all_pairs({hand})))
             if len(pairless) == 2 and len(pairless) != len(hand):
                 # print(f"{ph(sorted_hand(starting_hand))} is kuttsuki iishanten on {ph(pairless)}")
@@ -310,7 +396,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Set[Tupl
         def sequence_exists(seq):
             # check if, after removing the sequence, we still have headless/kuttsuki iishanten
             removed_sequence = try_remove_all_tiles(starting_hand, seq)
-            return len(removed_sequence) < len(starting_hand) and count_floating(next(iter(remove_all_groups({removed_sequence})))) <= 2
+            return len(removed_sequence) < len(starting_hand) and count_floating(next(iter(remove_all_groups_2(removed_sequence)))) <= 2
         for tile in waits.copy():
             if PRED[PRED[PRED[tile]]] != 0 and PRED[PRED[PRED[tile]]] not in waits and sequence_exists((PRED[PRED[tile]], PRED[tile], tile)):
                 # print(f"  extended {pt(tile)} left to {pt(PRED[PRED[PRED[tile]]])}")
@@ -340,11 +426,23 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     # 6. Do 3-5 for chiitoitsu and kokushi
 
     # remove as many groups as possible
-    hands = remove_all_groups({sorted_hand(starting_hand)})
+    # start_time = now = time.time()
+    # hands = remove_all_groups({sorted_hand(starting_hand)})
+    # timers["calculate_hands"] += time.time() - now
+
+    start_time = now = time.time()
+    hands = set(remove_all_groups_2(starting_hand))
+    timers["calculate_hands_2"] += time.time() - now
+
     groups_needed = (len(next(iter(hands))) - 1) // 3
 
     # calculate shanten for every combination of groups removed
-    shanten: float = min(get_hand_shanten(hand, groups_needed) for hand in remove_some_taatsus(hands))
+    now = time.time()
+    removed_taatsus = remove_some_taatsus_2(hands)
+    timers["remove_some_taatsus"] += time.time() - now
+    now = time.time()
+    shanten: float = min(get_hand_shanten(hand, groups_needed) for hand in removed_taatsus)
+    timers["get_hand_shanten"] += time.time() - now
     assert shanten >= 0, f"somehow calculated negative shanten for {ph(sorted_hand(starting_hand))}"
 
     # if iishanten, get the type of iishanten based on tiles remaining after removing some number of taatsus
@@ -352,12 +450,16 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     waits: Set[int] = set()
     if shanten == 1:
         assert groups_needed in {1,2}, f"{ph(sorted_hand(starting_hand))} is somehow iishanten with {4-groups_needed} groups"
+        now = time.time()
         shanten, waits = get_iishanten_type(starting_hand, hands)
+        timers["get_iishanten_type"] += time.time() - now
         assert shanten != 1, f"somehow failed to detect type of iishanten for iishanten hand {ph(sorted_hand(starting_hand))}"
 
     # if tenpai, get the waits
     elif shanten == 0:
+        now = time.time()
         waits = get_tenpai_waits(starting_hand)
+        timers["get_tenpai_waits"] += time.time() - now
         assert len(waits) > 0, f"tenpai hand {ph(sorted_hand(starting_hand))} has no waits?"
 
     # compare with chiitoitsu and kokushi shanten
@@ -392,8 +494,16 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
 
     waits_list = list(sorted_hand(waits - ankan_tiles))
     assert all(red not in waits_list for red in {51,52,53}), f"somehow returned a waits list with red five: {ph(waits_list)}"
+    timers["total"] += time.time() - start_time
     return round(shanten, 4), waits_list
 
+# import time
+# shanten_runtime = 0.0
 def calculate_shanten(starting_hand: Iterable[int]) -> Tuple[float, List[int]]:
     """This just converts the input to a sorted tuple so it can be serialized as a cache key"""
-    return _calculate_shanten(tuple(sorted(normalize_red_fives(starting_hand))))
+    # global shanten_runtime
+    processed = tuple(sorted(normalize_red_fives(starting_hand)))
+    # now = time.time()
+    ret = _calculate_shanten(processed)
+    # shanten_runtime += time.time() - now
+    return ret
