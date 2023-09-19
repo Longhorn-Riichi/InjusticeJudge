@@ -138,25 +138,27 @@ def get_floating_waits(hands: Set[Tuple[int, ...]], floating_tiles: Set[int]) ->
     return waits, shanpon_waits
 
 def check_headless_perfect_iishanten(starting_hand: Tuple[int, ...]) -> bool:
-    # check for headless perfect iishanten, given a headless iishanten hand
-    #   only true if _both_ headless shapes are ryanmen and _both_ overlap with a group
-    #   such that a pair+ryanmen can be formed by dropping one side of the ryanmen
-    # e.g. 234 34 -> drop 3 -> 2344
-    # e.g. 234 45 -> drop 5 -> 2344
-    # e.g. 34 444 -> drop 4 -> 3444
-    # e.g. 34 555 -> drop 3 -> 4555 
-    # there are 8 possible shapes (the above 4 plus their reverse versions)
-    # exclude shapes that result in penchan!
-    # these are: 12233, 12222, 11112, 77889, 88889, 89999 (so there's 6 for each suit)
-    penchan_shapes = {(11,12,12,13,13),(11,12,12,12,12),(11,11,11,11,12),(17,17,18,18,19),(18,18,18,18,19),(18,19,19,19,19),
-                      (21,22,22,23,23),(21,22,22,22,22),(21,21,21,21,22),(27,27,28,28,29),(28,28,28,28,29),(28,29,29,29,29),
-                      (31,32,32,33,33),(31,32,32,32,32),(31,31,31,31,32),(37,37,38,38,39),(38,38,38,38,39),(38,39,39,39,39)}
-    to_flexible_shapes = lambda t1: (t2:=SUCC[t1], t3:=SUCC[t2], t4:=SUCC[t3],
-       tuple({(t1,t2,t2,t3,t4), (t2,t2,t3,t3,t4), (t1,t2,t2,t3,t3), (t1,t2,t3,t3,t4),
-              (t1,t2,t3,t3,t3), (t1,t2,t2,t2,t2), (t1,t1,t1,t1,t2), (t1,t1,t1,t2,t3)} - penchan_shapes))[-1]
-    flexible_shapes = set().union(*map(to_flexible_shapes, starting_hand))
-    possible_shapes = remove_some_taatsus_pairs(remove_some_groups({starting_hand}))
-    return len(flexible_shapes & possible_shapes) >= 2 # both headless shapes are these flexible shapes
+    # this is too expensive, and is very rare, ignore
+    return False
+#     # check for headless perfect iishanten, given a headless iishanten hand
+#     #   only true if _both_ headless shapes are ryanmen and _both_ overlap with a group
+#     #   such that a pair+ryanmen can be formed by dropping one side of the ryanmen
+#     # e.g. 234 34 -> drop 3 -> 2344
+#     # e.g. 234 45 -> drop 5 -> 2344
+#     # e.g. 34 444 -> drop 4 -> 3444
+#     # e.g. 34 555 -> drop 3 -> 4555 
+#     # there are 8 possible shapes (the above 4 plus their reverse versions)
+#     # exclude shapes that result in penchan!
+#     # these are: 12233, 12222, 11112, 77889, 88889, 89999 (so there's 6 for each suit)
+#     penchan_shapes = {(11,12,12,13,13),(11,12,12,12,12),(11,11,11,11,12),(17,17,18,18,19),(18,18,18,18,19),(18,19,19,19,19),
+#                       (21,22,22,23,23),(21,22,22,22,22),(21,21,21,21,22),(27,27,28,28,29),(28,28,28,28,29),(28,29,29,29,29),
+#                       (31,32,32,33,33),(31,32,32,32,32),(31,31,31,31,32),(37,37,38,38,39),(38,38,38,38,39),(38,39,39,39,39)}
+#     to_flexible_shapes = lambda t1: (t2:=SUCC[t1], t3:=SUCC[t2], t4:=SUCC[t3],
+#        tuple({(t1,t2,t2,t3,t4), (t2,t2,t3,t3,t4), (t1,t2,t2,t3,t3), (t1,t2,t3,t3,t4),
+#               (t1,t2,t3,t3,t3), (t1,t2,t2,t2,t2), (t1,t1,t1,t1,t2), (t1,t1,t1,t2,t3)} - penchan_shapes))[-1]
+#     flexible_shapes = set().union(*map(to_flexible_shapes, starting_hand))
+#     possible_shapes = remove_some_taatsus_pairs(remove_some_groups({starting_hand}))
+#     return len(flexible_shapes & possible_shapes) >= 2 # both headless shapes are these flexible shapes
 
 def check_complete_perfect_iishanten(starting_hand):
     # given a complete iishanten hand,

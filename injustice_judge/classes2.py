@@ -34,7 +34,7 @@ class Hand:
     tiles_with_kans: Tuple[int, ...] = ()                       # all tiles in the hand including kans
     kita_count: int = 0                                         # number of kita calls for this hand
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """You only need to provide `tiles` (and `calls`, if any), this calculates the rest"""
         super().__setattr__("tiles", sorted_hand(self.tiles))
         super().__setattr__("open_part", tuple(tile for call in self.calls if call.type != "kita" for tile in call.tiles[:3]))
@@ -56,9 +56,9 @@ class Hand:
         as_dora = lambda tile: tile + (100 if tile in doras or tile in uras else 0)
         hidden_part = tuple(map(as_dora, self.hidden_part))
         return f"{ph(hidden_part)}{call_string}"
-    def __str__(self):
+    def __str__(self) -> str:
         return self.to_str()
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.open_part, self.closed_part))
 
     def add(self, tile: int) -> "Hand":
@@ -69,9 +69,8 @@ class Hand:
         return Hand(self.tiles, [*self.calls, call], [*self.ordered_calls, call], prev_shanten=self.shanten, kita_count=self.kita_count)
     def remove(self, tile: int) -> "Hand":
         """Immutable update for discarding a tile"""
-        tiles = list(self.tiles)
-        tiles.remove(tile)
-        return Hand(tuple(tiles), [*self.calls], [*self.ordered_calls], prev_shanten=self.shanten, kita_count=self.kita_count)
+        i = self.tiles.index(tile)
+        return Hand((*self.tiles[:i], *self.tiles[i+1:]), [*self.calls], [*self.ordered_calls], prev_shanten=self.shanten, kita_count=self.kita_count)
     def kakan(self, called_tile: int):
         """Immutable update for adding a tile to an existing pon call (kakan)"""
         pon_index = next((i for i, calls in enumerate(self.calls) if calls.type == "pon" and normalize_red_five(calls.tile) == normalize_red_five(called_tile)), None)

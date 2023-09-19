@@ -262,8 +262,8 @@ class KyokuInfo:
         else:
             self.at[seat].consecutive_off_suit_tiles = []
         # check if we're still 4-shanten or worse after the first row of discards
-        if self.at[seat].num_discards == 6 and self.at[seat].hand.prev_shanten[0] >= 4:
-            self.add_flag(seat, Flags.FOUR_SHANTEN_AFTER_FIRST_ROW, {"shanten": self.at[seat].hand.prev_shanten})
+        if self.at[seat].num_discards == 6 and prev_hand.shanten[0] >= 4:
+            self.add_flag(seat, Flags.FOUR_SHANTEN_AFTER_FIRST_ROW, {"shanten": prev_hand.shanten})
         # check if we're iishanten with zero tiles left
         if 1 <= self.at[seat].hand.shanten[0] < 2:
             ukeire = self.at[seat].hand.ukeire(self.get_visible_tiles())

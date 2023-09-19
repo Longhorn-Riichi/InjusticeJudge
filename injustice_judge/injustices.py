@@ -855,15 +855,15 @@ def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]],
 def dealt_into_something_dumb(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     winner = data[flags.index(Flags.WINNER)]["seat"]
     score = data[flags.index(Flags.WINNER)]["score_object"].to_points()
-    is_dama = Flags.WINNER_WAS_DAMA in flags
     is_ippatsu = Flags.WINNER_GOT_IPPATSU in flags
     is_haitei = Flags.WINNER_GOT_HAITEI in flags
-    is_double = Flags.MULTIPLE_RON in flags
+    num_rons = 1 if Flags.MULTIPLE_RON not in flags else data[flags.index(Flags.MULTIPLE_RON)]["number"]
+    is_dama = flags.count(Flags.WINNER_WAS_DAMA) == num_rons
+    is_ippatsu = flags.count(Flags.WINNER_GOT_IPPATSU) == num_rons
 
     content = ""
-    if is_double:
-        number = data[flags.index(Flags.MULTIPLE_RON)]["number"]
-        content += "double" if number == 2 else "triple"
+    if num_rons > 1:
+        content += "double" if num_rons == 2 else "triple"
     else:
         content += f"{relative_seat_name(player, winner)}'s {score} point"
     if is_dama:
