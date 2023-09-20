@@ -36,6 +36,7 @@ from pprint import pprint
 
 Flags = Enum("Flags", "_SENTINEL"
     " AGAINST_TRIPLE_RIICHI"
+    " ALL_TENPAI_DISCARDS_DEAL_IN"
     " ANKAN_ERASED_TENPAI_WAIT"
     " BAD_HONITSU_DRAWS"
     " CALLS_CONTAIN_THREE_DORA"
@@ -284,6 +285,16 @@ class KyokuInfo:
                                          "pond_str": print_pond(self.at[opponent].pond, self.current_doras, self.at[opponent].riichi_index)
                                          })
                 break
+        # check if we drew into potential tenpai
+        # but every discard that would give us tenpai deals into someone
+        if 1 <= prev_hand.shanten[0] < 2 and tile in prev_hand.shanten[1]:
+            deals_into_someone = lambda tile: any(at.hand.shanten[0] == 0 and tile in at.hand.shanten[1] for at in self.at)
+            for player in range(self.num_players):
+                if player == seat:
+                    continue
+                tenpai_discards = tuple(self.at[seat].hand.get_possible_tenpais().keys())
+                if len(tenpai_discards) >= 1 and all(deals_into_someone(discard) for discard in tenpai_discards):
+                    self.add_flag(seat, Flags.ALL_TENPAI_DISCARDS_DEAL_IN, {"hand": self.at[seat].hand, "discards": tenpai_discards})
 
     def process_chii_pon_daiminkan(self, i: int, seat: int, event_type: str, called_tile: int, call_tiles: List[int], call_dir: Dir) -> None:
         if event_type != "minkan":

@@ -569,6 +569,23 @@ def four_shanten_after_first_row(flags: List[Flags], data: List[Dict[str, Any]],
 ### mid game injustices
 ###
 
+# Print if you had an early 8 outs ryanmen (or better) and never folded, but never won
+@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI, Flags.WINNER],
+            forbid=[Flags.YOU_GAINED_POINTS, Flags.YOU_FOLDED_FROM_TENPAI])
+@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI],
+            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.WINNER])
+def your_early_8_outs_wait_never_won(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    for i, flag in enumerate(flags):
+        if flag == Flags.YOU_REACHED_TENPAI:
+            ukeire = data[i]["ukeire"]
+            if ukeire >= 8:
+                return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+                        CheckClause(subject="you",
+                                    verb="had",
+                                    object=f"an early {ukeire} outs wait",
+                                    content="but never won with it"))]
+    return []
+
 # Print if your tenpai got chased by a worse wait, and they won
 @injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.WINNER,
                     Flags.YOU_GOT_CHASED, Flags.CHASER_GAINED_POINTS],
@@ -815,22 +832,23 @@ def your_tiles_all_deal_in(flags: List[Flags], data: List[Dict[str, Any]], kyoku
                         verb="only had",
                         content=f"tiles that would deal in ({wait_string})"))]
 
-# Print if you had an early 8 outs ryanmen (or better) and never folded, but never won
-@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI, Flags.WINNER],
-            forbid=[Flags.YOU_GAINED_POINTS, Flags.YOU_FOLDED_FROM_TENPAI])
-@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.FIRST_ROW_TENPAI],
-            forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.WINNER])
-def your_early_8_outs_wait_never_won(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    for i, flag in enumerate(flags):
-        if flag == Flags.YOU_REACHED_TENPAI:
-            ukeire = data[i]["ukeire"]
-            if ukeire >= 8:
-                return [Injustice(kyoku.round, kyoku.honba, "Injustice",
-                        CheckClause(subject="you",
-                                    verb="had",
-                                    object=f"an early {ukeire} outs wait",
-                                    content="but never won with it"))]
-    return []
+# Print if you were about to reach tenpai but all of your tenpai discards deal in
+@injustice(require=[Flags.ALL_TENPAI_DISCARDS_DEAL_IN, Flags.YOU_DEALT_IN])
+def all_tenpai_discards_deal_in(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    hand = data[flags.index(Flags.ALL_TENPAI_DISCARDS_DEAL_IN)]["hand"]
+    discards = data[flags.index(Flags.ALL_TENPAI_DISCARDS_DEAL_IN)]["discards"]
+    if len(discards) == 1:
+        return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+                CheckClause(subject="your hand",
+                            subject_description=hand.to_str(doras=kyoku.doras),
+                            verb="could reach",
+                            content=f"tenpai by discarding {ph(discards, doras=kyoku.doras)}, but it would deal in, and you dealt in"))]
+    else:
+        return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+                CheckClause(subject="your hand",
+                            subject_description=hand.to_str(doras=kyoku.doras),
+                            verb="could reach",
+                            content=f"tenpai by discarding any of {ph(discards, doras=kyoku.doras)}, but they would all deal in, and you dealt in"))]
 
 ###
 ### end game injustices
