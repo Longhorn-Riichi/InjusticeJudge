@@ -367,15 +367,14 @@ def won_something_silly(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
     else:
         return []
 
-@skill(require=[Flags.YOU_WON, Flags.WINNER_WON_AFTER_CHANGING_WAIT])
+@skill(require=[Flags.YOU_WON, Flags.WON_AFTER_CHANGING_WAIT])
 def won_after_changing_wait(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    hand = data[flags.index(Flags.WINNER_WON_AFTER_CHANGING_WAIT)]["hand"]
-    winning_tile = data[flags.index(Flags.WINNER_WON_AFTER_CHANGING_WAIT)]["winning_tile"]
-    doras = data[flags.index(Flags.WINNER_WON_AFTER_CHANGING_WAIT)]["doras"]
+    hand = data[flags.index(Flags.WON_AFTER_CHANGING_WAIT)]["hand"]
+    winning_tile = data[flags.index(Flags.WON_AFTER_CHANGING_WAIT)]["winning_tile"]
     return [Skill(kyoku.round, kyoku.honba, "Skill",
         CheckClause(subject="you",
                     verb="changed your hand's wait from",
-                    content=f"{ph(hand.prev_shanten[1], doras=doras)} to {ph(hand.shanten[1], doras=doras)} and immediately won on {pt(winning_tile + 100 if winning_tile in doras else winning_tile)}"))]
+                    content=f"{ph(hand.prev_shanten[1], doras=kyoku.doras)} to {ph(hand.shanten[1], doras=kyoku.doras)} and immediately won on {pt(winning_tile + 100 if winning_tile in kyoku.doras else winning_tile)}"))]
 
 @skill(require=[Flags.YOU_WON, Flags.YOU_ARE_DEALER, Flags.YOU_WERE_FIRST])
 def won_first_place_3_honba(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:

@@ -28,7 +28,7 @@ is_kokushi: CheckYakumanFunc = lambda hand: len(YAOCHUUHAI.intersection(hand.til
 
 # suuankou tenpai if hand is closed and we have 4 triplets, or 3 triplets and two pairs
 # which is to say, 3+ triplets + at most one unpaired tile
-is_suuankou: CheckYakumanFunc = lambda hand: len(hand.calls) == 0 and (mults := list(Counter(hand.tiles).values()), mults.count(3) >= 3 and mults.count(1) <= 1)[1]
+is_suuankou: CheckYakumanFunc = lambda hand: hand.closed_part == hand.tiles and (mults := list(Counter(hand.tiles).values()), mults.count(3) >= 3 and mults.count(1) <= 1)[1]
 
 # shousuushi if we have exactly 10 winds (counting each wind at most 3 times)
 # OR 11 tiles of winds + no pair (i.e. only 6 kinds of tiles in hand)
@@ -50,7 +50,7 @@ is_chinroutou: CheckYakumanFunc = lambda hand: set(hand.tiles) - {11,19,21,29,31
 # chuuren poutou tenpai if hand is closed and we are missing at most one tile
 #   out of the required 1112345678999
 CHUUREN_TILES = Counter([1,1,1,2,3,4,5,6,7,8,9,9,9])
-is_chuuren: CheckYakumanFunc = lambda hand: len(hand.calls) == 0 and max(hand.tiles) - min(hand.tiles) == 8 and max(hand.tiles) < 40 and (ctr := Counter([t % 10 for t in normalize_red_fives(hand.tiles)]), sum((CHUUREN_TILES - (CHUUREN_TILES & ctr)).values()) <= 1)[1]
+is_chuuren: CheckYakumanFunc = lambda hand: hand.closed_part == hand.tiles and max(hand.tiles) - min(hand.tiles) == 8 and max(hand.tiles) < 40 and (ctr := Counter([t % 10 for t in normalize_red_fives(hand.tiles)]), sum((CHUUREN_TILES - (CHUUREN_TILES & ctr)).values()) <= 1)[1]
 
 # suukantsu tenpai if you have 4 kans
 is_suukantsu = lambda hand: list(map(lambda call: "kan" in call.type, hand.calls)).count(True) == 4

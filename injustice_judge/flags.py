@@ -96,8 +96,8 @@ Flags = Enum("Flags", "_SENTINEL"
     " WINNER_IPPATSU_TSUMO"
     " WINNER_WAS_DAMA"
     " WINNER_WAS_FURITEN"
-    " WINNER_WON_AFTER_CHANGING_WAIT"
     " WINNER_WON_WITH_PON_PON_RON"
+    " WON_AFTER_CHANGING_WAIT"
     " YOU_ACHIEVED_NAGASHI"
     " YOU_ARE_DEALER"
     " YOU_AVOIDED_LAST_PLACE"
@@ -866,10 +866,9 @@ class KyokuInfo:
         # check if the win was immediately after changing waits
         if self.at[result.winner].hand.shanten != self.at[result.winner].hand.prev_shanten \
            and self.at[result.winner].hand.prev_shanten[0] == 0:
-            self.add_global_flag(Flags.WINNER_WON_AFTER_CHANGING_WAIT,
-                                 {"hand": self.at[result.winner].hand,
-                                  "winning_tile": winning_tile,
-                                  "doras": self.current_doras.copy()})
+            self.add_flag(result.winner, Flags.WON_AFTER_CHANGING_WAIT,
+                                         {"hand": self.at[result.winner].hand,
+                                          "winning_tile": winning_tile})
         # check if the win was immediately after calling 2+ times
         call_count = 0
         break_on_draw = False
