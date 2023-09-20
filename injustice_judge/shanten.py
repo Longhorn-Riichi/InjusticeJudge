@@ -321,7 +321,6 @@ def get_floating_waits(hands: Set[Tuple[int, ...]], floating_tiles: Set[int]) ->
             # we ensure that `floating` is inside our no-pair hand
             for floating in floating_tiles & set(nopair):
                 nofloat = try_remove_all_tiles(nopair, (floating,))
-                print((tile,tile), (floating,), nofloat)
                 if count_floating(nofloat) == 0: # all taatsu still intact
                     pairs.add(tile)
                     waits |= get_waits(nofloat)
@@ -372,11 +371,8 @@ def check_complete_perfect_iishanten(starting_hand):
     remove_some_ryanmen = lambda hands: fix(lambda hs: remove_some(hs, make_ryanmen), hands)
     groups_removed = set(remove_all_groups_2((starting_hand,)))
     def has_2_ryanmen_2_pairs(h):
-        print("PERFECT h:", h)
         h2 = remove_all(remove_all(remove_all({h}, make_ryanmen_toitsu), make_pairs), make_ryanmen)
-        print("PERFECT h2:", h2)
         return () in h2
-    print("PERFECT groups_removed:", groups_removed)
     return any(has_2_ryanmen_2_pairs(h) for h in groups_removed)
     # 3 tiles: the leftover 4 tile from the 445 shape, and the other pair
     # 3 tiles: the other taatsu, and the leftover 5 tile from the 445 shape
@@ -462,7 +458,6 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Hands) -
             taatsu_tiles: Set[int] = set(tile for taatsu in taatsus for tile in taatsu)
             headless_taatsu_waits = get_waits(tuple(taatsu_tiles))
             headless_tanki_waits = headless_iishanten_tiles.difference(set() if len(taatsus) >= 2 else taatsu_tiles)
-            print(f"{headless_taatsu_waits=},{headless_tanki_waits=}")
             waits |= headless_taatsu_waits | headless_tanki_waits
             # print(f"{ph(sorted_hand(starting_hand))} is headless iishanten with tiles {ph(headless_iishanten_tiles)}, waits {ph(waits)}")
 
@@ -481,12 +476,6 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Hands) -
     # somewhat of an assertion; it should be guaranteed that there remains only 1 tile
     floating_iishanten_tiles = set().union(*filter(lambda hand: len(hand) == 1, without_taatsus))
     floating_waits, floating_shanpon_waits = get_floating_waits(subhands, floating_iishanten_tiles) if len(floating_iishanten_tiles) > 0 else (set(), set())
-    print("real floating_iishanten_tiles:", floating_iishanten_tiles)
-    print("real floating_taatsu_waits:", floating_waits)
-    print("real floating_shanpon_waits:", floating_shanpon_waits)
-    print("real subhands:", subhands)
-    print("real without_head:", without_head)
-    print("real without_taatsus:", without_taatsus)
     # for each of these length 5 hands, remove pairs/taatsus to get length 3 hands
     # the idea is to check if these length 3 hands are complex shapes
     # check if each length 3 hand is in the set of all possible complex shapes
@@ -504,8 +493,6 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Hands) -
     is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
     get_complex_shanpon_wait = lambda s: ({s[0]} if is_pair(s[0:2]) else set()) | ({s[1]} if is_pair(s[1:3]) else set())
     complete_shanpon_waits = floating_shanpon_waits.union(*map(get_complex_shanpon_wait, complete_iishanten_shapes)) if len(complete_iishanten_shapes) > 0 else set()
-    print("real complete_taatsu_waits:", complete_taatsu_waits)
-    print("real complete_shanpon_waits:", complete_shanpon_waits)
 
     # add complete/floating waits to the overall wait, and set the shanten number accordingly
     # perfect iishanten is when every possible wait leads to a ryanmen tenpai
@@ -651,11 +638,9 @@ def get_iishanten_type_2(starting_hand: Tuple[int, ...], groupless_hands: Suits,
             taatsu_tiles: Set[int] = set(tile for taatsu in taatsus for tile in taatsu)
             headless_taatsu_waits = get_waits(tuple(taatsu_tiles))
             headless_tanki_waits = headless_iishanten_tiles.difference(set() if len(taatsus) >= 2 else taatsu_tiles)
-            print(f"{headless_taatsu_waits=},{headless_tanki_waits=}")
             waits |= headless_taatsu_waits | headless_tanki_waits
             # print(f"{ph(sorted_hand(starting_hand))} is headless iishanten with tiles {ph(headless_iishanten_tiles)}, waits {ph(waits)}")
 
-        print(f"{headless_iishanten_tiles=}")
 
     # now we check for complete and floating iishanten
     # floating iishanten is when you have a floating tile + a pair + 2 taatsus/pairs
@@ -711,14 +696,10 @@ def get_iishanten_type_2(starting_hand: Tuple[int, ...], groupless_hands: Suits,
                 add_complex_shape(hand)
                 if len(complex_shapes[hand]) > 0:
                     complex_hands[i].add(hand)
-    print("suits:",suits)
-    print("pair_hands:",pair_hands)
-    print("complex_hands:",complex_hands)
     full_complex_hands: Set[Tuple[int, ...]] = set()
     complete_waits = set()
     complete_shanpon_waits = set()
     is_perfect_iishanten = False
-    print(starting_hand)
     def add_complex_hand(complex_shape, pair_shape, extra_tiles):
         nonlocal full_complex_hands
         nonlocal complete_waits
@@ -728,7 +709,6 @@ def get_iishanten_type_2(starting_hand: Tuple[int, ...], groupless_hands: Suits,
         is_ryanmen = lambda h: len(h) == 2 and SUCC[h[0]] == h[1] and h[0] not in {11,18,21,28,31,38}
         h = (*complex_shape, *pair_shape, *extra_tiles)
         # extra tiles must form a taatsu
-        print("Trying to add complex hand:", complex_shape, pair_shape, extra_tiles, "=", h)
         if len(extra_tiles) != 2:
             return
         extra_wait = get_taatsu_wait(extra_tiles)
@@ -737,14 +717,11 @@ def get_iishanten_type_2(starting_hand: Tuple[int, ...], groupless_hands: Suits,
         complete_waits |= extra_wait
         t1, t2 = complex_shape[0:2], complex_shape[1:3]
         if is_ryanmen(extra_tiles) and (is_ryanmen(t1) or is_ryanmen(t2)):
-            print("Perfect")
             is_perfect_iishanten = True
         full_complex_hands.add(h)
         complete_waits |= get_taatsu_wait(t1) | get_taatsu_wait(t2) | extra_wait
         complete_shanpon_waits |= (set((*t1, *pair_shape)) if is_pair(t1) else set())
         complete_shanpon_waits |= (set((*t2, *pair_shape)) if is_pair(t2) else set())
-        print("Added complex hand:", complex_shape, pair_shape, extra_tiles, "=", h)
-        print("    ", complete_waits, complete_shanpon_waits)
 
     full_floating_hands: Set[Tuple[int, ...]] = set()
     floating_waits = set()
@@ -767,14 +744,11 @@ def get_iishanten_type_2(starting_hand: Tuple[int, ...], groupless_hands: Suits,
                     floating_shanpon_waits.add(tile)
                     floating_shanpon_waits.add(pair_shape[0])
 
-        print("Added floating hand:", pair_shape, extra_tiles, "=", h)
-        print("    ", floating_waits, floating_shanpon_waits)
 
     for i, suit in enumerate(pair_hands):
         add_i = lambda h: tuple(10*(i+1)+tile for tile in h)
         for hand in suit:
             for shape, remaining in pair_shapes[hand]:
-                print("pair:", shape, remaining)
                 # get all combinations of extra tiles from other suits
                 # such that adding them to our existing hand makes it length 7
                 possible_extra_tiles = [tuple(tile for x in (
@@ -794,7 +768,6 @@ def get_iishanten_type_2(starting_hand: Tuple[int, ...], groupless_hands: Suits,
                     if is_also_complex:
                         # this fragment alone has both a pair and a complex shape
                         for shape2, remaining2 in complex_shapes[remaining]:
-                            print("a", extra_tiles, remaining2)
                             add_complex_hand(add_i(shape2), add_i(shape), tuple(sorted((*extra_tiles, *add_i(remaining2)))))
                 if not is_also_complex:
                     # need to look for a candidate complex shape in some other suit
@@ -804,7 +777,6 @@ def get_iishanten_type_2(starting_hand: Tuple[int, ...], groupless_hands: Suits,
                         add_j = lambda h: tuple(10*(j+1)+tile for tile in h)
                         for hand2 in suit:
                             for shape2, remaining2 in complex_shapes[hand2]:
-                                print("b", shape2, remaining2)
                                 possible_extra_tiles = [tuple(tile for x in (
                                     *((tuple(10+tile for tile in a),) if 0 not in (i,j) else ()),
                                     *((tuple(20+tile for tile in b),) if 1 not in (i,j) else ()),
@@ -819,34 +791,19 @@ def get_iishanten_type_2(starting_hand: Tuple[int, ...], groupless_hands: Suits,
                                 for extra_tiles in possible_extra_tiles:
                                     add_complex_hand(add_j(shape2), add_i(shape), tuple(sorted((*extra_tiles, *add_i(remaining), *add_j(remaining2)))))
 
-    print("full_complex_hands:",full_complex_hands)
-    print("complete_waits:",complete_waits)
-    print("complete_shanpon_waits:",complete_shanpon_waits)
-    print("is_perfect_iishanten:",is_perfect_iishanten)
-
-    print("full_floating_hands:",full_floating_hands)
-    print("floating_waits:",floating_waits)
-    print("floating_shanpon_waits:",floating_shanpon_waits)
-
     if shanten > 1: # it's already headless or kutsuki
         is_perfect_iishanten = False
     if len(complete_waits - waits) > 0 or len(complete_shanpon_waits - shanpon_waits - waits) > 0: # check for complete iishanten
-        print("complete iishanten")
         shanten += 0.003 if is_perfect_iishanten else 0.002
         waits |= complete_waits | floating_waits
         shanpon_waits |= complete_shanpon_waits | floating_shanpon_waits
     elif len(floating_waits - waits) > 0 or len(floating_shanpon_waits - shanpon_waits - waits) > 0: # check for floating iishanten
-        print("floating iishanten")
         shanten += 0.003 if is_perfect_iishanten else 0.001
         # print(f"{ph(sorted_hand(starting_hand))} is floating iishanten with floating tiles {ph(floating_iishanten_tiles)}, adding extra waits {ph(floating_waits - waits)}")
         waits |= floating_waits
         shanpon_waits |= floating_shanpon_waits
     elif is_perfect_iishanten:
-        print("perfect iishanten")
         shanten += 0.003
-
-    print("waits:",waits)
-    print("shanpon_waits:",shanpon_waits)
 
     # now we extend all the non-shanpon waits
     # extending is when you have a wait 4 and an overlapping sequence 456
@@ -868,9 +825,7 @@ def get_iishanten_type_2(starting_hand: Tuple[int, ...], groupless_hands: Suits,
                 # print(f"  extended {pt(tile)} right to {pt(SUCC[SUCC[SUCC[tile]]])}")
                 waits.add(SUCC[SUCC[SUCC[tile]]])
         return waits
-    print("before extending:", waits)
     waits = fix(extend_waits, waits)
-    print("after extending:", waits)
 
     return round(shanten, 3), waits | shanpon_waits
 
@@ -918,14 +873,16 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
     waits: Set[int] = set()
     if shanten == 1:
         assert groups_needed in {1,2}, f"{ph(sorted_hand(starting_hand))} is somehow iishanten with {4-groups_needed} groups"
+        # now = time.time()
+        # shanten, waits = get_iishanten_type(starting_hand, hands_set)
+        # timers["get_iishanten_type"] += time.time() - now
+        # now = time.time()
+        # shanten2, waits2 = get_iishanten_type_2(starting_hand, hands, groups_needed)
+        # timers["get_iishanten_type_2"] += time.time() - now
+        # assert (shanten, waits) == (shanten2, waits2), f"{(shanten, waits)} != {(shanten2, waits2)} {starting_hand}"
         now = time.time()
-        shanten, waits = get_iishanten_type(starting_hand, hands_set)
-        timers["get_iishanten_type"] += time.time() - now
-
-        now = time.time()
-        shanten2, waits2 = get_iishanten_type_2(starting_hand, hands, groups_needed)
+        shanten, waits = get_iishanten_type_2(starting_hand, hands, groups_needed)
         timers["get_iishanten_type_2"] += time.time() - now
-        assert (shanten, waits) == (shanten2, waits2), f"{(shanten, waits)} != {(shanten2, waits2)} {starting_hand}"
         assert shanten != 1, f"somehow failed to detect type of iishanten for iishanten hand {ph(sorted_hand(starting_hand))}"
 
     # if tenpai, get the waits
