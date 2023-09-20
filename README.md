@@ -62,7 +62,7 @@ import asyncio
 from injustice_judge import analyze_game
 
 asyncio.run(analyze_game("tenhou link")) # Use player from link
-asyncio.run(analyze_game("tenhou link", 2)) # West player
+asyncio.run(analyze_game("tenhou link", {2})) # West player
 ```
 
 ## Setup for mahjong soul links
