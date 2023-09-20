@@ -107,6 +107,7 @@ def evaluate_game(kyoku: Kyoku, players: Set[int], player_names: List[str], look
             ret = header
             last_clause = None
             seen_results: Set[Tuple[str, str, str]] = set() # (subject, content)
+            current_subject = ""
             for result in result_list:
                 clause = result.clause
                 # skip things we've already said
@@ -121,17 +122,16 @@ def evaluate_game(kyoku: Kyoku, players: Set[int], player_names: List[str], look
                     last_clause = CheckClause(subject="",verb="")
 
                 # print subject if subject changed
-                if clause.subject != last_clause.subject:
+                if clause.subject != current_subject:
                     ret += " " + clause.subject
                     # print subject description
                     # this is basically part of the subject,
                     # but we don't want it to be used for comparing subjects
                     if clause.subject_description is not None:
                         ret += " " + clause.subject_description
-                    current_subject = clause.subject
 
                 # print verb if verb changed or if subject changed
-                if clause.verb != last_clause.verb or clause.subject != last_clause.subject:
+                if clause.verb != last_clause.verb or clause.subject != current_subject:
                     ret += " " + clause.verb
 
                 # print object always (if any)
@@ -142,6 +142,7 @@ def evaluate_game(kyoku: Kyoku, players: Set[int], player_names: List[str], look
                     ret += " " + clause.content
 
                 # if the clause ends on another subject, change current subject to that
+                current_subject = clause.subject
                 if clause.last_subject is not None:
                     current_subject = clause.last_subject
                 last_clause = clause
@@ -654,6 +655,30 @@ def turn_was_skipped_3_times(flags: List[Flags], data: List[Dict[str, Any]], kyo
     else:
         return []
 
+# Print if your turn was skipped 3 times due to pon/kan
+@injustice(require=[Flags.CHII_GOT_OVERRIDDEN],
+            forbid=[Flags.YOU_WON])
+def chii_got_overridden(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    ret = []
+    for i, flag in enumerate(flags):
+        if flag == Flags.CHII_GOT_OVERRIDDEN:
+            score = data[i]["score"]
+            tile = data[i]["tile"]
+            hand_name = data[i]["hand_name"]
+            chii = data[i]["chii"]
+            caller = data[i]["caller"]
+            orig_call_name = data[i]["orig_call_name"]
+            ret.append(Injustice(kyoku.round, kyoku.honba, "Injustice",
+                       CheckClause(subject="you",
+                                   verb="could have called chii",
+                                   content=f"{chii.to_str(doras=kyoku.doras)}"
+                                           f" to get to {hand_name} tenpai"
+                                           f" ({', '.join(name for name, _ in score.yaku)})"
+                                           f" but {relative_seat_name(player, caller)} just had to"
+                                           f" {orig_call_name} your {ph((tile,), doras=kyoku.doras)}",
+                                   last_subject=relative_seat_name(player, caller))))
+    return ret
+
 # Print if you just barely failed nagashi
 @injustice(require=[Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI],
             forbid=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
@@ -846,11 +871,12 @@ def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]],
 
 # Print if you dealt into a double ron, dama, haitei/houtei, or ippatsu
 # Or if you dealt in while tenpai, right before you would have received tenpai payments
-@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_IN, Flags.WINNER_WAS_DAMA])
-@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_IN, Flags.WINNER_GOT_IPPATSU], forbid=[Flags.WINNER_WAS_DAMA])
-@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_IN, Flags.WINNER_GOT_HAITEI], forbid=[Flags.WINNER_WAS_DAMA, Flags.WINNER_GOT_IPPATSU])
-@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_IN, Flags.MULTIPLE_RON], forbid=[Flags.WINNER_WAS_DAMA, Flags.WINNER_GOT_IPPATSU, Flags.WINNER_GOT_HAITEI])
-@injustice(require=[Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT], forbid=[Flags.WINNER_WAS_DAMA, Flags.WINNER_GOT_IPPATSU, Flags.WINNER_GOT_HAITEI, Flags.MULTIPLE_RON])
+# forbid YOU_HAD_LIMIT_TENPAI so we don't display this along with your_mangan_tenpai_destroyed
+@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_IN, Flags.WINNER_WAS_DAMA], forbid=[Flags.YOU_HAD_LIMIT_TENPAI])
+@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_IN, Flags.WINNER_GOT_IPPATSU], forbid=[Flags.YOU_HAD_LIMIT_TENPAI, Flags.WINNER_WAS_DAMA])
+@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_IN, Flags.WINNER_GOT_HAITEI], forbid=[Flags.YOU_HAD_LIMIT_TENPAI, Flags.WINNER_WAS_DAMA, Flags.WINNER_GOT_IPPATSU])
+@injustice(require=[Flags.WINNER, Flags.YOU_DEALT_IN, Flags.MULTIPLE_RON], forbid=[Flags.YOU_HAD_LIMIT_TENPAI, Flags.WINNER_WAS_DAMA, Flags.WINNER_GOT_IPPATSU, Flags.WINNER_GOT_HAITEI])
+@injustice(require=[Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT], forbid=[Flags.YOU_HAD_LIMIT_TENPAI, Flags.WINNER_WAS_DAMA, Flags.WINNER_GOT_IPPATSU, Flags.WINNER_GOT_HAITEI, Flags.MULTIPLE_RON])
 def dealt_into_something_dumb(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     winner = data[flags.index(Flags.WINNER)]["seat"]
     score = data[flags.index(Flags.WINNER)]["score_object"].to_points()
@@ -1038,11 +1064,12 @@ def your_mangan_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]],
     # it's injustice if haneman+ OR if your mangan lost to something below 3900
     if han > 5 or score < 3900:
         fu_string = f", {fu} fu" if han < 5 else "" # need to show fu if 3 or 4 han
+        score_string = f"you dealt into {relative_seat_name(player, winner)}'s" if Flags.YOU_DEALT_IN in flags else f"{relative_seat_name(player, winner)} just had to score a"
         return [Injustice(kyoku.round, kyoku.honba, "Injustice",
                 CheckClause(subject="your hand",
                             subject_description=hand_str,
                             verb="could have had",
-                            content=f"{limit_name} ({yaku_str}{fu_string}) but {relative_seat_name(player, winner)} just had to score a {score} point hand",
+                            content=f"{limit_name} ({yaku_str}{fu_string}) but {score_string} {score} point hand",
                             last_subject=relative_seat_name(player, winner)))]
     else:
         return []

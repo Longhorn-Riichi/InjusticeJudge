@@ -42,6 +42,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " CHANGED_WAIT_ON_LAST_DISCARD"
     " CHASER_GAINED_POINTS"
     " CHASER_LOST_POINTS"
+    " CHII_GOT_OVERRIDDEN"
     " DREW_WORST_HAIPAI_SHANTEN"
     " EVERYONE_DISRESPECTED_YOUR_RIICHI"
     " EVERYONE_RESPECTED_YOUR_RIICHI"
@@ -287,9 +288,10 @@ class KyokuInfo:
     def process_chii_pon_daiminkan(self, i: int, seat: int, event_type: str, called_tile: int, call_tiles: List[int], call_dir: Dir) -> None:
         if event_type != "minkan":
             self.at[seat].hand = self.at[seat].hand.add(called_tile)
-        self.at[seat].hand = self.at[seat].hand.add_call(CallInfo(event_type, called_tile, call_dir, call_tiles))
-        # for everyone whose turn was skipped, add Flags.TURN_SKIPPED_BY_PON
+        call = CallInfo(event_type, called_tile, call_dir, call_tiles)
+        self.at[seat].hand = self.at[seat].hand.add_call(call)
         if event_type in {"pon", "minkan"}:
+            # for everyone whose turn was skipped, add Flags.TURN_SKIPPED_BY_PON
             if call_dir in {Dir.TOIMEN, Dir.SHIMOCHA}:
                 # called from toimen or shimocha, kamicha was skipped
                 kamicha_seat = (seat-1)%4
@@ -300,6 +302,40 @@ class KyokuInfo:
                 toimen_seat = (seat-2)%4
                 if not (self.num_players == 3 and toimen_seat == 3):
                     self.add_flag(toimen_seat, Flags.TURN_SKIPPED_BY_PON)
+            # check if this could have overridden a chii call that would have brought us into tenpai
+            chii_seat = (seat+call_dir+1)%4
+            if chii_seat < len(self.at) and len(self.at[chii_seat].hand.tiles) == 13 and 1 < self.at[chii_seat].hand.shanten[0] < 2:
+                call_hand = self.at[chii_seat].hand.add(called_tile)
+                best_score = None
+                chii_data = None
+                for chii in call_hand.possible_chiis(called_tile):
+                    chii_hand = call_hand.add_call(chii)
+                    for discard, tenpai in chii_hand.get_possible_tenpais().items():
+                        score = max(get_yaku(
+                            hand = tenpai,
+                            events = self.kyoku.events[:i],
+                            doras = self.kyoku.doras,
+                            uras = self.kyoku.uras,
+                            round = self.kyoku.round,
+                            seat = chii_seat,
+                            is_haitei = self.kyoku.tiles_in_wall == 0 and seat == self.kyoku.final_draw_seat,
+                            is_houtei = self.kyoku.tiles_in_wall == 0 and seat != self.kyoku.final_draw_seat,
+                            num_players = self.num_players,
+                            check_rons = True,
+                            check_tsumos = True).values())
+                        is_limit = score.han >= 6 or is_mangan(score.han, score.fu)
+                        if score.han >= 4: # minimum of 4 han to trigger this flag
+                            if best_score is None or score > best_score:
+                                best_score = score
+                                chii_data = {"score": score,
+                                             "tile": called_tile,
+                                             "hand_name": TRANSLATE[LIMIT_HANDS[score.han]] if is_limit else f"{score.han} han {score.fu} fu",
+                                             "chii": chii,
+                                             "caller": seat,
+                                             "orig_call_name": "pon" if call.type == "pon" else "kan"}
+                if best_score is not None:
+                    self.add_flag(chii_seat, Flags.CHII_GOT_OVERRIDDEN, chii_data)
+
         # if our resulting calls contain 3+ dora, add a flag
         num_dora = sum(self.current_doras.count(tile) for call in self.at[seat].hand.calls for tile in call.tiles)
         if num_dora >= 3:
@@ -518,7 +554,7 @@ class KyokuInfo:
             "hand": hand,
             "events": self.kyoku.events,
             "doras": self.kyoku.doras,
-            "uras": self.kyoku.uras,
+            "uras": self.kyoku.uras if self.at[seat].in_riichi else [],
             "round": self.kyoku.round,
             "seat": seat,
             "is_haitei": self.kyoku.tiles_in_wall == 0 and seat == self.kyoku.final_draw_seat,
@@ -546,7 +582,7 @@ class KyokuInfo:
         han = best_score.han
         fu = best_score.fu
         if han >= 5 or is_mangan(han, fu):
-            hand_str = hand.print_hand_details(ukeire=ukeire, final_tile=None, furiten=furiten)
+            hand_str = hand.print_hand_details(ukeire=ukeire, final_tile=None, furiten=furiten, doras=self.kyoku.doras, uras=self.kyoku.uras if self.at[seat].in_riichi else [])
             self.add_flag(seat, Flags.YOU_HAD_LIMIT_TENPAI,
                            {"hand_str": hand_str,
                             "takame": takame,

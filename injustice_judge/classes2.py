@@ -4,7 +4,7 @@ import functools
 from typing import *
 
 from .classes import CallInfo, Dir, Interpretation
-from .constants import Event, Shanten, MANZU, PINZU, SOUZU, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
+from .constants import Event, Shanten, MANZU, PINZU, SOUZU, PRED, SUCC, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
 from .display import ph, pt, shanten_name
 from .utils import is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten
@@ -149,6 +149,16 @@ class Hand:
             return SOUZU
         else:
             return None
+    def get_possible_tenpais(self) -> Dict[int, "Hand"]:
+        if len(self.tiles) not in {2, 5, 8, 11, 14}:
+            return {}
+        if self.prev_shanten[0] >= 2:
+            return {}
+        return {tile: hand for tile in self.hidden_part for hand in (self.remove(tile),) if hand.shanten[0] == 0}
+    def possible_chiis(self, tile: int) -> Iterable[CallInfo]:
+        chiis = ((PRED[PRED[tile]], PRED[tile]), (PRED[tile], SUCC[tile]), (SUCC[tile], SUCC[SUCC[tile]]))
+        return (CallInfo("chii", tile, Dir.KAMICHA, list(sorted_hand((*chii, tile))))
+            for chii in chiis if all(tile in self.hidden_part for tile in chii))
 
 # takes in "場風 東(1飜)", "ドラ(2飜)", "裏ドラ(1飜)"
 # outputs ("ton", 1), ("dora 2", 2), ("ura", 1)
