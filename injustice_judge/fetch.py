@@ -289,17 +289,12 @@ def parse_wrapped_bytes(data):
         raise Exception(f"Failed to find message name {name}")
     return name, msg
 
-async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
-    """
-    Fetch a raw majsoul log from a given link, returning a parsed log and the seat of the player specified through `_a...` or `_a..._[0-3]`
-    Example link: https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203
-    """
-    identifier_pattern = r'\?paipu=([0-9a-zA-Z-]+)'
+def parse_majsoul_link(link: str) -> Tuple[str, Optional[int], Optional[int]]:
+    identifier_pattern = r'\?paipu=([0-9a-zA-Z-]+)(_a)?(\d+)?_?(\d)?'
     identifier_match = re.search(identifier_pattern, link)
     if identifier_match is None:
         raise Exception(f"Invalid Mahjong Soul link: {link}")
     identifier = identifier_match.group(1)
-
     if not all(c in "0123456789abcdef-" for c in identifier):
         # deanonymize the link
         codex = "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -307,6 +302,20 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
         for i, c in enumerate(identifier):
             decoded += "-" if c == "-" else codex[(codex.index(c) - i + 55) % 36]
         identifier = decoded
+    account_string = identifier_match.group(3)
+    if account_string is not None:
+        ms_account_id = int((((int(account_string)-1358437)^86216345)-1117113)/7)
+    player_seat = identifier_match.group(4)
+    if player_seat is not None:
+        player_seat = int(player_seat)
+    return identifier, ms_account_id, player_seat
+
+async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
+    """
+    Fetch a raw majsoul log from a given link, returning a parsed log and the seat of the player specified through `_a...` or `_a..._[0-3]`
+    Example link: https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203
+    """
+    identifier, ms_account_id, player_seat = parse_majsoul_link(link)
 
     try:
         f = open(f"cached_games/game-{identifier}.log", 'rb')
@@ -372,17 +381,13 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
         actions = [parse_wrapped_bytes(record) for record in parsed.records]
     
     player = 0
-    if link.count("_") == 2:
-        player = int(link[-1])
-    else:
-        player_pattern = r'_a(\d+)'
-        player_match = re.search(player_pattern, link)
-        if player_match is not None:
-            ms_account_id = int((((int(player_match.group(1))-1358437)^86216345)-1117113)/7)
-            for acc in record.head.accounts:
-                if acc.account_id == ms_account_id:
-                    player = acc.seat
-                    break
+    if player_seat is not None:
+        player = player_seat
+    elif ms_account_id is not None:
+        for acc in record.head.accounts:
+            if acc.account_id == ms_account_id:
+                player = acc.seat
+                break
     return actions, MessageToDict(record.head), player
 
 def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
