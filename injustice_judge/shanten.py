@@ -246,6 +246,37 @@ pair_shapes: Dict[Tuple[int, ...], Set[Tuple[Tuple[int, ...], Tuple[int, ...]]]]
 # complex_shapes[shape] = [(complex shape, shape without complex shape)]
 complex_shapes: Dict[Tuple[int, ...], Set[Tuple[Tuple[int, ...], Tuple[int, ...]]]] = {}
 
+def add_pair_shape(hand: Tuple[int, ...], recursed: bool = False) -> None:
+    global pair_shapes
+    if hand not in pair_shapes:
+        pair_shapes[hand] = set()
+        for tile in hand:
+            if hand.count(tile) >= 2:
+                ix = hand.index(tile)
+                pair = hand[ix:ix+2]
+                remaining_hand = (*hand[:ix], *hand[ix+2:])
+                if hand not in pair_shapes:
+                    pair_shapes[hand] = set()
+                pair_shapes[hand].add((pair, remaining_hand))
+                if not recursed:
+                    add_complex_shape(remaining_hand, recursed=True)
+                    add_pair_shape(remaining_hand, recursed=True)
+def add_complex_shape(hand: Tuple[int, ...], recursed: bool = False) -> None:
+    global complex_shapes
+    if hand not in complex_shapes:
+        complex_shapes[hand] = set()
+        for tile in hand[:-2]:
+            to_complex_shapes = lambda t1: (t2:=t1+1, t3:=t1+2, t5:=t1+4, ((t1,t1,t2),(t1,t2,t2),(t1,t1,t3),(t1,t3,t3),(t1,t3,t5)))[-1]
+            for shape in to_complex_shapes(tile):
+                remaining_hand = try_remove_all_tiles(hand, shape)
+                if len(remaining_hand) < len(hand):
+                    if hand not in complex_shapes:
+                        complex_shapes[hand] = set()
+                    complex_shapes[hand].add((shape, remaining_hand))
+                    if not recursed:
+                        add_complex_shape(remaining_hand, recursed=True)
+                        add_pair_shape(remaining_hand, recursed=True)
+
 def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, groups_needed: int) -> Tuple[float, Set[int]]:
     # given an iishanten hand, calculate the iishanten type and its waits
     # we'll always return 1.XXX shanten, where XXX represents the type of iishanten
@@ -352,60 +383,29 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
 
     min_length = max_length = 7
     suits: Suits = eliminate_groups(to_suits((starting_hand,)))
+
     global pair_shapes
     global complex_shapes
-    to_complex_shapes = lambda t1: (t2:=t1+1, t3:=t1+2, t5:=t1+4, ((t1,t1,t2),(t1,t2,t2),(t1,t1,t3),(t1,t3,t3),(t1,t3,t5)))[-1]
-    # first identify every single pair and complex group in every suit
-
-    # pair_hands[length] = hands of that length that contain a pair
     pair_hands: Suits = (set(()),set(()),set(()),set(()))
     complex_hands: Suits = (set(()),set(()),set(()),set(()))
-    def add_pair_shape(hand, recursed = False):
-        global pair_shapes
-        if hand not in pair_shapes:
-            pair_shapes[hand] = set()
-            for tile in hand:
-                if hand.count(tile) >= 2:
-                    ix = hand.index(tile)
-                    pair = hand[ix:ix+2]
-                    remaining_hand = (*hand[:ix], *hand[ix+2:])
-                    if hand not in pair_shapes:
-                        pair_shapes[hand] = set()
-                    pair_shapes[hand].add((pair, remaining_hand))
-                    if not recursed:
-                        add_complex_shape(remaining_hand, recursed=True)
-                        add_pair_shape(remaining_hand, recursed=True)
-    def add_complex_shape(hand, recursed = False):
-        global complex_shapes
-        if hand not in complex_shapes:
-            complex_shapes[hand] = set()
-            for tile in hand[:-2]:
-                for shape in to_complex_shapes(tile):
-                    remaining_hand = try_remove_all_tiles(hand, shape)
-                    if len(remaining_hand) < len(hand):
-                        if hand not in complex_shapes:
-                            complex_shapes[hand] = set()
-                        complex_shapes[hand].add((shape, remaining_hand))
-                        if not recursed:
-                            add_complex_shape(remaining_hand, recursed=True)
-                            add_pair_shape(remaining_hand, recursed=True)
+
+    # first identify every single pair and complex group in all suits
     for i, suit in enumerate(suits):
         for hand in suit:
             # check if there's a pair
             add_pair_shape(hand)
             if len(pair_shapes[hand]) > 0:
                 pair_hands[i].add(hand)
-            # look for complex shapes
             if i < 3:
+                # check if there's any complex shapes
                 add_complex_shape(hand)
                 if len(complex_shapes[hand]) > 0:
                     complex_hands[i].add(hand)
-    full_complex_hands: Set[Tuple[int, ...]] = set()
+
     complete_waits = set()
     complete_shanpon_waits = set()
     is_perfect_iishanten = False
     def add_complex_hand(complex_shape, pair_shape, extra_tiles):
-        nonlocal full_complex_hands
         nonlocal complete_waits
         nonlocal complete_shanpon_waits
         nonlocal is_perfect_iishanten
@@ -422,24 +422,18 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
         t1, t2 = complex_shape[0:2], complex_shape[1:3]
         if is_ryanmen(extra_tiles) and (is_ryanmen(t1) or is_ryanmen(t2)):
             is_perfect_iishanten = True
-        full_complex_hands.add(h)
         complete_waits |= get_taatsu_wait(t1) | get_taatsu_wait(t2) | extra_wait
-        complete_shanpon_waits |= (set((*t1, *pair_shape)) if is_pair(t1) else set())
-        complete_shanpon_waits |= (set((*t2, *pair_shape)) if is_pair(t2) else set())
+        complete_shanpon_waits |= ({t1[0], pair_shape[0]} if is_pair(t1) else set())
+        complete_shanpon_waits |= ({t2[0], pair_shape[0]} if is_pair(t2) else set())
 
-    full_floating_hands: Set[Tuple[int, ...]] = set()
     floating_waits = set()
     floating_shanpon_waits = set()
     def add_floating_hand(pair_shape, extra_tiles):
-        nonlocal full_floating_hands
         nonlocal floating_waits
         nonlocal floating_shanpon_waits
-
         h = (*pair_shape, *extra_tiles)
-        full_floating_hands.add(h)
         assert len(extra_tiles) == 5
         floating_waits |= get_waits(extra_tiles)
-
         # shanpon waits are all pairs in the hand where removing it doesn't leave you with 3 floating tiles
         for i, tile in enumerate(extra_tiles[:-1]):
             if extra_tiles[i+1] == tile: # pair
@@ -447,7 +441,6 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
                 if t2 in (t1,SUCC[t1],SUCC[SUCC[t1]]) or t3 in (t2,SUCC[t2],SUCC[SUCC[t2]]):
                     floating_shanpon_waits.add(tile)
                     floating_shanpon_waits.add(pair_shape[0])
-
 
     for i, suit in enumerate(pair_hands):
         add_i = lambda h: tuple(10*(i+1)+tile for tile in h)
@@ -495,12 +488,14 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
                                 for extra_tiles in possible_extra_tiles:
                                     add_complex_hand(add_j(shape2), add_i(shape), tuple(sorted((*extra_tiles, *add_i(remaining), *add_j(remaining2)))))
 
+    complete_waits |= floating_waits
+    complete_shanpon_waits |= floating_shanpon_waits
     if shanten > 1: # it's already headless or kutsuki
         is_perfect_iishanten = False
     if len(complete_waits - waits) > 0 or len(complete_shanpon_waits - shanpon_waits - waits) > 0: # check for complete iishanten
         shanten += 0.003 if is_perfect_iishanten else 0.002
-        waits |= complete_waits | floating_waits
-        shanpon_waits |= complete_shanpon_waits | floating_shanpon_waits
+        waits |= complete_waits
+        shanpon_waits |= complete_shanpon_waits
     elif len(floating_waits - waits) > 0 or len(floating_shanpon_waits - shanpon_waits - waits) > 0: # check for floating iishanten
         shanten += 0.003 if is_perfect_iishanten else 0.001
         # print(f"{ph(sorted_hand(starting_hand))} is floating iishanten with floating tiles {ph(floating_iishanten_tiles)}, adding extra waits {ph(floating_waits - waits)}")
@@ -522,11 +517,13 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
             removed_sequence = try_remove_all_tiles(starting_hand, seq)
             return len(removed_sequence) < len(starting_hand) and count_floating(next(from_suits(eliminate_groups(to_suits((removed_sequence,)), removing_all=True)))) <= 2
         for tile in waits.copy():
-            if PRED[PRED[PRED[tile]]] != 0 and PRED[PRED[PRED[tile]]] not in waits and sequence_exists((PRED[PRED[tile]], PRED[tile], tile)):
-                # print(f"  extended {pt(tile)} left to {pt(PRED[PRED[PRED[tile]]])}")
+            left = PRED[PRED[PRED[tile]]]
+            right = SUCC[SUCC[SUCC[tile]]]
+            if left != 0 and left not in waits and sequence_exists((PRED[PRED[tile]], PRED[tile], tile)):
+                # print(f"  extended {pt(tile)} left to {pt(left)}")
                 waits.add(PRED[PRED[PRED[tile]]])
-            if SUCC[SUCC[SUCC[tile]]] != 0 and SUCC[SUCC[SUCC[tile]]] not in waits and sequence_exists((SUCC[SUCC[tile]], SUCC[tile], tile)):
-                # print(f"  extended {pt(tile)} right to {pt(SUCC[SUCC[SUCC[tile]]])}")
+            if right != 0 and right not in waits and sequence_exists((SUCC[SUCC[tile]], SUCC[tile], tile)):
+                # print(f"  extended {pt(tile)} right to {pt(right)}")
                 waits.add(SUCC[SUCC[SUCC[tile]]])
         return waits
     waits = fix(extend_waits, waits)
