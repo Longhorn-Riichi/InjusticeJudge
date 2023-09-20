@@ -6,8 +6,8 @@ from google.protobuf.message import Message  # type: ignore[import]
 from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
 from .classes import CallInfo, GameRules, GameMetadata, Dir
-from .classes2 import Draw, Event, Hand, Kyoku, Ron, Score, Tsumo
-from .constants import DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
+from .classes2 import Draw, Hand, Kyoku, Ron, Score, Tsumo
+from .constants import Event, Shanten, DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, round_name
 from .utils import apply_delta_scores, is_mangan, normalize_red_five, sorted_hand, to_placement
 from .yaku import debug_yaku
@@ -70,7 +70,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
         kyoku: Kyoku = Kyoku()
         nagashi_eligible: List[int] = [True] * metadata.num_players
         visible_tiles: List[int] = []
-        shanten_before_last_draw: List[Tuple[float, List[int]]] = []
+        shanten_before_last_draw: List[Shanten] = []
         num_doras = 1
         flip_kan_dora_next_discard = False
         def flip_kan_dora(call_info: CallInfo):

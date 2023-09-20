@@ -1,7 +1,7 @@
 import functools
 import itertools
 from .classes import Interpretation
-from .constants import PRED, SUCC, TANYAOHAI, YAOCHUUHAI
+from .constants import Shanten, PRED, SUCC, TANYAOHAI, YAOCHUUHAI
 from .display import ph, pt
 from .utils import get_taatsu_wait, get_waits, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
 
@@ -218,7 +218,7 @@ def get_hand_shanten(suits: Suits, groups_needed: int) -> float:
     return min(get_shanten(total_floating, have_pair),
                get_shanten(total_floating - extra_floating, False))  # without the pair
 
-def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
+def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Shanten:
     # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
     # note: ctr = Counter(normalize_red_fives(starting_hand))
     shanten = 6 - len([v for v in ctr.values() if v >= 2])
@@ -231,7 +231,7 @@ def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -
         waits = sorted_hand(k for k, v in ctr.items() if v == 1)
     return shanten, list(waits)
 
-def calculate_kokushi_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Tuple[float, List[int]]:
+def calculate_kokushi_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Shanten:
     # get kokushi waits (iishanten or tenpai) and label iishanten type
     # note: ctr = Counter(normalize_red_fives(starting_hand))
     has_pair = len([v for v in ctr.values() if v > 1]) >= 1
@@ -513,7 +513,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
         # extend the wait if such a sequence exists
         # 5 -> add 2, 8
         def sequence_exists(seq):
-            # check if, after removing the sequence, we still have headless/kuttsuki iishanten
+            # check if, after removing the sequence, we still have iishanten (i.e. max 2 floating tiles)
             removed_sequence = try_remove_all_tiles(starting_hand, seq)
             return len(removed_sequence) < len(starting_hand) and count_floating(next(from_suits(eliminate_groups(to_suits((removed_sequence,)), removing_all=True)))) <= 2
         for tile in waits.copy():
@@ -531,7 +531,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
     return round(shanten, 3), waits | shanpon_waits
 
 @functools.lru_cache(maxsize=65536)
-def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]]:
+def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Shanten:
     """
     Return the shanten of the hand plus its waits (if tenpai or iishanten).
     If the shanten is 2+, the waits returned are an empty list.
@@ -611,14 +611,14 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Tuple[float, List[int]
         shanten = 1.001
         waits = (TANYAOHAI | YAOCHUUHAI) - ankan_tiles
 
-    waits_list = list(sorted_hand(waits - ankan_tiles))
-    assert all(red not in waits_list for red in {51,52,53}), f"somehow returned a waits list with red five: {ph(waits_list)}"
+    waits_tuple = tuple(sorted_hand(waits - ankan_tiles))
+    assert all(red not in waits_tuple for red in {51,52,53}), f"somehow returned a waits list with red five: {ph(waits_tuple)}"
     timers["total"] += time.time() - start_time
-    return round(shanten, 4), waits_list
+    return round(shanten, 4), waits_tuple
 
 # import time
 # shanten_runtime = 0.0
-def calculate_shanten(starting_hand: Iterable[int]) -> Tuple[float, List[int]]:
+def calculate_shanten(starting_hand: Iterable[int]) -> Shanten:
     """This just converts the input to a sorted tuple so it can be serialized as a cache key"""
     # global shanten_runtime
     processed = tuple(sorted(normalize_red_fives(starting_hand)))

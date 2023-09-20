@@ -4,7 +4,7 @@ import functools
 from typing import *
 
 from .classes import CallInfo, Dir, Interpretation
-from .constants import MANZU, PINZU, SOUZU, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
+from .constants import Event, Shanten, MANZU, PINZU, SOUZU, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
 from .display import ph, pt, shanten_name
 from .utils import is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten
@@ -28,9 +28,9 @@ class Hand:
     open_part: Tuple[int, ...] = ()                             # all tiles currently shown as a call
     hidden_part: Tuple[int, ...] = ()                           # tiles - open_part
     closed_part: Tuple[int, ...] = ()                           # hidden_part + any ankans
-    shanten: Tuple[float, List[int]] = (-1, [])                 # shanten for the hand, or -1 if the hand is 14 tiles
+    shanten: Shanten = (-1, ())                                 # shanten for the hand, or -1 if the hand is 14 tiles
                                                                 # (like when it's in the middle of a draw or call)
-    prev_shanten: Tuple[float, List[int]] = (-1, [])            # shanten for the hand right before said draw or call
+    prev_shanten: Shanten = (-1, ())                            # shanten for the hand right before said draw or call
     tiles_with_kans: Tuple[int, ...] = ()                       # all tiles in the hand including kans
     best_discards: Tuple[int, ...] = ()                         # best discards for this hand (only for 14-tile hands)
     kita_count: int = 0                                         # number of kita calls for this hand
@@ -53,7 +53,7 @@ class Hand:
             super().__setattr__("shanten", self.prev_shanten)
         elif len(self.tiles) in {2, 5, 8, 11, 14}:
             # calculate the best shanten obtainable from this 14-tile hand"""
-            best_shanten: Tuple[float, List[int]] = self.prev_shanten
+            best_shanten: Shanten = self.prev_shanten
             best_discards: List[int] = []
             for i, tile in enumerate(self.hidden_part):
                 if self.prev_shanten[0] < 2 and tile not in self.prev_shanten[1]:
@@ -163,7 +163,6 @@ def translate_tenhou_yaku(yaku: str) -> Tuple[str, int]:
         name = f"{name} {han}"
     return name, han
 
-YakuForWait = Dict[int, List[Tuple[str, int]]]
 @dataclass
 class Score:
     """Generated score for a given hand (does NOT come from parsed game result scores)"""
@@ -337,7 +336,6 @@ class Draw:
     score_delta: List[int] # list of score differences for this round
     name: str              # name of the draw, e.g. "ryuukyoku"
 
-Event = Tuple[Any, ...]
 @dataclass
 class Kyoku:
     """

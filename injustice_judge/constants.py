@@ -28,6 +28,11 @@ from typing import *
 #                  There is also DISCORD_CALLED_TILES which is for sideways tiles
 #                  as well as DISCORD_DORA_TILES and DISCORD_CALLED_DORA_TILES
 
+# Global types:
+Event = Tuple[Any, ...]
+Shanten = Tuple[float, Tuple[int, ...]]
+YakuForWait = Dict[int, List[Tuple[str, int]]]
+
 SHANTEN_NAMES = {
     0: "tenpai",
     1: "iishanten", # used when we round down iishanten

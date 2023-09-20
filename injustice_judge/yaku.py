@@ -1,7 +1,7 @@
 from typing import *
 from .classes import CallInfo, Interpretation
-from .classes2 import Event, Hand, Kyoku, Score, YakuForWait
-from .constants import LIMIT_HANDS, YAOCHUUHAI
+from .classes2 import Hand, Kyoku, Score
+from .constants import Event, Shanten, YakuForWait, LIMIT_HANDS, YAOCHUUHAI
 from .display import ph, pt, round_name, shanten_name
 from .utils import get_score, get_taatsu_wait, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand
 from pprint import pprint
@@ -152,7 +152,7 @@ def test_get_yakuman_tenpais():
 # - pinfu, iitsu, sanshoku, sanshoku doukou, 
 # - iipeikou, ryanpeikou, junchan, chanta, chiitoitsu
 # - sanankou, sankantsu
-def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, List[int]], is_closed_hand: bool) -> YakuForWait:
+def get_stateless_yaku(interpretation: Interpretation, shanten: Shanten, is_closed_hand: bool) -> YakuForWait:
     if shanten[0] != 0:
         return {}
     waits = set(shanten[1])

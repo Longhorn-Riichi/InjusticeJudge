@@ -1,7 +1,7 @@
 from .classes import CallInfo, Dir
-from .classes2 import Draw, Event, Hand, Kyoku, Ron, Score, Tsumo, Win
+from .classes2 import Draw, Hand, Kyoku, Ron, Score, Tsumo, Win
 from dataclasses import dataclass, field
-from .constants import DORA, DORA_INDICATOR, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
+from .constants import Event, Shanten, DORA, DORA_INDICATOR, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, print_pond, round_name
 from enum import Enum
 from .utils import is_mangan, normalize_red_five, to_placement
@@ -426,7 +426,7 @@ class KyokuInfo:
                 self.add_flag(who, Flags.YOUR_LAST_NAGASHI_TILE_CALLED, {"tile": tile, "caller": seat})
 
     def process_shanten_change(self, i: int, seat: int, event_type: str,
-                               prev_shanten: Tuple[float, List[int]], new_shanten: Tuple[float, List[int]],
+                               prev_shanten: Shanten, new_shanten: Shanten,
                                hand: Hand, ukeire: int, furiten: bool) -> None:
         assert new_shanten[0] >= 0, f"somehow shanten for seat {seat} was {new_shanten[0]}"
         self.at[seat].draws_since_shanten_change = 0
@@ -439,7 +439,7 @@ class KyokuInfo:
         # bunch of things to check if we're tenpai
 
     def process_tenpai(self, i: int, seat: int, event_type: str,
-                       prev_shanten: Tuple[float, List[int]], new_shanten: Tuple[float, List[int]],
+                       prev_shanten: Shanten, new_shanten: Shanten,
                        hand: Hand, ukeire: int, furiten: bool) -> None:
         self.at[seat].furiten = furiten
         # check if we're the first to tenpai
