@@ -39,13 +39,13 @@ is_shousuushi: CheckYakumanFunc = lambda hand: (count := sum(min(3, hand.tiles.c
 is_daisuushi: CheckYakumanFunc = lambda hand: (count := sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44}), count == 12 or count == 11 and len(set(normalize_red_fives(hand.tiles))) == 5)[1]
 
 # tsuuiisou tenpai if all the tiles are honor tiles
-is_tsuuiisou: CheckYakumanFunc = lambda hand: set(hand.tiles) - {41,42,43,44,45,46,47} == set()
+is_tsuuiisou: CheckYakumanFunc = lambda hand: set(hand.tiles).issubset({41,42,43,44,45,46,47})
 
 # ryuuiisou tenpai if all the tiles are 23468s6z
-is_ryuuiisou: CheckYakumanFunc = lambda hand: set(hand.tiles) - {32,33,34,36,38,46} == set()
+is_ryuuiisou: CheckYakumanFunc = lambda hand: set(hand.tiles).issubset({32,33,34,36,38,46})
 
 # chinroutou tenpai if all the tiles are 19m19p19s
-is_chinroutou: CheckYakumanFunc = lambda hand: set(hand.tiles) - {11,19,21,29,31,39} == set()
+is_chinroutou: CheckYakumanFunc = lambda hand: set(hand.tiles).issubset({11,19,21,29,31,39})
 
 # chuuren poutou tenpai if hand is closed and we are missing at most one tile
 #   out of the required 1112345678999
@@ -252,7 +252,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
     # honroutou: check that all of the hand is terminal/honors
     # then every terminal/honor wait gives honroutou
     non_honroutou_waits = waits
-    if set(full_hand) - YAOCHUUHAI == set():
+    if set(full_hand).issubset(YAOCHUUHAI):
         non_honroutou_waits -= YAOCHUUHAI
         for wait in waits & YAOCHUUHAI:
             yaku_for_wait[wait].append(("honroutou", 2))
@@ -270,14 +270,14 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
     CHANTA_TRIS = {(t,t,t) for t in range(41,48)} | JUNCHAN_TRIS
     CHANTA_PAIRS = {(t,t) for t in range(41,48)} | JUNCHAN_PAIRS
     # check that every existing group is junchan
-    if set(sequences) - TERMINAL_SEQS == set():
-        if set(triplets) - JUNCHAN_TRIS == set() and (pair_tile is None or pair_tile in {11,19,21,29,31,39}):
+    if set(sequences).issubset(TERMINAL_SEQS):
+        if set(triplets).issubset(JUNCHAN_TRIS) and (pair_tile is None or pair_tile in {11,19,21,29,31,39}):
             for wait in non_honroutou_waits:
                 if sorted_hand((*taatsu, wait)) in JUNCHAN_TRIS | TERMINAL_SEQS | JUNCHAN_PAIRS:
                     yaku_for_wait[wait].append(("junchan", 3 if is_closed_hand else 2))
                 elif sorted_hand((*taatsu, wait)) in CHANTA_TRIS | CHANTA_PAIRS:
                     yaku_for_wait[wait].append(("chanta", 2 if is_closed_hand else 1))
-        elif set(triplets) - CHANTA_TRIS == set() and (pair_tile is None or pair_tile in YAOCHUUHAI):
+        elif set(triplets).issubset(CHANTA_TRIS) and (pair_tile is None or pair_tile in YAOCHUUHAI):
             for wait in non_honroutou_waits:
                 if sorted_hand((*taatsu, wait)) in CHANTA_TRIS | TERMINAL_SEQS | CHANTA_PAIRS:
                     yaku_for_wait[wait].append(("chanta", 2 if is_closed_hand else 1))
@@ -286,7 +286,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
 
     # tanyao: check that none of the hand is terminal/honors
     # then every nonterminal/honor wait gives tanyao
-    if set(full_hand) & YAOCHUUHAI == set():
+    if set(full_hand).isdisjoint(YAOCHUUHAI):
         for wait in waits - YAOCHUUHAI:
             yaku_for_wait[wait].append(("tanyao", 1))
 
@@ -307,8 +307,8 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Tuple[float, Lis
     # honitsu: same, but add honor tiles to the suit
     for chinitsu_suit in [set(range(11,20)), set(range(21,30)), set(range(31,40))]:
         honitsu_suit = chinitsu_suit.union(range(41,48))
-        if set(full_hand) - honitsu_suit == set():
-            if set(full_hand) - chinitsu_suit == set():
+        if set(full_hand).issubset(honitsu_suit):
+            if set(full_hand).issubset(chinitsu_suit):
                 for wait in waits & chinitsu_suit:
                     yaku_for_wait[wait].append(("chinitsu", 6 if is_closed_hand else 5))
             else:
