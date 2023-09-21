@@ -9,7 +9,15 @@ from .display import ph, pt, shanten_name
 from .utils import is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten
 
-# these classes depend on shanten.py, which depends on classes.py, so we can't put them in classes.py
+# These classes depend on shanten.py, which depends on classes.py, so we can't
+#   put these classes in classes.py.
+# 
+# In this file, we have:
+# - Hand: represents a hand. Provides easy access to its open/closed/hidden parts and its shanten/waits.
+# - Score: summarizes a score for a single hand (han, fu, yaku), use .to_points() to calculate points.
+# - Win, Ron, Tsumo, Draw: objects representing the result of a game.
+# - Kyoku: object storing fundamental information for a round. Flags are calculated using a Kyoku object.
+#          Current goal is to remove fields in Kyoku that aren't essential to calculating flags.
 
 @functools.lru_cache(maxsize=2048)
 def _hidden_part(hand: Tuple[int], calls: Tuple[int]) -> Tuple[int, ...]:
@@ -175,7 +183,7 @@ def translate_tenhou_yaku(yaku: str) -> Tuple[str, int]:
 
 @dataclass
 class Score:
-    """Generated score for a given hand (does NOT come from parsed game result scores)"""
+    """Generated or parsed score for a given hand."""
     yaku: List[Tuple[str, int]] # list of ("yaku name", han value)
     han: int                    # total han for those yaku
     fu: int                     # total fu for some interpretation of the hand

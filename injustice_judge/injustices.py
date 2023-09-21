@@ -15,6 +15,13 @@ from pprint import pprint
 #   generating a list of `CheckResult` objects. These `CheckResult`s are then
 #   formatted as a string and returned to `__init__.py`.
 #   
+# Most of this file consists of @injustice and @skill functions that fire
+#   when the requisite flags exist in a given Kyoku.
+#   
+# To add an injustice/skill, simply copy paste an existing function and change
+#   the flags it requires. You might need to implement a new flag in flags.py
+#   to get the information you need.
+#   
 # See `evaluate_game` for more info.
 
 @dataclass(frozen=True)
@@ -280,13 +287,14 @@ def won_by_pon_pon_ron(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
     hand = data[flags.index(Flags.WINNER_WON_WITH_PON_PON_RON)]["hand"]
     winning_tile = data[flags.index(Flags.WINNER_WON_WITH_PON_PON_RON)]["winning_tile"]
     num_calls = data[flags.index(Flags.WINNER_WON_WITH_PON_PON_RON)]["num_calls"]
-    call_str = "\u2007".join(map(lambda call: call.to_str(doras=kyoku.doras), hand.ordered_calls[-num_calls:]))
+    call_name = lambda name: "kan" if name in {"ankan", "kakan", "minkan"} else name
+    call_str = "\u2007".join(map(lambda call: call_name(call.type) + " " + call.to_str(doras=kyoku.doras), hand.ordered_calls[-num_calls:]))
     win_str = "tsumo" if Flags.GAME_ENDED_WITH_TSUMO in flags else "ron"
     tile_str = pt(winning_tile + 100 if winning_tile in kyoku.doras else winning_tile)
     return [Skill(kyoku.round, kyoku.honba, "Skill",
             CheckClause(subject="you",
                         verb="won by",
-                        content=f"consecutively calling {call_str} and then immediately calling {win_str} on {tile_str}"))]
+                        content=f"consecutively calling {call_str} {win_str} {tile_str}"))]
 
 ###
 ### end game skills

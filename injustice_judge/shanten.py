@@ -12,17 +12,18 @@ from pprint import pprint
 #   goal is to be able to distinguish different types of iishanten, and to
 #   be able to determine the waits for both iishanten and tenpai hands.
 #  
-# The algorithm basically tries to remove every combination of groups
-#   and taatsus to determine the shanten, and then checks for the existence
-#   of certain combinations of resulting subhands to determine the iishanten
-#   type and the waits.
+# The algorithm basically tries to remove every combination of groups and
+#   taatsus to determine the shanten, and then looks at the resulting subhands
+#   to determine the iishanten type and the waits.
 # 
 # See `_calculate_shanten` for more info.
 
+# Timers used for profiling shanten.
+# This algorithm is slow, so the program spends most of its time here.
 import time
 timers = {
     "calculate_hands": 0.0,
-    "remove_all_taatsus": 0.0,
+    "remove_some_taatsus": 0.0,
     "get_hand_shanten": 0.0,
     "get_iishanten_type": 0.0,
     "get_tenpai_waits": 0.0,
@@ -383,11 +384,10 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Shanten:
     """
     assert len(starting_hand) in {1, 4, 7, 10, 13}, f"calculate_shanten() was passed a {len(starting_hand)} tile hand: {ph(starting_hand)}"
     # 1. Remove all groups
-    # 2. Count floating tiles
-    # 3. Calculate shanten
-    # 4. Check for iishanten/tenpai
-    # 5. If iishanten or tenpai, calculate the waits
-    # 6. Do 3-5 for chiitoitsu and kokushi
+    # 2. Calculate shanten
+    # 3. Check for iishanten/tenpai
+    # 4. If iishanten or tenpai, calculate the waits
+    # 5. Do 2-4 for chiitoitsu and kokushi
 
     suits = to_suits(starting_hand)
     start_time = now = time.time()
@@ -398,7 +398,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Shanten:
     # calculate shanten for every combination of groups removed
     now = time.time()
     removed_taatsus = eliminate_some_taatsus(groupless_hands)
-    timers["remove_all_taatsus"] += time.time() - now
+    timers["remove_some_taatsus"] += time.time() - now
 
     now = time.time()
     shanten: float = get_hand_shanten(removed_taatsus, groups_needed)

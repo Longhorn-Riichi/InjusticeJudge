@@ -1,9 +1,12 @@
-
 from .constants import JIHAI, PRED, SUCC
 from .classes2 import Hand
 from .shanten import calculate_shanten
 from .utils import normalize_red_five
 from typing import *
+
+# This file only contains is_safe, which checks genbutsu/suji/one-chance for a given tile.
+# Normally something like this would go into utils.py, but this requires classes2.py
+# which depends on utils.py.
 
 SUJI_VALUES = {1: (4,), 2: (5,), 3: (6,), 4: (1,7), 5: (2,8), 6: (3,9), 7: (4,), 8: (5,), 9: (6,)}
 SUJI = {k+n: tuple(x+n for x in v) for k, v in SUJI_VALUES.items() for n in {10,20,30}}

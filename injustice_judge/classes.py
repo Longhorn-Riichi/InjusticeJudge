@@ -8,7 +8,12 @@ from .display import ph, pt, shanten_name
 from .utils import get_waits, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
 
 # This file and classes2.py contain most of the classes used in InjusticeJudge.
-# They also contain some printing logic in the form of __str__ overloads.
+# In this file, we have:
+# - Dir: used for specifying the direction of a call.
+# - CallInfo: stores all information about a call (name, tiles, direction)
+# - Interpretation: represents one way to break up a given hand into sets and a pair.
+# - GameRules: Summary of each game rule (parsed from log) that has an effect on parsing logic.
+# - GameMetadata: Extra data about a game. Currently planning to move these fields into Kyoku.
 
 class Dir(IntEnum):
     """Enum representing a direction, add to a seat mod 4 to get the indicated seat"""

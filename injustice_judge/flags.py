@@ -141,6 +141,7 @@ Flags = Enum("Flags", "_SENTINEL"
 
 @dataclass
 class KyokuPlayerInfo:
+    """Information about a player that gets updated as we calculate flags."""
     num_players: int
     hand: Hand
     pond: List[int]                         = field(default_factory=list)
@@ -170,6 +171,10 @@ class KyokuPlayerInfo:
 
 @dataclass
 class KyokuInfo:
+    """
+    Information about a round, the most important being the flags.
+    Also provides a method for each event that generates flags for the event.
+    """
     kyoku: Kyoku
     num_players: int
     tiles_in_wall: int        = 0
@@ -950,6 +955,8 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                      flags = [[] for i in range(kyoku.num_players)],
                      data = [[] for i in range(kyoku.num_players)])
 
+    # Call the relevant info.process_* function on each event to generate
+    # flags from each event in turn.
     debug_prev_flag_len = [0] * info.num_players
     debug_prev_global_flag_len = 0
     for i, event in enumerate(kyoku.events):

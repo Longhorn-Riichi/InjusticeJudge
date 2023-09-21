@@ -9,139 +9,25 @@ from pprint import pprint
 # This file details some algorithms for checking the yaku of a given `Hand` object.
 # It's used in `fetch.py` and `flags.py` to calculate some information that will be
 #   included in their event list and flags list respectively.
-
-
-###
-### yakuman checking functions
-###
-
-# All of these functions below assume the passed-in hand is a 13-tile tenpai hand
-
-# (tenpai hand, calls) -> is it yakuman?
-CheckYakumanFunc = Callable[[Hand], bool]
-
-# daisangen tenpai if we have 8 tiles of dragons (counting each dragon at most 3 times)
-is_daisangen: CheckYakumanFunc = lambda hand: sum(min(3, hand.tiles.count(tile)) for tile in {45,46,47}) >= 8
-
-# kokushi musou tenpai if we have at least 12 terminal/honors
-is_kokushi: CheckYakumanFunc = lambda hand: len(YAOCHUUHAI.intersection(hand.tiles)) >= 12
-
-# suuankou tenpai if hand is closed and we have 4 triplets, or 3 triplets and two pairs
-# which is to say, 3+ triplets + at most one unpaired tile
-is_suuankou: CheckYakumanFunc = lambda hand: hand.closed_part == hand.tiles and (mults := list(Counter(hand.tiles).values()), mults.count(3) >= 3 and mults.count(1) <= 1)[1]
-
-# shousuushi if we have exactly 10 winds (counting each wind at most 3 times)
-# OR 11 tiles of winds + no pair (i.e. only 6 kinds of tiles in hand)
-is_shousuushi: CheckYakumanFunc = lambda hand: (count := sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44}), count == 10 or count == 11 and len(set(normalize_red_fives(hand.tiles))) == 6)[1]
-
-# daisuushi if we have 12 tiles of winds (counting each wind at most 3 times)
-# OR 11 tiles of winds + a pair (i.e. only 5 kinds of tiles in hand)
-is_daisuushi: CheckYakumanFunc = lambda hand: (count := sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44}), count == 12 or count == 11 and len(set(normalize_red_fives(hand.tiles))) == 5)[1]
-
-# tsuuiisou tenpai if all the tiles are honor tiles
-is_tsuuiisou: CheckYakumanFunc = lambda hand: set(hand.tiles).issubset({41,42,43,44,45,46,47})
-
-# ryuuiisou tenpai if all the tiles are 23468s6z
-is_ryuuiisou: CheckYakumanFunc = lambda hand: set(hand.tiles).issubset({32,33,34,36,38,46})
-
-# chinroutou tenpai if all the tiles are 19m19p19s
-is_chinroutou: CheckYakumanFunc = lambda hand: set(hand.tiles).issubset({11,19,21,29,31,39})
-
-# chuuren poutou tenpai if hand is closed and we are missing at most one tile
-#   out of the required 1112345678999
-CHUUREN_TILES = Counter([1,1,1,2,3,4,5,6,7,8,9,9,9])
-is_chuuren: CheckYakumanFunc = lambda hand: hand.closed_part == hand.tiles and max(hand.tiles) - min(hand.tiles) == 8 and max(hand.tiles) < 40 and (ctr := Counter([t % 10 for t in normalize_red_fives(hand.tiles)]), sum((CHUUREN_TILES - (CHUUREN_TILES & ctr)).values()) <= 1)[1]
-
-# suukantsu tenpai if you have 4 kans
-is_suukantsu = lambda hand: list(map(lambda call: "kan" in call.type, hand.calls)).count(True) == 4
-
-# note: evaluating {suukantsu, tenhou, chiihou, kazoe} requires information outside of the hand
-
-CHECK_YAKUMAN = {"daisangen": is_daisangen,
-                 "kokushi musou": is_kokushi,
-                 "suuankou": is_suuankou,
-                 "shousuushi": is_shousuushi,
-                 "daisuushi": is_daisuushi,
-                 "tsuuiisou": is_tsuuiisou,
-                 "ryuuiisou": is_ryuuiisou,
-                 "chinroutou": is_chinroutou,
-                 "chuurenpoutou": is_chuuren,
-                 "suukantsu": is_suukantsu}
-get_yakuman_tenpais = lambda hand: {name for name, func in CHECK_YAKUMAN.items() if func(hand)}
-def get_yakuman_waits(hand: Hand, name: str) -> Set[int]:
-    """
-    Get all the waits that lead to a given yakuman hand.
-    Assumes the given hand is yakuman tenpai for the given yakuman name
-    """
-    if name == "daisangen":
-        return {45,46,47} & set(hand.shanten[1])
-    elif name in {"shousuushi", "daisuushi"}:
-        # if there are 11 winds you can have either shousuushi or daisuushi
-        # get only the relevant wait
-        shousuushi_waits = set()
-        daisuushi_waits = set()
-        num_winds = sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44})
-        if num_winds == 10:
-            shousuushi_waits = {41,42,43,44} & set(hand.shanten[1])
-        elif num_winds == 11:
-            shousuushi_waits = set(hand.shanten[1]) - {41,42,43,44}
-            daisuushi_waits = {41,42,43,44} & set(hand.shanten[1])
-        elif num_winds == 12:
-            daisuushi_waits = set(hand.shanten[1])
-        return shousuushi_waits if name == "shousuushi" else daisuushi_waits
-    elif name == "ryuuiisou":
-        return {32,33,34,36,38,46} & set(hand.shanten[1])
-    elif name == "chuurenpoutou":
-        ctr = Counter([t % 10 for t in normalize_red_fives(hand.tiles)])
-        missing_digits = set((CHUUREN_TILES - (CHUUREN_TILES & ctr)).keys())
-        return {wait for wait in hand.shanten[1] if wait % 10 in missing_digits}
-    elif name in {"kokushi musou", "suuankou", "tsuuiisou", "chinroutou", "suukantsu"}:
-        return set(hand.shanten[1])
-    else:
-        assert False, f"tried to get yakuman waits for {name}"
-
-def test_get_yakuman_tenpais():
-    print("daisangen:")
-    assert get_yakuman_tenpais([11,12,13,22,22,45,45,46,46,46,47,47,47], [47,47,47]) == {"daisangen"}
-    assert get_yakuman_tenpais([11,12,13,22,45,45,45,46,46,46,47,47,47], [47,47,47]) == {"daisangen"}
-    assert get_yakuman_tenpais([11,12,13,45,45,45,45,46,46,46,47,47,47], [47,47,47]) == {"daisangen"}
-    assert get_yakuman_tenpais([11,12,13,45,45,45,45,46,46,46,47,11,11]) == set()
-
-    assert get_yakuman_tenpais([11,19,21,29,29,31,39,41,42,43,44,45,47]) == {"kokushi musou"}
-    assert get_yakuman_tenpais([11,19,21,29,29,29,39,41,42,43,44,45,46]) == set()
-
-    print("suuankou:")
-    assert get_yakuman_tenpais([11,11,11,12,12,12,13,13,14,14,15,15,15]) == {"suuankou"}
-    assert get_yakuman_tenpais([11,11,11,12,12,12,13,14,14,14,15,15,15]) == {"suuankou"}
-    assert get_yakuman_tenpais([11,11,11,12,12,12,13,14,14,14,15,15,15], [15,15,15]) == set()
-
-    print("shousuushi/daisuushi:")
-    assert get_yakuman_tenpais([11,12,13,41,42,42,42,43,43,43,44,44,44]) == {"shousuushi"}
-    assert get_yakuman_tenpais([11,12,41,41,42,42,42,43,43,43,44,44,44]) == {"shousuushi"}
-    assert get_yakuman_tenpais([11,12,13,14,42,42,42,43,43,43,44,44,44]) == set()
-    assert get_yakuman_tenpais([11,11,41,41,42,42,42,43,43,43,44,44,44]) == {"suuankou", "daisuushi"}
-    assert get_yakuman_tenpais([11,41,41,41,42,42,42,43,43,43,44,44,44]) == {"suuankou", "daisuushi"}
-    assert get_yakuman_tenpais([11,41,41,41,42,42,42,43,43,43,44,44,44], [44,44,44]) == {"daisuushi"}
-
-    print("tsuuiisou:")
-    assert get_yakuman_tenpais([41,41,42,42,43,43,44,44,45,45,46,46,47]) == {"tsuuiisou"}
-    assert get_yakuman_tenpais([45,45,45,46,46,47,47,47,41,41,41,42,42], [41,41,41]) == {"daisangen", "tsuuiisou"}
-    assert get_yakuman_tenpais([41,41,42,42,42,43,43,43,44,47,47,11,12]) == set()
-    assert get_yakuman_tenpais([41,41,41,42,42,42,43,43,43,44,44,44,45]) == {"suuankou", "daisuushi", "tsuuiisou"}
-
-    print("ryuuiisou:")
-    assert get_yakuman_tenpais([32,32,33,33,34,34,36,36,36,38,38,46,46]) == {"ryuuiisou"}
-    assert get_yakuman_tenpais([22,22,23,23,24,24,26,26,26,28,28,46,46]) == set()
-
-    print("chinroutou:")
-    assert get_yakuman_tenpais([11,11,11,19,19,21,21,21,29,29,29,31,31]) == {"suuankou", "chinroutou"}
-    assert get_yakuman_tenpais([11,11,11,19,19,21,21,21,29,29,29,31,31], [29,29,29]) == {"chinroutou"}
-
-    print("chuurenpoutou:")
-    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,19]) == {"chuurenpoutou"}
-    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,19], [19,19,19]) == set()
-    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,11]) == {"chuurenpoutou"}
-    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,11,11]) == set()
+# 
+# Every single yaku is handled by get_yaku, but the logic is split up:
+# 
+# - get_stateless_yaku checks for all yaku which only require a look at hand
+#   composition (tanyao, honroutou, toitoi, honitsu, chinitsu, pinfu, iitsu,
+#   sanshoku, sanshoku doukou, iipeikou, ryanpeikou, chanta, junchan,
+#   chiitoitsu, sanankou in hand, sankantsu, shousangen)
+# - add_stateful_yaku adds all yaku which require game state to evaluate
+#   (dora/aka/ura/kita, yakuhai, riichi, ippatsu, chankan, rinshan, houtei,
+#   renhou)
+# - add_tsumo_yaku adds all yaku which are dependent on tsumo
+#   (menzentsumo, sanankou shanpon wait, haitei)
+# - finally, add_yakuman adds all yakuman. (kazoe yakuman, daisangen, kokushi,
+#   suuankou, shousuushi, daisuushi, tsuuiisou, ryuuiisou, chinroutou,
+#   chuurenpoutou, suukantsu, tenhou, chiihou, 13-sided kokushi, suuankou
+#   tanki, junsei chuurenpoutou, and any valid combinations of yakuman)
+# 
+# This accounts for every standard yaku in the game plus renhou, except for
+# nagashi mangan, which is handled as a draw instead of as a winning hand.
 
 ###
 ### yaku calculation
@@ -490,6 +376,138 @@ def add_tsumo_yaku(yaku_for_wait: YakuForWait, interpretation: Interpretation, i
 
     return yaku_for_wait
 
+###
+### yakuman checking functions
+###
+
+# All of these functions below assume the passed-in hand is a 13-tile tenpai hand
+
+# (tenpai hand, calls) -> is it yakuman?
+CheckYakumanFunc = Callable[[Hand], bool]
+
+# daisangen tenpai if we have 8 tiles of dragons (counting each dragon at most 3 times)
+is_daisangen: CheckYakumanFunc = lambda hand: sum(min(3, hand.tiles.count(tile)) for tile in {45,46,47}) >= 8
+
+# kokushi musou tenpai if we have at least 12 terminal/honors
+is_kokushi: CheckYakumanFunc = lambda hand: len(YAOCHUUHAI.intersection(hand.tiles)) >= 12
+
+# suuankou tenpai if hand is closed and we have 4 triplets, or 3 triplets and two pairs
+# which is to say, 3+ triplets + at most one unpaired tile
+is_suuankou: CheckYakumanFunc = lambda hand: hand.closed_part == hand.tiles and (mults := list(Counter(hand.tiles).values()), mults.count(3) >= 3 and mults.count(1) <= 1)[1]
+
+# shousuushi if we have exactly 10 winds (counting each wind at most 3 times)
+# OR 11 tiles of winds + no pair (i.e. only 6 kinds of tiles in hand)
+is_shousuushi: CheckYakumanFunc = lambda hand: (count := sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44}), count == 10 or count == 11 and len(set(normalize_red_fives(hand.tiles))) == 6)[1]
+
+# daisuushi if we have 12 tiles of winds (counting each wind at most 3 times)
+# OR 11 tiles of winds + a pair (i.e. only 5 kinds of tiles in hand)
+is_daisuushi: CheckYakumanFunc = lambda hand: (count := sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44}), count == 12 or count == 11 and len(set(normalize_red_fives(hand.tiles))) == 5)[1]
+
+# tsuuiisou tenpai if all the tiles are honor tiles
+is_tsuuiisou: CheckYakumanFunc = lambda hand: set(hand.tiles).issubset({41,42,43,44,45,46,47})
+
+# ryuuiisou tenpai if all the tiles are 23468s6z
+is_ryuuiisou: CheckYakumanFunc = lambda hand: set(hand.tiles).issubset({32,33,34,36,38,46})
+
+# chinroutou tenpai if all the tiles are 19m19p19s
+is_chinroutou: CheckYakumanFunc = lambda hand: set(hand.tiles).issubset({11,19,21,29,31,39})
+
+# chuuren poutou tenpai if hand is closed and we are missing at most one tile
+#   out of the required 1112345678999
+CHUUREN_TILES = Counter([1,1,1,2,3,4,5,6,7,8,9,9,9])
+is_chuuren: CheckYakumanFunc = lambda hand: hand.closed_part == hand.tiles and max(hand.tiles) - min(hand.tiles) == 8 and max(hand.tiles) < 40 and (ctr := Counter([t % 10 for t in normalize_red_fives(hand.tiles)]), sum((CHUUREN_TILES - (CHUUREN_TILES & ctr)).values()) <= 1)[1]
+
+# suukantsu tenpai if you have 4 kans
+is_suukantsu = lambda hand: list(map(lambda call: "kan" in call.type, hand.calls)).count(True) == 4
+
+# note: evaluating {suukantsu, tenhou, chiihou, kazoe} requires information outside of the hand
+
+CHECK_YAKUMAN = {"daisangen": is_daisangen,
+                 "kokushi musou": is_kokushi,
+                 "suuankou": is_suuankou,
+                 "shousuushi": is_shousuushi,
+                 "daisuushi": is_daisuushi,
+                 "tsuuiisou": is_tsuuiisou,
+                 "ryuuiisou": is_ryuuiisou,
+                 "chinroutou": is_chinroutou,
+                 "chuurenpoutou": is_chuuren,
+                 "suukantsu": is_suukantsu}
+get_yakuman_tenpais = lambda hand: {name for name, func in CHECK_YAKUMAN.items() if func(hand)}
+def get_yakuman_waits(hand: Hand, name: str) -> Set[int]:
+    """
+    Get all the waits that lead to a given yakuman hand.
+    Assumes the given hand is yakuman tenpai for the given yakuman name
+    """
+    if name == "daisangen":
+        return {45,46,47} & set(hand.shanten[1])
+    elif name in {"shousuushi", "daisuushi"}:
+        # if there are 11 winds you can have either shousuushi or daisuushi
+        # get only the relevant wait
+        shousuushi_waits = set()
+        daisuushi_waits = set()
+        num_winds = sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44})
+        if num_winds == 10:
+            shousuushi_waits = {41,42,43,44} & set(hand.shanten[1])
+        elif num_winds == 11:
+            shousuushi_waits = set(hand.shanten[1]) - {41,42,43,44}
+            daisuushi_waits = {41,42,43,44} & set(hand.shanten[1])
+        elif num_winds == 12:
+            daisuushi_waits = set(hand.shanten[1])
+        return shousuushi_waits if name == "shousuushi" else daisuushi_waits
+    elif name == "ryuuiisou":
+        return {32,33,34,36,38,46} & set(hand.shanten[1])
+    elif name == "chuurenpoutou":
+        ctr = Counter([t % 10 for t in normalize_red_fives(hand.tiles)])
+        missing_digits = set((CHUUREN_TILES - (CHUUREN_TILES & ctr)).keys())
+        return {wait for wait in hand.shanten[1] if wait % 10 in missing_digits}
+    elif name in {"kokushi musou", "suuankou", "tsuuiisou", "chinroutou", "suukantsu"}:
+        return set(hand.shanten[1])
+    else:
+        assert False, f"tried to get yakuman waits for {name}"
+
+def test_get_yakuman_tenpais():
+    print("daisangen:")
+    assert get_yakuman_tenpais([11,12,13,22,22,45,45,46,46,46,47,47,47], [47,47,47]) == {"daisangen"}
+    assert get_yakuman_tenpais([11,12,13,22,45,45,45,46,46,46,47,47,47], [47,47,47]) == {"daisangen"}
+    assert get_yakuman_tenpais([11,12,13,45,45,45,45,46,46,46,47,47,47], [47,47,47]) == {"daisangen"}
+    assert get_yakuman_tenpais([11,12,13,45,45,45,45,46,46,46,47,11,11]) == set()
+
+    assert get_yakuman_tenpais([11,19,21,29,29,31,39,41,42,43,44,45,47]) == {"kokushi musou"}
+    assert get_yakuman_tenpais([11,19,21,29,29,29,39,41,42,43,44,45,46]) == set()
+
+    print("suuankou:")
+    assert get_yakuman_tenpais([11,11,11,12,12,12,13,13,14,14,15,15,15]) == {"suuankou"}
+    assert get_yakuman_tenpais([11,11,11,12,12,12,13,14,14,14,15,15,15]) == {"suuankou"}
+    assert get_yakuman_tenpais([11,11,11,12,12,12,13,14,14,14,15,15,15], [15,15,15]) == set()
+
+    print("shousuushi/daisuushi:")
+    assert get_yakuman_tenpais([11,12,13,41,42,42,42,43,43,43,44,44,44]) == {"shousuushi"}
+    assert get_yakuman_tenpais([11,12,41,41,42,42,42,43,43,43,44,44,44]) == {"shousuushi"}
+    assert get_yakuman_tenpais([11,12,13,14,42,42,42,43,43,43,44,44,44]) == set()
+    assert get_yakuman_tenpais([11,11,41,41,42,42,42,43,43,43,44,44,44]) == {"suuankou", "daisuushi"}
+    assert get_yakuman_tenpais([11,41,41,41,42,42,42,43,43,43,44,44,44]) == {"suuankou", "daisuushi"}
+    assert get_yakuman_tenpais([11,41,41,41,42,42,42,43,43,43,44,44,44], [44,44,44]) == {"daisuushi"}
+
+    print("tsuuiisou:")
+    assert get_yakuman_tenpais([41,41,42,42,43,43,44,44,45,45,46,46,47]) == {"tsuuiisou"}
+    assert get_yakuman_tenpais([45,45,45,46,46,47,47,47,41,41,41,42,42], [41,41,41]) == {"daisangen", "tsuuiisou"}
+    assert get_yakuman_tenpais([41,41,42,42,42,43,43,43,44,47,47,11,12]) == set()
+    assert get_yakuman_tenpais([41,41,41,42,42,42,43,43,43,44,44,44,45]) == {"suuankou", "daisuushi", "tsuuiisou"}
+
+    print("ryuuiisou:")
+    assert get_yakuman_tenpais([32,32,33,33,34,34,36,36,36,38,38,46,46]) == {"ryuuiisou"}
+    assert get_yakuman_tenpais([22,22,23,23,24,24,26,26,26,28,28,46,46]) == set()
+
+    print("chinroutou:")
+    assert get_yakuman_tenpais([11,11,11,19,19,21,21,21,29,29,29,31,31]) == {"suuankou", "chinroutou"}
+    assert get_yakuman_tenpais([11,11,11,19,19,21,21,21,29,29,29,31,31], [29,29,29]) == {"chinroutou"}
+
+    print("chuurenpoutou:")
+    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,19]) == {"chuurenpoutou"}
+    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,19], [19,19,19]) == set()
+    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,11]) == {"chuurenpoutou"}
+    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,11,11]) == set()
+
 def add_yakuman(yaku_for_wait: YakuForWait, hand: Hand, events: List[Event], round: int, seat: int, is_tsumo: bool) -> YakuForWait:
     waits = set(hand.shanten[1])
     is_dealer = seat == round % 4
@@ -566,6 +584,10 @@ def add_yakuman(yaku_for_wait: YakuForWait, hand: Hand, events: List[Event], rou
                 yaku_for_wait[wait] = [(y, 13) for y in actual_yakumans]
 
     return yaku_for_wait
+
+###
+### entry points
+###
 
 def get_yaku(hand: Hand,
              events: List[Event],

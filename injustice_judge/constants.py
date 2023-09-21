@@ -6,7 +6,7 @@ from typing import *
 # A summary:
 #   SHANTEN_NAMES: the printed name for each number internally representing of a type of shanten
 #      PLACEMENTS: the printed name of a placement (1 -> "1st")
-#     LIMIT_HANDS: maps han count to tenhou limit hand name
+#     LIMIT_HANDS: maps han count to tenhou limit hand name (5 -> "mangan")
 #      YAKU_NAMES: maps mahjong soul yaku IDs to tenhou yaku names
 #         YAKUMAN: the yakuman subset of YAKU_NAMES
 #       TRANSLATE: a big map from all Japanese terms to English terms
@@ -23,7 +23,7 @@ from typing import *
 #    KO_RON_SCORE: nondealer ron score for a given han and fu
 #   OYA_RON_SCORE: dealer ron score for a given han and fu
 #  KO_TSUMO_SCORE: tsumo points paid by nondealers for a given han and fu
-# OYA_TSUMO_SCORE: tsumo points paid by the dealer for a given han and fu
+# OYA_TSUMO_SCORE: tsumo points paid by the dealer or to the dealer for a given han and fu
 #   DISCORD_TILES: Discord emoji representation of each tile, used for the Discord bot
 #                  There is also DISCORD_CALLED_TILES which is for sideways tiles
 #                  as well as DISCORD_DORA_TILES and DISCORD_CALLED_DORA_TILES

@@ -2,6 +2,10 @@ import os
 from .constants import Shanten, DISCORD_TILES, DISCORD_CALLED_TILES, DISCORD_DORA_TILES, DISCORD_CALLED_DORA_TILES, SHANTEN_NAMES
 from typing import *
 
+# Collection of all the display-related functions.
+# - Printing hands and tiles
+# - Printing round name, seat name, shanten name
+
 def pt_unicode(tile: int, is_sideways: bool = False) -> str:
     """print tile (2-char representation)"""
     TILE_REPRS = "🀇🀈🀉🀊🀋🀌🀍🀎🀏🀙🀚🀛🀜🀝🀞🀟🀠🀡🀐🀑🀒🀓🀔🀕🀖🀗🀘🀀🀁🀂🀃🀆🀅🀄︎"

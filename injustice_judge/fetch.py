@@ -16,24 +16,19 @@ from pprint import pprint
 # This file contains all the logic for fetching and parsing game logs into `Kyoku`s.
 # 
 # `__init__.py` calls the entry point `parse_game_link`, which takes a game log link
-#    and returns a tuple (kyokus, game metadata, player specified in the link).
+#    and returns a tuple: (kyokus, game metadata, player specified in the link).
 #   
-# `fetch_majsoul`/`fetch_tenhou` handle requesting and caching game logs given a link.
+# `fetch_majsoul`/`fetch_tenhou` handle requesting and caching game logs, given a link.
 # 
 # `parse_majsoul`/`parse_tenhou` parse said game logs into a list of `Event`s
 #   for each kyoku, as well as a `GameMetadata` object containing information about
-#   the game across kyokus. They both use `postprocess_events` to turn each `Event` list
-#   into a `Kyoku` object, and return the resulting list of `Kyoku`s, plus the
-#   `GameMetadata` object.
+#   the game across kyokus. After parsing, `postprocess_events` is called on each event
+#   list, turning them into `Kyoku` objects. Returns the resulting list of `Kyoku`s,
+#   plus the `GameMetadata` object.
 #   
-# The `GameMetadata` class is basically not used in InjusticeJudge, but other
-#   callers of `parse_game_link` might take interest in it.
-# NOTE: Currently working on removing the GameMetadata class, and putting all
-#   the relevant information into the Kyoku class instead.
-# 
 # The sole uses of the resulting `Kyoku` objects are:
-# - `determine_flags` in `flags.py`,
-# - `evaluate_injustices` in `injustices.py`.
+# - `determine_flags` in `flags.py`, (used to calculate all the Flags)
+# - `evaluate_injustices` in `injustices.py`. (used to fetch data for printing, e.g. dora)
 
 def save_cache(filename: str, data: bytes) -> None:
     """Save data to a cache file"""

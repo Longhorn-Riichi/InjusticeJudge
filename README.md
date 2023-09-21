@@ -34,6 +34,8 @@ Analyzes your tenhou.net game to find instances of mahjong injustice. Currently,
 - Your iishanten had 0 outs (at any point in time)
 - You had no safe tiles after someone's riichi and drew at least 4 dangerous tiles afterwards
 - Everyone immediately discarded a dangerous tile after your riichi
+- You drew into tenpai but all the discards that give you tenpai will deal in
+- You could have called chii into a 4+ han tenpai but were overridden by pon/kan
 
 __Note__: This program was explicitly written to
 
@@ -41,6 +43,28 @@ __Note__: This program was explicitly written to
 2) demonstrate how common some of these perceived injustices are.
 
 What appears as an injustice to you may be well justified from another player's perspective!
+
+## Skills
+
+Newest feature on the block is skill detection. Skills are instances of pure mahjong skill. Examples include:
+
+- You started out with an iishanten hand
+- You started out with 3+ dora
+- You dealt 4 dangerous discards without dealing in
+- Every tile you drew brought you closer to tenpai
+- You called kan to get yourself 4 dora
+- You called pon, pon, ron consecutively (or any two calls + win consecutively)
+- You head bumped someone
+- You won right after someone declared riichi, taking their riichi stick
+- You won with a hell wait
+- You changed wait and immediately won after
+- Your very last draw brought you into tenpai (so you could get noten payments)
+- You chased someone's tenpai and won with ippatsu
+- You gained placement only because you had ura
+- You won some silly yaku (ippatsu tsumo, rinshan, chankan, haitei, sankantsu, ryanpeikou, sanshoku doukou, double riichi, nagashi mangan)
+- You got any yakuman (or sanbaiman)
+
+Skills are pretty common. There's usually several in every game, and InjusticeJudge will recognize your skills for what they are.
 
 ## Usage (standalone)
 
@@ -51,9 +75,11 @@ Clone this repository and run with either:
 - `python main.py '<tenhou url>' <seat number 0-3>`
 - `python main.py '<mahjong soul url>' <seat number 0-3>`
 
-where 0 = East, 1 = South, 2 = West, 3 = North
+where 0 = East, 1 = South, 2 = West, 3 = North.
 
 Outputs injustices to console.
+
+To output skills, open up `main.py` and change `{"injustice"}` to `{"skill"}`.
 
 ## Usage (library)
 
@@ -61,8 +87,17 @@ Outputs injustices to console.
 import asyncio
 from injustice_judge import analyze_game
 
+# output injustices
 asyncio.run(analyze_game("tenhou link")) # Use player from link
 asyncio.run(analyze_game("tenhou link", {2})) # West player
+asyncio.run(analyze_game("tenhou link", {0,1,2,3})) # All players
+
+# output skills for each player
+asyncio.run(analyze_game("tenhou link", look_for={"skill"})) # Use player from link
+asyncio.run(analyze_game("tenhou link", {0,1,2,3}, look_for={"skill"})) # All players
+
+# do both
+asyncio.run(analyze_game("tenhou link", {0,1,2,3}, look_for={"injustice", "skill"}))
 ```
 
 ## Setup for mahjong soul links
