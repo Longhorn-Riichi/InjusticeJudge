@@ -72,14 +72,25 @@ class Interpretation:
         full_hand = (*self.sequences, *self.triplets, self.pair, self.hand) if self.pair is not None else (*self.sequences, *self.triplets, self.hand)
         return " ".join(map(ph, full_hand)) + f" ron {self.ron_fu} tsumo {self.tsumo_fu}"
     def get_waits(self) -> Set[int]:
-        if len(self.hand) == 1: # tanki
-            return {self.hand[0]}
-        elif len(self.hand) == 2:
+        hand = tuple(normalize_red_fives(self.hand))
+        if len(hand) == 1: # tanki
+            return {hand[0]}
+        elif len(hand) == 2:
             assert self.pair is not None
-            if normalize_red_five(self.hand[0]) == normalize_red_five(self.hand[1]): # shanpon
-                return {self.hand[0]} # don't include pair as a wait
+            if hand[0] == hand[1]: # shanpon
+                return {hand[0]} # don't include pair as a wait
             else: # ryanmen, kanchan, penchan
-                return get_waits(self.hand)
+                return get_waits(hand)
+        elif len(hand) == 13: # chiitoi or kokushi
+            ctr = Counter(hand)
+            if tuple(ctr.values()).count(2) == 6: # chiitoi
+                return {tile for tile, num in ctr.items() if num == 1}
+            elif set(hand).issubset(YAOCHUUHAI): # kokushi
+                kokushi_wait = YAOCHUUHAI - set(hand)
+                if len(kokushi_wait) == 1:
+                    return kokushi_wait
+                elif len(kokushi_wait) == 0: # 13-way wait
+                    return YAOCHUUHAI
         return set()
     def generate_all_interpretations(self, yakuhai: Tuple[int, ...] = (), is_closed_hand: bool = False) -> Set["Interpretation"]:
         """
