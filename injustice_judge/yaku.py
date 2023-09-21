@@ -155,7 +155,7 @@ def test_get_yakuman_tenpais():
 def get_stateless_yaku(interpretation: Interpretation, shanten: Shanten, is_closed_hand: bool) -> YakuForWait:
     if shanten[0] != 0:
         return {}
-    waits = set(shanten[1])
+    waits = interpretation.get_waits()
     assert len(waits) > 0, "hand is tenpai, but has no waits?"
 
     # remove all red fives from the interpretation

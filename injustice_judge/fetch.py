@@ -700,8 +700,11 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
 
             # if you tsumo, there's no next discard, so we jump out here
             if i[curr_seat] >= len(discards[curr_seat]):
-                i[curr_seat] += 1 # to satisfy the assert check later
-                break
+                i[curr_seat] += 1
+                if i[curr_seat] == len(draws[curr_seat]):
+                    break
+                else: # it's a kan into tsumo
+                    continue
 
             # then handle the discard
             # can be either a discard, [r]iichi, [a]nkan, [k]akan, or kita(f).

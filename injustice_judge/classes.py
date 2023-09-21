@@ -5,7 +5,7 @@ from typing import *
 
 from .constants import PRED, SUCC, TOGGLE_RED_FIVE, YAOCHUUHAI
 from .display import ph, pt, shanten_name
-from .utils import get_waits, normalize_red_fives, sorted_hand, try_remove_all_tiles
+from .utils import get_waits, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
 
 # This file and classes2.py contain most of the classes used in InjusticeJudge.
 # They also contain some printing logic in the form of __str__ overloads.
@@ -76,8 +76,8 @@ class Interpretation:
             return {self.hand[0]}
         elif len(self.hand) == 2:
             assert self.pair is not None
-            if self.hand[0] == self.hand[1]: # shanpon
-                return {self.hand[0], self.pair[0]}
+            if normalize_red_five(self.hand[0]) == normalize_red_five(self.hand[1]): # shanpon
+                return {self.hand[0]} # don't include pair as a wait
             else: # ryanmen, kanchan, penchan
                 return get_waits(self.hand)
         return set()
