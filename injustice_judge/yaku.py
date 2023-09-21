@@ -344,8 +344,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Shanten, is_clos
 
 # pass in the stateless yakus + the whole state
 # get back all the yakus (stateless + stateful)
-# this will only be missing yakus that are based on how the winning tile is obtained
-# (menzentsumo, haitei, houtei, rinshan, chankan, renhou, tenhou, chiihou)
+# this will always output houtei for haitei hands; add_tsumo_yaku will make it haitei
 def add_stateful_yaku(yaku_for_wait: YakuForWait,
                       hand: Hand,
                       events: List[Event],
@@ -353,8 +352,7 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
                       uras: List[int],
                       round: int,
                       seat: int,
-                      is_haitei: bool,
-                      is_houtei: bool):
+                      is_last_tile: bool):
     is_closed_hand = len(hand.closed_part) == 13
     ctr = Counter(hand.tiles)
     waits = set(yaku_for_wait.keys())
@@ -401,13 +399,11 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
     if is_chankan:
         for wait in waits:
             yaku_for_wait[wait].append(("chankan", 1))
-        is_haitei = False
-        is_houtei = False
+        is_last_tile = False
     if is_rinshan:
         for wait in waits:
             yaku_for_wait[wait].append(("rinshan", 1))
-        is_haitei = False
-        is_houtei = False
+        is_last_tile = False
 
     # yakuhai: if your tenpai hand has three, then you just have yakuhai for any wait
     # alternatively if your tenpai hand has two, then any wait matching that has yakuhai
@@ -457,17 +453,15 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
                 if ura > 0:
                     yaku_for_wait[wait].append((f"ura {ura}" if ura > 1 else "ura", ura))
 
-    # haitei/houtei: just need is_haitei or is_houtei passed in
-    if is_haitei:
+    # haitei/houtei: just need is_last_tile passed in
+    if is_last_tile:
         for wait in waits:
             yaku_for_wait[wait].append(("houtei", 1))
-    elif is_houtei:
-        for wait in waits:
-            yaku_for_wait[wait].append(("houtei", 1))
-    assert [is_rinshan, is_chankan, is_haitei, is_houtei].count(True) <= 1, f"rinshan, chankan, haitei, and houtei should be exclusive {[is_rinshan, is_chankan, is_haitei, is_houtei]}"
+    assert [is_rinshan, is_chankan, is_last_tile].count(True) <= 1, f"rinshan, chankan, haitei, and houtei should be exclusive {[is_rinshan, is_chankan, is_last_tile]}"
     return yaku_for_wait
 
-# literally only menzentsumo, sanankou, and haitei depend on tsumo to achieve
+# add menzentsumo and sanankou
+# convert houtei to haitei
 # suuankou is checked in add_yakuman
 def add_tsumo_yaku(yaku_for_wait: YakuForWait, interpretation: Interpretation, is_closed_hand: bool) -> YakuForWait:
     waits = set(yaku_for_wait.keys())
@@ -579,8 +573,7 @@ def get_yaku(hand: Hand,
              uras: List[int],
              round: int,
              seat: int,
-             is_haitei: bool,
-             is_houtei: bool,
+             is_last_tile: bool,
              num_players: int,
              check_rons: bool = True,
              check_tsumos: bool = True) -> Dict[int, Score]:
@@ -612,7 +605,7 @@ def get_yaku(hand: Hand,
         #     print(f"{pt(k)}, {v.hand!s}")
         yaku_for_wait: YakuForWait = get_stateless_yaku(interpretation, hand.shanten, is_closed_hand)
         # pprint(yaku_for_wait)
-        yaku_for_wait = add_stateful_yaku(yaku_for_wait, hand, events, doras, uras, round, seat, is_haitei, is_houtei)
+        yaku_for_wait = add_stateful_yaku(yaku_for_wait, hand, events, doras, uras, round, seat, is_last_tile)
         # print(round_name(round, 0), yaku_for_wait)
         # pprint([(a, b) for a, b, *_ in events])
         if check_tsumos:
@@ -665,8 +658,7 @@ def get_final_yaku(kyoku: Kyoku,
                    uras = kyoku.uras,
                    round = kyoku.round,
                    seat = seat,
-                   is_haitei = kyoku.tiles_in_wall == 0 and seat == kyoku.final_draw_seat,
-                   is_houtei = kyoku.tiles_in_wall == 0 and seat != kyoku.final_draw_seat,
+                   is_last_tile = kyoku.tiles_in_wall == 0,
                    num_players = kyoku.num_players,
                    check_rons = check_rons,
                    check_tsumos = check_tsumos)

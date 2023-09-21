@@ -455,7 +455,8 @@ def gained_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]], 
                                 last_subject=""))]
     return []
 
-@skill(require=[Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, Flags.YOU_WON])
+@skill(require=[Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, Flags.YOU_WON],
+        forbid=[Flags.WINNER_GOT_HAITEI])
 def won_to_deny_three_dora(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     dora_data = {data[i]["seat"]: data[i] for i, flag in enumerate(flags) if flag == Flags.SOMEONE_HAS_THREE_DORA_VISIBLE}
     if player in dora_data.keys():

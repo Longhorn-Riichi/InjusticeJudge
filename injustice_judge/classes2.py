@@ -361,7 +361,6 @@ class Kyoku:
     num_players: int                              = 0
     final_draw: int                               = 0
     final_discard: int                            = 0
-    final_draw_seat: int                          = 0
     tiles_in_wall: int                            = 0
     is_final_round: bool                          = False
 

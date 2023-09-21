@@ -329,8 +329,7 @@ class KyokuInfo:
                             uras = self.kyoku.uras,
                             round = self.kyoku.round,
                             seat = chii_seat,
-                            is_haitei = self.kyoku.tiles_in_wall == 0 and seat == self.kyoku.final_draw_seat,
-                            is_houtei = self.kyoku.tiles_in_wall == 0 and seat != self.kyoku.final_draw_seat,
+                            is_last_tile = self.kyoku.tiles_in_wall == 0,
                             num_players = self.num_players,
                             check_rons = True,
                             check_tsumos = True).values())
@@ -568,8 +567,7 @@ class KyokuInfo:
             "uras": self.kyoku.uras if self.at[seat].in_riichi else [],
             "round": self.kyoku.round,
             "seat": seat,
-            "is_haitei": self.kyoku.tiles_in_wall == 0 and seat == self.kyoku.final_draw_seat,
-            "is_houtei": self.kyoku.tiles_in_wall == 0 and seat != self.kyoku.final_draw_seat,
+            "is_last_tile": self.kyoku.tiles_in_wall == 0,
             "num_players": self.kyoku.num_players
         }
         # if no calls, use tsumo score. else, get ron score
