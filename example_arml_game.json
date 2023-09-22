@@ -317,27 +317,27 @@
                            // 0x00000400: set if 4 riichi abortive draw disabled
                            // 0x00000800: set if 9 terminal abortive draw disabled
                            // 0x00001000: set if triple ron abortive draw disabled
-                           // 0x00002000: set if head bump enabled
-                           // 0x00004000: set if agariyame disabled
-                           // 0x00008000: set if tenpaiyame disabled
-                           // 0x00010000: set if agarirenshan disabled
-                           // 0x00020000: set if tenpairenshan disabled
-                           // 0x00040000: set if final score should be rounded (no decimal)
+                           // 0x00002000: set if head bump enabled (= only closest player wins in case of multiple ron)
+                           // 0x00004000: set if agariyame disabled (= all last continues if 1st place wins)
+                           // 0x00008000: set if tenpaiyame disabled (= all last continues if 1st place is tenpai)
+                           // 0x00010000: set if agarirenchan disabled (= never repeat after a win)
+                           // 0x00020000: set if tenpairenchan disabled (= no repeat when dealer is tenpai)
+                           // 0x00040000: set if final score should be rounded (= no decimals in final score)
                            // 0x00080000: set if ippatsu disabled
                            // 0x00100000: set if double round wind is enabled (E+W for East, S+N for South)
-                           // 0x00200000: set if sudden death is enabled (West round)
+                           // 0x00200000: set if sudden death is enabled (= game can go into West round)
                            // 0x00400000: set if kita is enabled (sanma only)
-                           // 0x00800000: set if total payment is split evenly in sanma (=mangan is 4000/4000 not 2000/4000)
+                           // 0x00800000: set if tsumo payment is split evenly in sanma (= mangan is 4000/4000 not 2000/4000)
                            // 0x01000000: set if renhou enabled
                            // 0x02000000: set if you can riichi without more draws (still can't riichi on haitei)
-                           // 0x04000000: set if ankan after riichi follows WRC rules (i.e. ankan can't change wait)
+                           // 0x04000000: set if ankan after riichi follows WRC rules (= can't ankan if it changes wait)
                            // 0x08000000: set if melding 4 of a tile means that tile doesn't count towards one's wait
-                           // 0x40000000: set if showing 予約 button (?)
+                           // 0x40000000: set if hiding Join button (no effect?)
                "00000001", // ruleset part 2
-                           // 0x00000001: set if double wind counts as 2 fu instead of 4 fu
+                           // 0x00000001: set if double wind pair counts as 2 fu instead of 4 fu
                            // 0x00000002: set if splitting uma (?)
-                           // 0x00000004: set if remaining riichi sticks go to first place (?)
-                           // 0x00000008: set if suukantsu pao is enabled
+                           // 0x00000004: set if leftover riichi sticks go to first place at the end
+                           // 0x00000008: set if suukantsu pao enabled
                            // 0x00000010: set if kazoe yakuman disabled
                "",
                "",
@@ -356,11 +356,11 @@
                "",
                "",
                "",
-               "5", "-5", "-15",
-               "5", "0", "-20",
-               "5", "-5", "-15",
-               "0", "-5", "-15",
-               "5", "-5", "-15",
+               "5", "-5", "-15", // 2nd/3rd/4th uma (if no-one is below starting score)
+               "5", "0", "-20",  // 2nd/3rd/4th uma (if 1 person is below starting score)
+               "5", "-5", "-15", // 2nd/3rd/4th uma (if 2 people are below starting score)
+               "0", "-5", "-15", // 2nd/3rd/4th uma (if 3 people are below starting score)
+               "5", "-5", "-15", // 2nd/3rd/4th uma (if everyone is below starting score)
                "",
                "",
                "",
