@@ -215,9 +215,17 @@ class GameRules:
                    immediate_kan_dora = "mingDoraImmediatelyOpen" in rules and rules["mingDoraImmediatelyOpen"],
                    head_bump = "haveToutiao" in rules and rules["haveToutiao"])
     @classmethod
-    def from_tenhou_rules(cls, rules):
-        return cls(use_red_fives = "aka51" in rules and rules["aka51"])
-
+    def from_tenhou_rules(cls, rule, csrule):
+        if isinstance(rule, dict):
+            # normal game
+            return cls(use_red_fives = "aka51" in rule and rule["aka51"])
+        # lobby game
+        rule1 = int(rule[2], 16)
+        rule2 = int(csrule[0], 16)
+        rule3 = int(csrule[1], 16)
+        return cls(use_red_fives = 0x0002 & rule1 == 0,
+                   immediate_kan_dora = 0x00000008 & rule2 != 0,
+                   head_bump = 0x00002000 & rule2 != 0)
 @dataclass
 class GameMetadata:
     """Facts that apply across every kyoku"""

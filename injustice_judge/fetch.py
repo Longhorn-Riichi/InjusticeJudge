@@ -754,7 +754,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                                    final_score = list(map(lambda s: int(1000*s), metadata["sc"][1::2])),
                                    dora_indicators = all_dora_indicators,
                                    ura_indicators = all_ura_indicators,
-                                   rules = GameRules.from_tenhou_rules(metadata["rule"]))
+                                   rules = GameRules.from_tenhou_rules(metadata["rule"], metadata.get("csrule", ["0"]*3 + [""]*37)))
 
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
     return postprocess_events(all_events, parsed_metadata), parsed_metadata
