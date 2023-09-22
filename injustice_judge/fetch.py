@@ -536,24 +536,41 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
 ### loading and parsing tenhou games
 ###
 
+def parse_tenhou_link(link: str) -> Tuple[str, Optional[int]]:
+    identifier_pattern = r'\?log=([0-9a-zA-Z-]+)'
+    identifier_match = re.search(identifier_pattern, link)
+    if identifier_match is None:
+        raise Exception(f"Invalid Tenhou link: {link}")
+    identifier = identifier_match.group(1)
+    parts = identifier.split("-")
+    assert len(parts) == 4, f"tenhou link id {identifier} should have 4 parts separated by dashes"
+    if parts[3][0] == "x":
+        # deanonymize the link
+        f = [22136, 52719, 55146, 42104, 59591, 46934, 9248, 28891, 49597, 52974, 62844, 4015, 18311, 50730, 43056, 17939, 64838, 38145, 27008, 39128, 35652, 63407, 65535, 23473, 35164, 55230, 27536, 4386, 64920, 29075, 42617, 17294, 18868, 2081]
+        padzero = lambda m: ("000" + m)[-4:]
+        v = [int(val, 16) for val in (parts[3][1:5], parts[3][5:9], parts[3][9:13])]
+        if "2010041111gm" <= parts[0]:
+            x = int("3" + parts[0][4:10]) % (34 - int(parts[0][9]) - 1)
+            parts[3] = padzero(hex(v[0] ^ v[1] ^ f[x]))
+            parts[3] += padzero(hex(v[1] ^ v[2] ^ f[x] ^ f[x+1]))
+    identifier = "-".join(parts)
+
+    player_pattern = r'&tw=(\d)'
+    player_match = re.search(player_pattern, link)
+    if player_match is None:
+        player_seat = 0
+    else:
+        player_seat = int(player_match.group(1))
+
+    return identifier, player_seat
+
 def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
     """
     Fetch a raw tenhou log from a given link, returning a parsed log and the specified player's seat
     Example link: https://tenhou.net/0/?log=2023072712gm-0089-0000-eff781e1&tw=1&ts=4
     """
     import json
-    identifier_pattern = r'\?log=([0-9a-zA-Z-]+)'
-    identifier_match = re.search(identifier_pattern, link)
-    if identifier_match is None:
-        raise Exception(f"Invalid Tenhou link: {link}")
-    identifier = identifier_match.group(1)
-    
-    player_pattern = r'&tw=(\d)'
-    player_match = re.search(player_pattern, link)
-    if player_match is None:
-        player = 0
-    else:
-        player = int(player_match.group(1))
+    identifier, player_seat = parse_tenhou_link(link)
 
     try:
         f = open(f"cached_games/game-{identifier}.json", 'r')
@@ -569,7 +586,9 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
         save_cache(filename=f"game-{identifier}.json", data=json.dumps(game_data, ensure_ascii=False).encode("utf-8"))
     log = game_data["log"]
     del game_data["log"]
-    return log, game_data, player
+
+    return log, game_data, (player_seat or 0)
+
 gcd = None
 def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
     all_events: List[List[Event]] = []
