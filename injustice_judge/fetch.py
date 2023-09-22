@@ -62,7 +62,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
     kyokus: List[Kyoku] = []
     for events, dora_indicators, ura_indicators in zip(all_events, metadata.dora_indicators, metadata.ura_indicators):
         assert len(events) > 0, "somehow got an empty events list"
-        kyoku: Kyoku = Kyoku()
+        kyoku: Kyoku = Kyoku(rules=metadata.rules)
         nagashi_eligible: List[int] = [True] * metadata.num_players
         visible_tiles: List[int] = []
         shanten_before_last_draw: List[Shanten] = []

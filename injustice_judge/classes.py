@@ -206,14 +206,17 @@ class Interpretation:
 
 @dataclass
 class GameRules:
+    """Details all the rules that InjusticeJudge cares about."""
     use_red_fives: bool = True        # whether the game uses red fives
     immediate_kan_dora: bool = False  # whether kan immediately reveals a dora
     head_bump: bool = False           # whether head bump is enabled
+    renhou: bool = False              # whether renhou is enabled
     @classmethod
     def from_majsoul_detail_rule(cls, rules):
-        return cls(use_red_fives = "doraCount" not in rules or rules["doraCount"] > 0,
-                   immediate_kan_dora = "mingDoraImmediatelyOpen" in rules and rules["mingDoraImmediatelyOpen"],
-                   head_bump = "haveToutiao" in rules and rules["haveToutiao"])
+        return cls(use_red_fives = rules.get("doraCount", 3) > 0,
+                   immediate_kan_dora = rules.get("mingDoraImmediatelyOpen", False),
+                   head_bump = rules.get("haveToutiao", False),
+                   renhou = rules.get("enableRenhe", False))
     @classmethod
     def from_tenhou_rules(cls, rule, csrule):
         if isinstance(rule, dict):
@@ -225,7 +228,8 @@ class GameRules:
         rule3 = int(csrule[1], 16)
         return cls(use_red_fives = 0x0002 & rule1 == 0,
                    immediate_kan_dora = 0x00000008 & rule2 != 0,
-                   head_bump = 0x00002000 & rule2 != 0)
+                   head_bump = 0x00002000 & rule2 != 0,
+                   renhou = 0x01000000 & rule2 != 0)
 @dataclass
 class GameMetadata:
     """Facts that apply across every kyoku"""

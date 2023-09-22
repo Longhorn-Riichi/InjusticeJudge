@@ -17,14 +17,14 @@ from pprint import pprint
 #   sanshoku, sanshoku doukou, iipeikou, ryanpeikou, chanta, junchan,
 #   chiitoitsu, sanankou in hand, sankantsu, shousangen)
 # - add_stateful_yaku adds all yaku which require game state to evaluate
-#   (dora/aka/ura/kita, yakuhai, riichi, ippatsu, chankan, rinshan, houtei,
-#   renhou)
+#   (dora/aka/ura/kita, yakuhai, riichi, ippatsu, chankan, rinshan, houtei)
 # - add_tsumo_yaku adds all yaku which are dependent on tsumo
 #   (menzentsumo, sanankou shanpon wait, haitei)
 # - finally, add_yakuman adds all yakuman. (kazoe yakuman, daisangen, kokushi,
 #   suuankou, shousuushi, daisuushi, tsuuiisou, ryuuiisou, chinroutou,
 #   chuurenpoutou, suukantsu, tenhou, chiihou, 13-sided kokushi, suuankou
-#   tanki, junsei chuurenpoutou, and any valid combinations of yakuman)
+#   tanki, junsei chuurenpoutou, and any valid combinations of yakuman,
+#   and also renhou mangan if enabled)
 # 
 # This accounts for every standard yaku in the game plus renhou, except for
 # nagashi mangan, which is handled as a draw instead of as a winning hand.
@@ -508,7 +508,13 @@ def test_get_yakuman_tenpais():
     assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,11]) == {"chuurenpoutou"}
     assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,11,11]) == set()
 
-def add_yakuman(yaku_for_wait: YakuForWait, hand: Hand, events: List[Event], round: int, seat: int, is_tsumo: bool) -> YakuForWait:
+def add_yakuman(yaku_for_wait: YakuForWait,
+                hand: Hand,
+                events: List[Event],
+                round: int,
+                seat: int,
+                is_tsumo: bool,
+                use_renhou: bool) -> YakuForWait:
     waits = set(hand.shanten[1])
     is_dealer = seat == round % 4
 
@@ -539,7 +545,7 @@ def add_yakuman(yaku_for_wait: YakuForWait, hand: Hand, events: List[Event], rou
                 if k in yakumans:
                     yakumans.remove(k)
                     yakumans.add(v)
-        else: # renhou
+        elif use_renhou: # renhou
             # compare our current yaku to renhou
             # if renhou is equal or better, then we replace it with renhou
             for wait in waits:
@@ -598,7 +604,8 @@ def get_yaku(hand: Hand,
              is_last_tile: bool,
              num_players: int,
              check_rons: bool = True,
-             check_tsumos: bool = True) -> Dict[int, Score]:
+             check_tsumos: bool = True,
+             use_renhou: bool = False) -> Dict[int, Score]:
     if hand.shanten[0] != 0:
         return {}
 
@@ -632,8 +639,8 @@ def get_yaku(hand: Hand,
         # pprint([(a, b) for a, b, *_ in events])
         if check_tsumos:
             tsumo_yaku = add_tsumo_yaku(yaku_for_wait.copy(), interpretation, is_closed_hand)
-            tsumo_yaku = add_yakuman(yaku_for_wait, hand, events, round, seat, is_tsumo=True)
-        yaku_for_wait = add_yakuman(yaku_for_wait, hand, events, round, seat, is_tsumo=False)
+            tsumo_yaku = add_yakuman(yaku_for_wait, hand, events, round, seat, is_tsumo=True, use_renhou=use_renhou)
+        yaku_for_wait = add_yakuman(yaku_for_wait, hand, events, round, seat, is_tsumo=False, use_renhou=use_renhou)
         # pprint(yaku_for_wait)
 
         # if `interpretations.hand` is a pair, it's a shanpon wait
@@ -683,7 +690,8 @@ def get_final_yaku(kyoku: Kyoku,
                    is_last_tile = kyoku.tiles_in_wall == 0,
                    num_players = kyoku.num_players,
                    check_rons = check_rons,
-                   check_tsumos = check_tsumos)
+                   check_tsumos = check_tsumos,
+                   use_renhou = kyoku.rules.renhou)
     return ret
 
 ###

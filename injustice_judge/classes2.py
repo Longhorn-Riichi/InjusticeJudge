@@ -3,7 +3,7 @@ from enum import IntEnum
 import functools
 from typing import *
 
-from .classes import CallInfo, Dir, Interpretation
+from .classes import CallInfo, Dir, GameRules, Interpretation
 from .constants import Event, Shanten, MANZU, PINZU, SOUZU, PRED, SUCC, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
 from .display import ph, pt, shanten_name
 from .utils import is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
@@ -371,6 +371,7 @@ class Kyoku:
     final_discard: int                            = 0
     tiles_in_wall: int                            = 0
     is_final_round: bool                          = False
+    rules: GameRules                              = field(default_factory=GameRules)
 
     # Events describing what happened in this kyoku
     # Each event is of the form (seat, event type, *event data)
