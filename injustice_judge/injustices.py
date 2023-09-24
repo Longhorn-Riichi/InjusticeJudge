@@ -844,20 +844,21 @@ def your_tiles_all_deal_in(flags: List[Flags], data: List[Dict[str, Any]], kyoku
 # Print if you were about to reach tenpai but all of your tenpai discards deal in
 @injustice(require=[Flags.ALL_TENPAI_DISCARDS_DEAL_IN, Flags.YOU_DEALT_IN])
 def all_tenpai_discards_deal_in(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    hand = data[flags.index(Flags.ALL_TENPAI_DISCARDS_DEAL_IN)]["hand"]
-    discards = data[flags.index(Flags.ALL_TENPAI_DISCARDS_DEAL_IN)]["discards"]
+    hand = data[len(data) - 1 - flags[::-1].index(Flags.ALL_TENPAI_DISCARDS_DEAL_IN)]["hand"]
+    discards = data[len(data) - 1 - flags[::-1].index(Flags.ALL_TENPAI_DISCARDS_DEAL_IN)]["discards"]
+    furiten = data[len(data) - 1 - flags[::-1].index(Flags.ALL_TENPAI_DISCARDS_DEAL_IN)]["furiten"]
     if len(discards) == 1:
         return [Injustice(kyoku.round, kyoku.honba, "Injustice",
                 CheckClause(subject="your hand",
                             subject_description=hand.to_str(doras=kyoku.doras),
                             verb="could reach",
-                            content=f"tenpai by discarding {ph(discards, doras=kyoku.doras)}, but it would deal in, and you dealt in"))]
+                            content=f"{'(furiten) ' if furiten else ''}tenpai by discarding {ph(discards, doras=kyoku.doras)}, but it would deal in, and you dealt in"))]
     else:
         return [Injustice(kyoku.round, kyoku.honba, "Injustice",
                 CheckClause(subject="your hand",
                             subject_description=hand.to_str(doras=kyoku.doras),
                             verb="could reach",
-                            content=f"tenpai by discarding any of {ph(discards, doras=kyoku.doras)}, but they would all deal in, and you dealt in"))]
+                            content=f"{'(furiten) ' if furiten else ''}tenpai by discarding any of {ph(discards, doras=kyoku.doras)}, but they would all deal in, and you dealt in"))]
 
 ###
 ### end game injustices

@@ -256,7 +256,7 @@ class KyokuInfo:
         if majority_suit is not None and tile not in majority_suit | JIHAI:
             honitsu_tiles = majority_suit | JIHAI
             majority_tiles = tuple(tile for tile in self.at[seat].hand.tiles if tile in honitsu_tiles)
-            enough_honitsu_tiles = len(majority_tiles) >= 10
+            enough_honitsu_tiles = len(majority_tiles) >= 12 - int(self.at[seat].hand.shanten[0])
             no_off_suit_calls = all(call.tile in honitsu_tiles for call in self.at[seat].hand.calls)
             going_for_honitsu = enough_honitsu_tiles and no_off_suit_calls
         if going_for_honitsu:
@@ -268,14 +268,6 @@ class KyokuInfo:
                                      "hand": prev_hand})
         else:
             self.at[seat].consecutive_off_suit_tiles = []
-        # check if we're still 4-shanten or worse after the first row of discards
-        if self.at[seat].num_discards == 6 and prev_hand.shanten[0] >= 4:
-            self.add_flag(seat, Flags.FOUR_SHANTEN_AFTER_FIRST_ROW, {"shanten": prev_hand.shanten})
-        # check if we're iishanten with zero tiles left
-        if 1 <= self.at[seat].hand.shanten[0] < 2:
-            ukeire = self.at[seat].hand.ukeire(self.get_visible_tiles())
-            if ukeire == 0:
-                self.add_flag(seat, Flags.IISHANTEN_WITH_ZERO_TILES, {"shanten": self.at[seat].hand.shanten})
         # check if there's a riichi, we drew a dangerous tile, and we have no safe tiles
         for opponent, at in enumerate(self.at):
             if seat == opponent or not at.in_riichi:
@@ -290,18 +282,10 @@ class KyokuInfo:
                                          "pond_str": print_pond(self.at[opponent].pond, self.current_doras, self.at[opponent].riichi_index)
                                          })
                 break
-        # check if we drew into potential tenpai
-        # but every discard that would give us tenpai deals into someone
-        if 1 <= prev_hand.shanten[0] < 2 and tile in prev_hand.shanten[1]:
-            deals_into_someone = lambda tile: any(at.hand.shanten[0] == 0 and tile in at.hand.shanten[1] for at in self.at)
-            for player in range(self.num_players):
-                if player == seat:
-                    continue
-                tenpai_discards = tuple(self.at[seat].hand.get_possible_tenpais().keys())
-                if len(tenpai_discards) >= 1 and all(deals_into_someone(discard) for discard in tenpai_discards):
-                    self.add_flag(seat, Flags.ALL_TENPAI_DISCARDS_DEAL_IN, {"hand": self.at[seat].hand, "discards": tenpai_discards})
+        self._process_draw_call(i, seat, event_type, tile, prev_hand)
 
     def process_chii_pon_daiminkan(self, i: int, seat: int, event_type: str, called_tile: int, call_tiles: List[int], call_dir: Dir) -> None:
+        prev_hand = self.at[seat].hand
         if event_type != "minkan":
             self.at[seat].hand = self.at[seat].hand.add(called_tile)
         call = CallInfo(event_type, called_tile, call_dir, call_tiles)
@@ -357,6 +341,31 @@ class KyokuInfo:
         if num_dora >= 3:
             self.add_flag(seat, Flags.CALLS_CONTAIN_THREE_DORA, {"amount": num_dora})
             self.add_global_flag(Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, {"seat": seat, "amount": num_dora})
+
+        self._process_draw_call(i, seat, event_type, called_tile, prev_hand)
+
+    def _process_draw_call(self, i: int, seat: int, event_type: str, tile: int, prev_hand: Hand) -> None:
+        # check if we're still 4-shanten or worse after the first row of discards
+        if self.at[seat].num_discards == 6 and prev_hand.shanten[0] >= 4:
+            self.add_flag(seat, Flags.FOUR_SHANTEN_AFTER_FIRST_ROW, {"shanten": prev_hand.shanten})
+        # check if we're iishanten with zero tiles left
+        if 1 <= self.at[seat].hand.shanten[0] < 2:
+            ukeire = self.at[seat].hand.ukeire(self.get_visible_tiles())
+            if ukeire == 0:
+                self.add_flag(seat, Flags.IISHANTEN_WITH_ZERO_TILES, {"shanten": self.at[seat].hand.shanten})
+        # check if we drew into potential tenpai
+        # but every discard that would give us tenpai deals into someone
+        if 0 <= prev_hand.shanten[0] < 2 and tile in prev_hand.shanten[1]:
+            deals_into_someone = lambda tile: any(at.hand.shanten[0] == 0 and tile in at.hand.shanten[1] for at in self.at)
+            for player in range(self.num_players):
+                if player == seat:
+                    continue
+                tenpai_discards = self.at[seat].hand.get_possible_tenpais()
+                if len(tenpai_discards) >= 1 and all(deals_into_someone(discard) for discard in tenpai_discards.keys()):
+                    self.add_flag(seat, Flags.ALL_TENPAI_DISCARDS_DEAL_IN, {
+                        "hand": self.at[seat].hand,
+                        "discards": tuple(tenpai_discards.keys()),
+                        "furiten": all(any(tile in self.at[seat].pond for tile in hand.hidden_part) for hand in tenpai_discards.values())})
 
     def process_self_kan(self, i: int, seat: int, event_type: str, called_tile: int, call_tiles: List[int], call_dir: Dir) -> None:
         if event_type == "kakan":
@@ -886,7 +895,9 @@ class KyokuInfo:
             self.add_global_flag(Flags.WINNER_HAD_BAD_WAIT, winner_data)
         # check for 3+ han from hidden dora
         if result.score.count_dora() >= 3:
-            hidden_hand = (*self.at[result.winner].hand.hidden_part, winning_tile)
+            hidden_hand = self.at[result.winner].hand.hidden_part
+            if is_tsumo:
+                hidden_hand = (*hidden_hand, winning_tile)
             hidden_dora_han = sum(hidden_hand.count(dora) for dora in self.current_doras)
             if hidden_dora_han >= 3:
                 self.add_global_flag(Flags.WINNER_GOT_HIDDEN_DORA_3, {"seat": result.winner, "value": hidden_dora_han})
