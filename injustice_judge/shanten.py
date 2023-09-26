@@ -130,10 +130,14 @@ def get_hand_shanten(suits: Suits, groups_needed: int) -> float:
 def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Shanten:
     # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
     # note: ctr = Counter(normalize_red_fives(starting_hand))
-    shanten = 6 - len([v for v in ctr.values() if v >= 2])
-    if shanten == 0:
-        # make it 2-shanten if the last tile is a triplet
-        shanten = 6 - len([v for v in ctr.values() if v == 2])
+    counts = tuple(ctr.values())
+    shanten = 6 - counts.count(2) - counts.count(3) - counts.count(4)
+    if shanten <= 1:
+        # tenpai with one triplet is actually 2-shanten
+        # iishanten with two triplets is also actually 2-shanten
+        unusable_tiles = counts.count(3) + 2*counts.count(4)
+        if unusable_tiles == shanten + 1:
+            shanten = 2
     waits: Tuple[int, ...] = ()
     if shanten <= 1:
         # since chiitoitsu can't repeat pairs, take only the single tiles in hand
@@ -429,9 +433,8 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Shanten:
     if c_shanten <= shanten:
         # take the min, unless we're iishanten in which case we add 0.1 to the shanten
         if c_shanten == 1 and shanten >= 1 and shanten < 2:
-            if not c_waits.issubset(waits):
-                shanten += 0.1
-                waits |= set(c_waits)
+            shanten += 0.1
+            waits |= set(c_waits)
         elif c_shanten < shanten:
             shanten = c_shanten
             waits = set(c_waits)
@@ -443,20 +446,25 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Shanten:
             shanten = 1.2
         waits = set(k_waits)
 
-    # remove all ankan in hand from the waits
-    ankan_tiles = {k for k, v in ctr.items() if v == 4}
-    waits -= ankan_tiles
-    # in the rare case that this removes all our waits
-    #   make it floating iishanten waiting on every tile but that
-    #   (because it's a tanki wait on ankan)
-    if len(waits) == 0 and len(ankan_tiles) > 0:
-        shanten = 1.001
-        waits = (TANYAOHAI | YAOCHUUHAI) - ankan_tiles
+    # at this point, every iishanten and tenpai hand should have waits
+    import os
+    if os.getenv("debug"):
+        assert not (shanten < 2 and len(waits) == 0), f"somehow no waits for a shanten {shanten} hand"
 
-    waits_tuple = tuple(sorted_hand(waits - ankan_tiles))
-    assert all(red not in waits_tuple for red in {51,52,53}), f"somehow returned a waits list with red five: {ph(waits_tuple)}"
+    if shanten < 2:
+        # remove all ankan in hand from the waits
+        ankan_tiles = {k for k, v in ctr.items() if v == 4}
+        waits -= ankan_tiles
+        # in the rare case that this removes all our waits
+        #   make it floating iishanten waiting on every tile but that
+        #   (because it's a tanki wait on ankan)
+        if len(waits) == 0 and len(ankan_tiles) > 0:
+            shanten = 1.001
+            waits = (TANYAOHAI | YAOCHUUHAI) - ankan_tiles
+
+    assert all(red not in waits for red in {51,52,53}), f"somehow returned a waits list with red five: {ph(sorted_hand(waits))}"
     timers["total"] += time.time() - start_time
-    return round(shanten, 4), waits_tuple
+    return round(shanten, 4), sorted_hand(waits)
 
 def calculate_shanten(starting_hand: Iterable[int]) -> Shanten:
     """This just converts the input to a sorted tuple so it can be serialized as a cache key"""
