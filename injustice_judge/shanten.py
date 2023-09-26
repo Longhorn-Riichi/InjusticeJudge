@@ -429,8 +429,9 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Shanten:
     if c_shanten <= shanten:
         # take the min, unless we're iishanten in which case we add 0.1 to the shanten
         if c_shanten == 1 and shanten >= 1 and shanten < 2:
-            shanten += 0.1
-            waits |= set(c_waits)
+            if not c_waits.issubset(waits):
+                shanten += 0.1
+                waits |= set(c_waits)
         elif c_shanten < shanten:
             shanten = c_shanten
             waits = set(c_waits)
