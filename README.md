@@ -1,6 +1,6 @@
 # InjusticeJudge
 
-Analyzes your tenhou.net game to find instances of mahjong injustice. Currently, it checks for:
+Analyzes your `Mahjong Soul` or `tenhou.net` game to find instances of mahjong injustice. Currently, it checks for:
 
 - Your tenpai was chased with a worse wait and you deal into it
 - You experience iishanten hell (9+ draws)
