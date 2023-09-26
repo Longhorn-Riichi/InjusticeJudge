@@ -411,7 +411,7 @@ class KyokuInfo:
         self.at[seat].last_discard = tile
         self.at[seat].last_discard_was_riichi = event_type == "riichi"
         # add riichi flag
-        if event_type == "riichi":
+        if event_type == "riichi" and self.num_players == 4:
             self.at[seat].in_riichi = True
             self.add_flag(seat, Flags.YOU_DECLARED_RIICHI)
             # if there's a triple riichi, give Flags.AGAINST_TRIPLE_RIICHI to the non-riichi person
