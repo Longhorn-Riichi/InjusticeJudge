@@ -223,9 +223,9 @@ class GameRules:
             # normal game
             return cls(use_red_fives = "aka51" in rule and rule["aka51"])
         # lobby game
-        rule1 = int(rule[2], 16)
-        rule2 = int(csrule[0], 16)
-        rule3 = int(csrule[1], 16)
+        rule1 = int(rule[2] or "0", 16)
+        rule2 = int(csrule[0] or "0", 16)
+        rule3 = int(csrule[1] or "0", 16)
         return cls(use_red_fives = 0x0002 & rule1 == 0,
                    immediate_kan_dora = 0x00000008 & rule2 != 0,
                    head_bump = 0x00002000 & rule2 != 0,
