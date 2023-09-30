@@ -91,72 +91,59 @@ def get_tenpai_waits(hand: Tuple[int, ...]) -> Set[int]:
 def get_hand_shanten(suits: Suits, groups_needed: int) -> float:
     """Return the shanten of a given hand that has all of its groups, ryanmens, and kanchans removed"""
     # get the minimum number of floating tiles in each suit
-    floating: Dict[int, int] = {}
-    for i, hands in enumerate(suits):
-        for hand in hands:
-            num_floating = tuple(Counter(hand).values()).count(1)
-            if i not in floating:
-                floating[i] = num_floating
-            else:
-                floating[i] = min(floating[i], num_floating)
+    count_floating = lambda hand: tuple(Counter(hand).values()).count(1)
+    floating: List[int] = [min(map(count_floating, hands), default=0) for hands in suits]
 
-    # check if we have a pair
-    # take the hand(s) with a pair that would add the least additional floating tiles to that suit
-    extra_floating = 0
-    have_pair = False
-    for i, hands in enumerate(suits):
-        for hand in hands:
-            if any(hand.count(tile) == 2 for tile in hand):
-                num_extra_floating = tuple(Counter(hand).values()).count(1) - floating[i]
-                if not have_pair:
-                    extra_floating = num_extra_floating
-                else:
-                    extra_floating = min(extra_floating, num_extra_floating)
-                have_pair = True
-
-    def get_shanten(total_floating: int, have_pair: bool) -> int:
+    def get_shanten(total_floating: int, pair_exists: bool) -> int:
         # needs_pair = 1 if the hand is missing a pair but is full of taatsus -- need to convert a taatsu to a pair
         # must_discard_taatsu = 1 if the hand is 6+ blocks -- one of the taatsu is actually 2 floating tiles
         # shanten = (3 + num_floating - num_groups) // 2, plus the above
-        needs_pair = 1 if not have_pair and groups_needed > total_floating else 0
+        needs_pair = 1 if not pair_exists and groups_needed > total_floating else 0
         must_discard_taatsu = 1 if groups_needed >= 3 and total_floating <= 1 else 0
         shanten = needs_pair + must_discard_taatsu + (groups_needed + total_floating - 1) // 2
         return shanten
 
-    total_floating = sum(floating.values()) + extra_floating
-    return min(get_shanten(total_floating, have_pair),
-               get_shanten(total_floating - extra_floating, False))  # without the pair
+    shanten = get_shanten(sum(floating), False)
+
+    # check if we have a pair
+    # take the hand(s) with a pair that would add the least additional floating tiles to that suit
+    has_pair = lambda hand: any(hand.count(tile) == 2 for tile in hand)
+    extra_floating = min(min(map(count_floating, filter(has_pair, hands)), default=99) - f for f, hands in zip(floating, suits))
+    if extra_floating < 50:
+        shanten = min(shanten, get_shanten(sum(floating) + extra_floating, True))
+    return shanten
+
+# when the wait is any tile except the ones we have a pair of already
+# e.g. tenpai with one triplet
+# e.g. iishanten with two triplets
+chiitoi_replacement_waits = lambda ctr: sorted_hand((TANYAOHAI | YAOCHUUHAI) - {tile for tile, count in ctr.items() if count >= 2})
+# when the wait is all the single tiles we have in hand
+chiitoi_single_tiles = lambda ctr: sorted_hand(k for k, v in ctr.items() if v == 1)
 
 def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Shanten:
     # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
     # note: ctr = Counter(normalize_red_fives(starting_hand))
     counts = tuple(ctr.values())
-    shanten = 6 - counts.count(2) - counts.count(3) - counts.count(4)
-    if shanten <= 1:
-        # tenpai with one triplet is actually 2-shanten
-        # iishanten with two triplets is also actually 2-shanten
-        unusable_tiles = counts.count(3) + 2*counts.count(4)
-        if unusable_tiles == shanten + 1:
-            shanten = 2
-    waits: Tuple[int, ...] = ()
-    if shanten <= 1:
-        # since chiitoitsu can't repeat pairs, take only the single tiles in hand
-        waits = sorted_hand(k for k, v in ctr.items() if v == 1)
-    return shanten, tuple(waits)
+    tiles_needed = 7 - counts.count(2) - counts.count(3) - counts.count(4)
+    useless_tiles = counts.count(3) + 2*counts.count(4)
+    # tenpai is when tiles_needed == 1 and useless_tiles == 0
+    shanten = max(useless_tiles, tiles_needed - 1)
+    waits = () if shanten > 1 else chiitoi_replacement_waits(ctr) if useless_tiles >= tiles_needed else chiitoi_single_tiles(ctr)
+    return shanten, waits
 
 def calculate_kokushi_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Shanten:
     # get kokushi waits (iishanten or tenpai) and label iishanten type
     # note: ctr = Counter(normalize_red_fives(starting_hand))
     has_pair = len([v for v in ctr.values() if v > 1]) >= 1
     shanten = (12 if has_pair else 13) - len(YAOCHUUHAI.intersection(starting_hand))
-    waits: Tuple[int, ...] = ()
-    if shanten <= 1:
-        waits = sorted_hand(YAOCHUUHAI if not has_pair else YAOCHUUHAI.difference(starting_hand))
-    return shanten, tuple(waits)
+    waits = () if shanten > 1 else sorted_hand(YAOCHUUHAI if not has_pair else YAOCHUUHAI.difference(starting_hand))
+    return shanten, waits
 
-# pair_shapes[shape] = [(pair, shape without pair)]
+# Caches for removing pairs or complex shapes from a given suit
+
+# pair_shapes[shape] = {(pair, shape without pair), ...}
 pair_shapes: Dict[Tuple[int, ...], Set[Tuple[Tuple[int, ...], Tuple[int, ...]]]] = {}
-# complex_shapes[shape] = [(complex shape, shape without complex shape)]
+# complex_shapes[shape] = {(complex shape, shape without complex shape), ...}
 complex_shapes: Dict[Tuple[int, ...], Set[Tuple[Tuple[int, ...], Tuple[int, ...]]]] = {}
 
 def add_pair_shape(hand: Tuple[int, ...], recursed: bool = False) -> None:
@@ -188,6 +175,7 @@ def add_complex_shape(hand: Tuple[int, ...], recursed: bool = False) -> None:
 def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, groups_needed: int) -> Tuple[float, Set[int]]:
     # given an iishanten hand, calculate the iishanten type and its waits
     # we'll always return 1.XXX shanten, where XXX represents the type of iishanten
+    # - 1.300 tanki iishanten
     # - 1.200 kokushi musou iishanten
     # - 1.100 chiitoitsu iishanten
     # - 1.010 headless iishanten
@@ -330,17 +318,15 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
         # get all combinations of tiles from all other suits
         # such that adding them to (*hand, *hand2) makes it length 7
         # i is the suit for hand1, j is the suit for hand2
-        return (tuple(tile for x in (
-            *((tuple(10+tile for tile in a),) if 0 not in (i,j) else ()),
-            *((tuple(20+tile for tile in b),) if 1 not in (i,j) else ()),
-            *((tuple(30+tile for tile in c),) if 2 not in (i,j) else ()),
-            *((tuple(40+tile for tile in d),) if 3 not in (i,j) else ()),
-            ) for tile in x)
-            for a in ({hand1} if i == 0 else {hand2} if j == 0 else suits[0])
-            for b in ({hand1} if i == 1 else {hand2} if j == 1 else suits[1])
-            for c in ({hand1} if i == 2 else {hand2} if j == 2 else suits[2])
-            for d in ({hand1} if i == 3 else {hand2} if j == 3 else suits[3])
-            if len(a)+len(b)+len(c)+len(d) == 7)
+        return ((*(tuple(10+tile for tile in a) if 0 not in (i,j) else ()),
+                 *(tuple(20+tile for tile in b) if 1 not in (i,j) else ()),
+                 *(tuple(30+tile for tile in c) if 2 not in (i,j) else ()),
+                 *(tuple(40+tile for tile in d) if 3 not in (i,j) else ()))
+                for a in ({hand1} if i == 0 else {hand2} if j == 0 else suits[0])
+                for b in ({hand1} if i == 1 else {hand2} if j == 1 else suits[1])
+                for c in ({hand1} if i == 2 else {hand2} if j == 2 else suits[2])
+                for d in ({hand1} if i == 3 else {hand2} if j == 3 else suits[3])
+                if len(a)+len(b)+len(c)+len(d) == 7)
 
     # populate complex_waits and floating_waits by constructing all possible such hands
     # add_floating_hand just requires any hand with a pair
@@ -456,10 +442,10 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Shanten:
         ankan_tiles = {k for k, v in ctr.items() if v == 4}
         waits -= ankan_tiles
         # in the rare case that this removes all our waits
-        #   make it floating iishanten waiting on every tile but that
+        #   make it tanki iishanten waiting on every tile but that
         #   (because it's a tanki wait on ankan)
         if len(waits) == 0 and len(ankan_tiles) > 0:
-            shanten = 1.001
+            shanten = 1.3
             waits = (TANYAOHAI | YAOCHUUHAI) - ankan_tiles
 
     assert all(red not in waits for red in {51,52,53}), f"somehow returned a waits list with red five: {ph(sorted_hand(waits))}"

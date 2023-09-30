@@ -36,7 +36,6 @@ YakuForWait = Dict[int, List[Tuple[str, int]]]
 SHANTEN_NAMES = {
     0: "tenpai",
     1: "iishanten", # used when we round down iishanten
-    1.200: "kokushi musou iishanten",
     1.010: "headless iishanten",
     1.020: "kuttsuki iishanten",
     1.030: "kuttsuki headless iishanten",
@@ -68,6 +67,8 @@ SHANTEN_NAMES = {
     1.113: "perfect chiitoi headless iishanten",
     1.123: "perfect chiitoi kuttsuki iishanten",
     1.133: "perfect chiitoi headless kuttsuki iishanten",
+    1.200: "kokushi musou iishanten",
+    1.300: "tanki iishanten",
     2: "2-shanten",
     3: "3-shanten",
     4: "4-shanten",
