@@ -589,7 +589,6 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
 
     return log, game_data, (player_seat or 0)
 
-gcd = None
 def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
     all_events: List[List[Event]] = []
     all_dora_indicators: List[List[int]] = []
