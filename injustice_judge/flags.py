@@ -332,10 +332,9 @@ class KyokuInfo:
                             seat = chii_seat,
                             is_last_tile = self.kyoku.tiles_in_wall == 0,
                             num_players = self.num_players,
+                            rules = self.kyoku.rules,
                             check_rons = True,
-                            check_tsumos = True,
-                            use_renhou = self.kyoku.rules.renhou,
-                            kiriage = self.kyoku.rules.kiriage_mangan).values())
+                            check_tsumos = True).values())
                         is_limit = score.han >= 6 or is_mangan(score.han, score.fu)
                         if score.han >= 4: # minimum of 4 han to trigger this flag
                             if best_score is None or score > best_score:
@@ -589,8 +588,7 @@ class KyokuInfo:
             "seat": seat,
             "is_last_tile": self.kyoku.tiles_in_wall == 0,
             "num_players": self.kyoku.num_players,
-            "use_renhou": self.kyoku.rules.renhou,
-            "kiriage": self.kyoku.rules.kiriage_mangan,
+            "rules": self.kyoku.rules,
         }
         # if no calls, use tsumo score. else, get ron score
         calls_present = len(get_yaku_args["hand"].calls) > 0  # type: ignore[attr-defined]

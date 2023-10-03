@@ -1,5 +1,5 @@
 from typing import *
-from .classes import CallInfo, Interpretation
+from .classes import CallInfo, GameRules, Interpretation
 from .classes2 import Hand, Kyoku, Score
 from .constants import Event, Shanten, YakuForWait, LIMIT_HANDS, YAOCHUUHAI
 from .display import ph, pt, round_name, shanten_name
@@ -603,10 +603,9 @@ def get_yaku(hand: Hand,
              seat: int,
              is_last_tile: bool,
              num_players: int,
-             kiriage: bool,
+             rules: GameRules,
              check_rons: bool = True,
-             check_tsumos: bool = True,
-             use_renhou: bool = False) -> Dict[int, Score]:
+             check_tsumos: bool = True) -> Dict[int, Score]:
     if hand.shanten[0] != 0:
         return {}
 
@@ -626,7 +625,9 @@ def get_yaku(hand: Hand,
     # we want to get the best yaku for each wait
     # each hand interpretation gives han and fu for some number of waits
     # get the best han and fu for each wait across all interpretations
-    yakuhai = (45,46,47,(round//4)+41,((seat-round)%4)+41)
+    yakuhai: Tuple[int, ...] = (45,46,47,(round//4)+41,((seat-round)%4)+41)
+    if not rules.double_wind_4_fu:
+        yakuhai = tuple(set(yakuhai)) # remove duplicates
     is_closed_hand = len(hand.closed_part) == 13
     for interpretation in Interpretation(hand.hidden_part, calls=tuple(hand.calls)) \
             .generate_all_interpretations(yakuhai=yakuhai, is_closed_hand=is_closed_hand):
@@ -640,8 +641,8 @@ def get_yaku(hand: Hand,
         # pprint([(a, b) for a, b, *_ in events])
         if check_tsumos:
             tsumo_yaku = add_tsumo_yaku(yaku_for_wait.copy(), interpretation, is_closed_hand)
-            tsumo_yaku = add_yakuman(yaku_for_wait, hand, events, round, seat, is_tsumo=True, use_renhou=use_renhou)
-        yaku_for_wait = add_yakuman(yaku_for_wait, hand, events, round, seat, is_tsumo=False, use_renhou=use_renhou)
+            tsumo_yaku = add_yakuman(yaku_for_wait, hand, events, round, seat, is_tsumo=True, use_renhou=rules.renhou)
+        yaku_for_wait = add_yakuman(yaku_for_wait, hand, events, round, seat, is_tsumo=False, use_renhou=rules.renhou)
         # pprint(yaku_for_wait)
 
         # if `interpretations.hand` is a pair, it's a shanpon wait
@@ -662,16 +663,16 @@ def get_yaku(hand: Hand,
                 han = sum(b for _, b in yaku_for_wait[wait])
                 ron_fu = interpretation.ron_fu + shanpon_fu[wait]
                 fixed_fu = fixed_fu or (30 if ron_fu == 20 else None) # open pinfu ron = 30
-                add_best_score(wait, Score(yaku_for_wait[wait], han, fixed_fu or round_fu(ron_fu), seat == round%4, False, num_players, kiriage, interpretation, hand))
+                add_best_score(wait, Score(yaku_for_wait[wait], han, fixed_fu or round_fu(ron_fu), seat == round%4, False, num_players, rules.kiriage_mangan, interpretation, hand))
             if check_tsumos:
                 han = sum(b for _, b in tsumo_yaku[wait])
                 if is_closed_hand:
                     tsumo_fu = interpretation.tsumo_fu + 2*shanpon_fu[wait]
                     fixed_fu = fixed_fu or (20 if ("pinfu", 1) in tsumo_yaku[wait] else None) # closed pinfu tsumo = 20
-                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), seat == round%4, True, num_players, kiriage, interpretation, hand))
+                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), seat == round%4, True, num_players, rules.kiriage_mangan, interpretation, hand))
                 else:
                     tsumo_fu = interpretation.tsumo_fu + 2*shanpon_fu[wait]
-                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), seat == round%4, True, num_players, kiriage, interpretation, hand))
+                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), seat == round%4, True, num_players, rules.kiriage_mangan, interpretation, hand))
         # for k, v in best_score.items():
         #     print(f"{pt(k)}, {v!s}")
         # print("========")
@@ -690,10 +691,9 @@ def get_final_yaku(kyoku: Kyoku,
                    seat = seat,
                    is_last_tile = kyoku.tiles_in_wall == 0,
                    num_players = kyoku.num_players,
+                   rules = kyoku.rules,
                    check_rons = check_rons,
-                   check_tsumos = check_tsumos,
-                   use_renhou = kyoku.rules.renhou,
-                   kiriage = kyoku.rules.kiriage_mangan)
+                   check_tsumos = check_tsumos)
     return ret
 
 ###
