@@ -450,7 +450,7 @@ def gained_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]], 
         orig_placement = to_placement(prev_scores)
         orig_points = score.to_points()
         score.add_dora("ura", -ura)
-        uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round, kyoku.honba, [player], won_from))
+        uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round, kyoku.honba, [player], won_from, kyoku.rules.kiriage_mangan))
         uraless_points = score.to_points()
         score.add_dora("ura", ura)
         if orig_placement == uraless_placement:
