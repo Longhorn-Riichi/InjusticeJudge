@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from .constants import Event, Shanten, DORA, DORA_INDICATOR, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, print_pond, round_name
 from enum import Enum
-from .utils import is_mangan, normalize_red_five, to_placement
+from .utils import apply_delta_scores, is_mangan, normalize_red_five, to_placement
 from .wwyd import is_safe
 from .yaku import get_final_yaku, get_score, get_yaku, get_yakuman_tenpais, get_yakuman_waits
 from typing import *
@@ -649,29 +649,6 @@ class KyokuInfo:
                 self.add_flag(player, Flags.CALLS_CONTAIN_THREE_DORA, {"amount": num_dora})
                 self.add_global_flag(Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, {"seat": player, "amount": num_dora})
 
-    def process_placement_change(self, i: int, seat: int, event_type: str,
-                                 old_placement: int, new_placement: int,
-                                 prev_scores: List[int], delta_scores: List[int]) -> None:
-        # add flags for dropping/gaining placement
-        if new_placement > old_placement: # dropped placement
-            self.add_flag(seat, Flags.YOU_DROPPED_PLACEMENT,
-                                {"old": old_placement, "new": new_placement,
-                                 "prev_scores": prev_scores, "delta_scores": delta_scores})
-        elif new_placement < old_placement: # gained placement
-            self.add_flag(seat, Flags.YOU_GAINED_PLACEMENT,
-                                {"old": old_placement, "new": new_placement,
-                                 "prev_scores": prev_scores, "delta_scores": delta_scores})
-        # check if we just got out of 4th in the final round
-        if old_placement == 4 and Flags.FINAL_ROUND in self.global_flags:
-            self.add_flag(seat, Flags.YOU_AVOIDED_LAST_PLACE)
-        # check if we're got double starting points
-        for player in range(self.num_players):
-            end_points = prev_scores[player] + delta_scores[player]
-            if end_points >= 3 * self.kyoku.get_starting_score():
-                self.add_flag(player, Flags.REACHED_TRIPLE_STARTING_POINTS, {"points": end_points})
-            if end_points >= 2 * self.kyoku.get_starting_score():
-                self.add_flag(player, Flags.REACHED_DOUBLE_STARTING_POINTS, {"points": end_points})
-
     def process_start_game(self, i: int, seat: int, event_type: str,
                            round: int, honba: int, riichi_sticks: int, scores: List[int]) -> None:
         # give dealer a flag saying that they're dealer
@@ -702,7 +679,7 @@ class KyokuInfo:
                         self.add_flag(result.winner, Flags.YOU_WON_AFTER_SOMEONES_RIICHI, {"seat": player})
 
         # every result has result.score_delta
-        # here we add ss or YOU_LOST_POINTS as needed
+        # here we add YOU_GAINED_POINTS or YOU_LOST_POINTS as needed
         for result in results:
             for seat in range(self.num_players):
                 # check for points won or lost
@@ -710,6 +687,13 @@ class KyokuInfo:
                     self.add_flag(seat, Flags.YOU_GAINED_POINTS, {"amount": result.score_delta[seat]})
                 elif result.score_delta[seat] < 0:
                     self.add_flag(seat, Flags.YOU_LOST_POINTS, {"amount": -result.score_delta[seat]})
+
+        # check for placement changes
+        placement_before = to_placement(self.kyoku.start_scores)
+        new_scores = apply_delta_scores(self.kyoku.start_scores, self.kyoku.result[1].score_delta)
+        placement_after = to_placement(new_scores)
+        for old, new in set(zip(placement_before, placement_after)) - {(x,x) for x in range(4)}:
+            self._process_placement_change(placement_before.index(old), old+1, new+1, self.kyoku.start_scores, self.kyoku.result[1].score_delta)
 
         # here we add flags that pertain to the winning hand(s):
         # - LOST_POINTS_TO_FIRST_ROW_WIN
@@ -724,7 +708,7 @@ class KyokuInfo:
         if result_type in {"ron", "tsumo"}:
             for win in results:
                 assert isinstance(win, Win)
-                self.process_win_result(win, is_tsumo = result_type == "tsumo")
+                self._process_win_result(win, is_tsumo = result_type == "tsumo")
 
         # here we add all flags that have to do with deal-ins:
         # - YOU_RONNED_SOMEONE
@@ -737,7 +721,7 @@ class KyokuInfo:
             # check winners
             for ron in results:
                 assert isinstance(ron, Ron), f"result tagged ron got non-Ron object: {ron}"
-                self.process_ron_result(ron, num_rons = len(results))
+                self._process_ron_result(ron, num_rons = len(results))
             self.add_global_flag(Flags.GAME_ENDED_WITH_RON, {"objects": results})
 
         # here we add all flags that have to do with self-draw luck:
@@ -747,14 +731,14 @@ class KyokuInfo:
         elif result_type == "tsumo":
             tsumo = results[0]
             assert isinstance(tsumo, Tsumo), f"result tagged tsumo got non-Tsumo object: {tsumo}"
-            self.process_tsumo_result(tsumo)
+            self._process_tsumo_result(tsumo)
             self.add_global_flag(Flags.GAME_ENDED_WITH_TSUMO, {"object": tsumo})
 
         # here we add all flags that have to do with ryuukyoku
         elif result_type == "ryuukyoku":
             draw = results[0]
             assert isinstance(draw, Draw), f"result tagged draw got non-Draw object: {draw}"
-            self.process_ryuukyoku_result(draw)
+            self._process_ryuukyoku_result(draw)
             self.add_global_flag(Flags.GAME_ENDED_WITH_RYUUKYOKU, {"object": draw})
 
         # here we add all flags that have to do with exhaustive or abortive draws
@@ -763,13 +747,13 @@ class KyokuInfo:
         elif result_type == "draw":
             draw = results[0]
             assert isinstance(draw, Draw), f"result tagged draw got non-Draw object: {draw}"
-            self.process_draw_result(draw)
+            self._process_draw_result(draw)
             self.add_global_flag(Flags.GAME_ENDED_WITH_RYUUKYOKU, {"object": draw})
 
         elif result_type == "draw":
             self.add_global_flag(Flags.GAME_ENDED_WITH_ABORTIVE_DRAW, {"object": self.kyoku.result[1]})
 
-    def process_ron_result(self, ron: Ron, num_rons: int) -> None:
+    def _process_ron_result(self, ron: Ron, num_rons: int) -> None:
         # check deal-ins
         self.add_flag(ron.winner, Flags.YOU_RONNED_SOMEONE, {"from": ron.won_from})
         self.add_flag(ron.won_from, Flags.YOU_DEALT_IN, {"to": ron.winner})
@@ -781,7 +765,7 @@ class KyokuInfo:
         if num_rons > 1:
             self.add_global_flag(Flags.MULTIPLE_RON, {"number": num_rons})
 
-    def process_tsumo_result(self, tsumo: Tsumo) -> None:
+    def _process_tsumo_result(self, tsumo: Tsumo) -> None:
         self.add_flag(tsumo.winner, Flags.YOU_TSUMOED)
         # check furiten
         if self.kyoku.furiten[tsumo.winner]:
@@ -793,10 +777,10 @@ class KyokuInfo:
         if tsumo.score.has_ippatsu():
             self.add_global_flag(Flags.WINNER_IPPATSU_TSUMO, {"seat": tsumo.winner})
 
-    def process_ryuukyoku_result(self, draw: Draw) -> None:
+    def _process_ryuukyoku_result(self, draw: Draw) -> None:
         pass
 
-    def process_draw_result(self, draw: Draw) -> None:
+    def _process_draw_result(self, draw: Draw) -> None:
         name = draw.name
         if name in {"ryuukyoku", "nagashi mangan"}:
             assert self.tiles_in_wall == 0, f"somehow ryuukyoku with {self.tiles_in_wall} tiles left in wall"
@@ -811,7 +795,7 @@ class KyokuInfo:
                               "shanten": self.kyoku.haipai[seat].shanten,
                               "hand": self.at[seat].hand})
 
-    def process_win_result(self, result: Win, is_tsumo: bool) -> None:
+    def _process_win_result(self, result: Win, is_tsumo: bool) -> None:
         winning_tile = self.kyoku.final_draw if is_tsumo else self.kyoku.final_discard
 
         # first check how each player reacts to this win
@@ -958,6 +942,28 @@ class KyokuInfo:
                                   "winning_tile": winning_tile,
                                   "num_calls": call_count})
 
+    def _process_placement_change(self, seat: int, old_placement: int, new_placement: int,
+                                 prev_scores: Tuple[int, ...], delta_scores: Tuple[int, ...]) -> None:
+        # add flags for dropping/gaining placement
+        if new_placement > old_placement: # dropped placement
+            self.add_flag(seat, Flags.YOU_DROPPED_PLACEMENT,
+                                {"old": old_placement, "new": new_placement,
+                                 "prev_scores": prev_scores, "delta_scores": delta_scores})
+        elif new_placement < old_placement: # gained placement
+            self.add_flag(seat, Flags.YOU_GAINED_PLACEMENT,
+                                {"old": old_placement, "new": new_placement,
+                                 "prev_scores": prev_scores, "delta_scores": delta_scores})
+        # check if we just got out of 4th in the final round
+        if old_placement == 4 and Flags.FINAL_ROUND in self.global_flags:
+            self.add_flag(seat, Flags.YOU_AVOIDED_LAST_PLACE)
+        # check if we're got double starting points
+        for player in range(self.num_players):
+            end_points = prev_scores[player] + delta_scores[player]
+            if end_points >= 3 * self.kyoku.get_starting_score():
+                self.add_flag(player, Flags.REACHED_TRIPLE_STARTING_POINTS, {"points": end_points})
+            if end_points >= 2 * self.kyoku.get_starting_score():
+                self.add_flag(player, Flags.REACHED_DOUBLE_STARTING_POINTS, {"points": end_points})
+
 def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]]]:
     """
     Analyze a parsed kyoku by spitting out an ordered list of all interesting facts about it (flags)
@@ -1020,8 +1026,6 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                 info.process_tenpai(i, *event)
         elif event_type == "dora_indicator":
             info.process_new_dora(i, *event)
-        elif event_type == "placement_change":
-            info.process_placement_change(i, *event)
         elif event_type == "start_game":
             # check if anyone's starting shanten is 2 worse than everyone else
             info.process_start_game(i, *event)

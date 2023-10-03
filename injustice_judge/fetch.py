@@ -150,12 +150,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 hand_is_hidden = [len(hand.open_part) == 0 for hand in kyoku.hands]
                 kyoku.result = parse_result(unparsed_result, kyoku.round, metadata.num_players, hand_is_hidden, [h.kita_count for h in kyoku.hands], kyoku.rules.kiriage_mangan)
                 kyoku.events.append((0, "result", *kyoku.result))
-                # emit events for placement changes
-                placement_before = to_placement(kyoku.start_scores)
-                new_scores = apply_delta_scores(kyoku.start_scores, kyoku.result[1].score_delta)
-                placement_after = to_placement(new_scores)
-                for old, new in set(zip(placement_before, placement_after)) - {(x,x) for x in range(4)}:
-                    kyoku.events.append((placement_before.index(old), "placement_change", old+1, new+1, kyoku.start_scores, kyoku.result[1].score_delta))
                 # if tsumo or kyuushu kyuuhai, pop the final tile from the winner's hand
                 if kyoku.result[0] == "tsumo" or (kyoku.result[0] == "draw" and kyoku.result[1].name == "9 terminals draw"):
                     for seat in range(kyoku.num_players):
