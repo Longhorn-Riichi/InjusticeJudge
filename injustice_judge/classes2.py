@@ -190,6 +190,7 @@ class Score:
     is_dealer: bool             # whether it was dealer win (for calculating points)
     tsumo: bool                 # whether it was a tsumo (for calculating points)
     num_players: int            # number of players (for calculating tsumo points)
+    kiriage: bool               # whether kiriage mangan is enabled (rounding up)
     def __hash__(self):
         return hash((self.fu, tuple(self.yaku)))
     def __lt__(self, other):
@@ -215,21 +216,31 @@ class Score:
                 new_dora = (dora_type + (f" {new_value}" if new_value > 1 else ""), new_value)
                 self.yaku[i] = new_dora
         self.han += amount
-    def to_points(self):
+    def count_yakuman(self):
+        double = ("kokushi musou 13-sided", "suuankou tanki", "junsei chuurenpoutou")
+        return sum(1 for name, value in self.yaku if value == 13 and "13" not in name) \
+             + sum(1 for name, _ in self.yaku if name in double)
+    def to_points(self) -> int:
+        yakuman_factor = self.count_yakuman() or 1
+        han = 5 if self.kiriage and (self.han, self.fu) in ((4,30), (3,60)) else self.han
         if self.tsumo:
             assert self.num_players is not None
-            oya = OYA_TSUMO_SCORE[self.han][self.fu]  # type: ignore[index]
-            ko = oya if self.is_dealer else KO_TSUMO_SCORE[self.han][self.fu]  # type: ignore[index]
-            return oya + (self.num_players-2)*ko
+            oya = OYA_TSUMO_SCORE[han][self.fu]  # type: ignore[index]
+            ko = oya if self.is_dealer else KO_TSUMO_SCORE[han][self.fu]  # type: ignore[index]
+            return yakuman_factor * (oya + (self.num_players-2)*ko)
         else:
-            return (OYA_RON_SCORE if self.is_dealer else KO_RON_SCORE)[self.han][self.fu]  # type: ignore[index]
-    def to_score_deltas(self, round: int, honba: int, winners: List[int], payer: int, pao_seat: Optional[int] = None) -> List[int]:
+            return yakuman_factor * (OYA_RON_SCORE if self.is_dealer else KO_RON_SCORE)[han][self.fu]  # type: ignore[index]
+    def to_score_deltas(self, round: int, honba: int, winners: List[int], payer: int, kiriage: bool, pao_seat: Optional[int] = None) -> List[int]:
+        yakuman_factor = self.count_yakuman() or 1
+        prev_han = self.han
+        han = 5 if self.kiriage and (self.han, self.fu) in ((4,30), (3,60)) else self.han
         score_deltas = [0]*self.num_players
         if pao_seat is not None:
             assert len(winners) == 1, "don't know how to handle pao when there's a multiple ron"
             winner = winners[0]
             oya_payment = winner == round%4
-            points = (OYA_RON_SCORE if oya_payment else KO_RON_SCORE)[self.han][self.fu]  # type: ignore[index]
+            points = (OYA_RON_SCORE if oya_payment else KO_RON_SCORE)[han][self.fu]  # type: ignore[index]
+            points = (points * yakuman_factor) + (100 * self.num_players * honba)
             score_deltas[winner] += points
             if self.tsumo:
                 score_deltas[pao_seat] -= points
@@ -241,14 +252,16 @@ class Score:
                 assert len(winners) == 1
                 for payer in set(range(self.num_players)) - {winners[0]}:
                     oya_payment = (winners[0] == round%4) or (payer == round%4)
-                    score_deltas[payer] -= (OYA_TSUMO_SCORE if oya_payment else KO_TSUMO_SCORE)[self.han][self.fu]  # type: ignore[index]
-                    score_deltas[payer] -= 100 * honba
+                    points = (OYA_TSUMO_SCORE if oya_payment else KO_TSUMO_SCORE)[han][self.fu]  # type: ignore[index]
+                    points = (points * yakuman_factor) + (100 * honba)
+                    score_deltas[payer] -= points
                 score_deltas[payer] -= sum(score_deltas)
             else:
                 for winner in winners:
                     oya_payment = winner == round%4
-                    score_deltas[winner] += (OYA_RON_SCORE if oya_payment else KO_RON_SCORE)[self.han][self.fu]  # type: ignore[index]
-                    score_deltas[winner] += 300 * honba
+                    points = (OYA_RON_SCORE if oya_payment else KO_RON_SCORE)[han][self.fu]  # type: ignore[index]
+                    points = (points * yakuman_factor) + (100 * self.num_players * honba)
+                    score_deltas[winner] += points
                 score_deltas[winner] -= sum(score_deltas)
         return score_deltas
     def has_riichi(self) -> bool:
@@ -285,6 +298,7 @@ class Score:
     def from_tenhou_list(cls, tenhou_result_list: List[Any],
                               round: int,
                               num_players: int,
+                              kiriage: bool,
                               kita: int = 0):
         w, won_from, _, score_str, *yaku_strs = tenhou_result_list
         is_dealer = w == round%4
@@ -327,7 +341,7 @@ class Score:
         han = sum(han for _, han in yaku)
         assert han > 0, f"somehow got a {han} han score"
         fu = int(score_str.split("符")[0]) if "符" in score_str else 70
-        return cls(yaku, han, fu, is_dealer, is_tsumo, num_players)
+        return cls(yaku, han, fu, is_dealer, is_tsumo, num_players, kiriage)
 
     # these fields are only for debug use
     interpretation: Optional[Interpretation] = None # the interpretation used to calculate yaku and fu

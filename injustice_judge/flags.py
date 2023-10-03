@@ -322,7 +322,8 @@ class KyokuInfo:
                             num_players = self.num_players,
                             check_rons = True,
                             check_tsumos = True,
-                            use_renhou = self.kyoku.rules.renhou).values())
+                            use_renhou = self.kyoku.rules.renhou,
+                            kiriage = self.kyoku.rules.kiriage_mangan).values())
                         is_limit = score.han >= 6 or is_mangan(score.han, score.fu)
                         if score.han >= 4: # minimum of 4 han to trigger this flag
                             if best_score is None or score > best_score:
@@ -584,7 +585,8 @@ class KyokuInfo:
             "seat": seat,
             "is_last_tile": self.kyoku.tiles_in_wall == 0,
             "num_players": self.kyoku.num_players,
-            "use_renhou": self.kyoku.rules.renhou
+            "use_renhou": self.kyoku.rules.renhou,
+            "kiriage": self.kyoku.rules.kiriage_mangan,
         }
         # if no calls, use tsumo score. else, get ron score
         calls_present = len(get_yaku_args["hand"].calls) > 0  # type: ignore[attr-defined]
@@ -850,26 +852,26 @@ class KyokuInfo:
         #   let's fix it here
         winning_tile_is_aka = winning_tile in set(self.current_doras) and winning_tile in {51,52,53}
         winning_tile = normalize_red_five(winning_tile)
+        score = calculated_yaku[winning_tile]
         if winning_tile_is_aka:
-            calculated_yaku[winning_tile].add_dora("aka", 1)
+            score.add_dora("aka", 1)
 
-        han = calculated_yaku[winning_tile].han
-        fu = calculated_yaku[winning_tile].fu
+        han = score.han
+        fu = score.fu
+        assert score.tsumo == is_tsumo
+
         # compare the han values to make sure we calculated it right
         winning_hand = self.at[result.winner].hand
         import os
         if os.getenv("debug"):
-            assert han == expected_han, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong han ({han}) for a {expected_han} han hand {winning_hand.to_str(doras=self.kyoku.doras, uras=self.kyoku.uras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[winning_tile]}"
+            assert score.han == expected_han, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong han ({score.han}) for a {expected_han} han hand {winning_hand.to_str(doras=self.kyoku.doras, uras=self.kyoku.uras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {score}"
         # compare the resulting score to make sure we calculated it right
         is_dealer = result.winner == self.kyoku.round % 4
-        calculated_score = get_score(han, fu, is_dealer, is_tsumo, self.num_players)
+        calculated_score = score.to_points()
         if os.getenv("debug"):
             tsumo_string = "tsumo" if is_tsumo else "ron"
             stored_score = result.score.to_points()
-            if (calculated_score, stored_score) in {(7700, 8000), (7900, 8000), (11600, 12000), (11700, 12000)}: # ignore kiriage mangan differences for now
-                pass
-            else:
-                assert calculated_score == stored_score, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong {tsumo_string} score ({calculated_score}) for a {stored_score} point hand {winning_hand.to_str(doras=self.kyoku.doras, uras=self.kyoku.uras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {calculated_yaku[winning_tile]}"
+            assert calculated_score == stored_score, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong {tsumo_string} score ({calculated_score}) for a {stored_score} point hand {winning_hand.to_str(doras=self.kyoku.doras, uras=self.kyoku.uras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {score}"
 
         # Add potentially several WINNER flags depending on the limit hand
         # e.g. haneman wins will get WINNER_GOT_HANEMAN plus all the flags before that

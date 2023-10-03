@@ -158,7 +158,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
             elif event_type == "end_game":
                 unparsed_result = event_data[0]
                 hand_is_hidden = [len(hand.open_part) == 0 for hand in kyoku.hands]
-                kyoku.result = parse_result(unparsed_result, kyoku.round, metadata.num_players, hand_is_hidden, [h.kita_count for h in kyoku.hands])
+                kyoku.result = parse_result(unparsed_result, kyoku.round, metadata.num_players, hand_is_hidden, [h.kita_count for h in kyoku.hands], kyoku.rules.kiriage_mangan)
                 kyoku.events.append((0, "result", *kyoku.result))
                 # emit events for placement changes
                 placement_before = to_placement(kyoku.start_scores)
@@ -198,7 +198,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
         # debug_yaku(kyoku)
     return kyokus
 
-def parse_result(result: List[Any], round: int, num_players: int, hand_is_hidden: List[bool], kita_counts: List[int]) -> Tuple[Any, ...]:
+def parse_result(result: List[Any], round: int, num_players: int, hand_is_hidden: List[bool], kita_counts: List[int], kiriage: bool) -> Tuple[Any, ...]:
     """
     Given a Tenhou game result list, parse it into a tuple where the first
     element is either "ron", "tsumo", or "draw"; the remainder of the tuple
@@ -220,6 +220,7 @@ def parse_result(result: List[Any], round: int, num_players: int, hand_is_hidden
                 "score": Score.from_tenhou_list(tenhou_result_list=tenhou_result_list,
                                                 round=round,
                                                 num_players=num_players,
+                                                kiriage=kiriage,
                                                 kita=kita_counts[winner]),
                 "pao_from": None if winner == pao_seat else pao_seat,
             }
