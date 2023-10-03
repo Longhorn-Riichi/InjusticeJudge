@@ -212,6 +212,7 @@ class GameRules:
     head_bump: bool = False           # whether head bump is enabled
     renhou: bool = False              # whether renhou is enabled
     kiriage_mangan: bool = False      # whether kiriage mangan is enabled
+    nagashi_mangan: bool = True       # whether nagashi mangan is enabled
     @classmethod
     def from_majsoul_detail_rule(cls, rules):
         return cls(use_red_fives = rules.get("doraCount", 3) > 0,
@@ -219,6 +220,7 @@ class GameRules:
                    head_bump = rules.get("haveToutiao", False),
                    renhou = rules.get("enableRenhe", False),
                    kiriage_mangan = rules.get("haveQieshangmanguan", False),
+                   nagashi_mangan = rules.get("haveLiujumanguan", True),
                    )
     @classmethod
     def from_tenhou_rules(cls, rule, csrule):
@@ -234,6 +236,7 @@ class GameRules:
                    head_bump = 0x00002000 & rule2 != 0,
                    renhou = 0x01000000 & rule2 != 0,
                    kiriage_mangan = 0x00000002 & rule2 != 0,
+                   nagashi_mangan = 0x00000001 & rule2 != 0,
                    )
 @dataclass
 class GameMetadata:
