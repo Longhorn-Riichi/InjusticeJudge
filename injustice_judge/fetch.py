@@ -420,7 +420,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             dora_indicators = [convert_tile(dora) for dora in action.doras]
         elif name == "RecordDealTile":
             events.append((action.seat, "draw", convert_tile(action.tile)))
-            dora_indicators.extend(convert_tile(dora) for dora in action.doras)
+            if len(action.doras) > 0:
+                dora_indicators = [convert_tile(dora) for dora in action.doras]
         elif name == "RecordDiscardTile":
             tile = convert_tile(action.tile)
             events.append((action.seat, "riichi" if action.is_liqi else "discard", tile))
