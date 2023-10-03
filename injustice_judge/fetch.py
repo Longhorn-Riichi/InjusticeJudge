@@ -67,13 +67,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
         shanten_before_last_draw: List[Shanten] = []
         num_doras = 1
         flip_kan_dora_next_discard = False
-        def flip_kan_dora(call_info: CallInfo):
-            nonlocal num_doras
-            # need to check if there's dora since it's possible to have called kan and not reveal a dora
-            # (it's when you kan, but win on rinshan before the dora flip)
-            if num_doras < len(dora_indicators):
-                kyoku.events.append((seat, "dora_indicator", dora_indicators[num_doras], call_info))
-            num_doras += 1
         def update_shanten(seat):
             old_shanten = shanten_before_last_draw[seat]
             new_shanten = kyoku.hands[seat].shanten
@@ -164,10 +157,10 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                     kyoku.final_ukeire.append(ukeire)
             # flip kan dora
             if flip_kan_dora_next_discard and event_type in {"discard", "riichi"}:
-                flip_kan_dora(CallInfo(event_type, called_tile, call_dir, call_tiles))
+                num_doras += 1
             if event_type in {"minkan", "ankan", "kakan"}:
                 if metadata.rules.immediate_kan_dora:
-                    flip_kan_dora(CallInfo(event_type, called_tile, call_dir, call_tiles))
+                    num_doras += 1
                 else:
                     flip_kan_dora_next_discard = True
 

@@ -177,15 +177,16 @@ class KyokuInfo:
     """
     kyoku: Kyoku
     num_players: int
-    tiles_in_wall: int        = 0
-    starting_doras: List[int] = field(default_factory=list)
-    current_doras: List[int]  = field(default_factory=list)
-    at: List[KyokuPlayerInfo] = field(default_factory=list)
-    visible_tiles: List[int]  = field(default_factory=list)
-    flags: List[List[Flags]]  = field(default_factory=list)
-    data: List[List[Any]]     = field(default_factory=list)
-    global_flags: List[Flags] = field(default_factory=list)
-    global_data: List[Any]    = field(default_factory=list)
+    tiles_in_wall: int              = 0
+    pending_kan: Optional[CallInfo] = None
+    starting_doras: List[int]       = field(default_factory=list)
+    current_doras: List[int]        = field(default_factory=list)
+    at: List[KyokuPlayerInfo]       = field(default_factory=list)
+    visible_tiles: List[int]        = field(default_factory=list)
+    flags: List[List[Flags]]        = field(default_factory=list)
+    data: List[List[Any]]           = field(default_factory=list)
+    global_flags: List[Flags]       = field(default_factory=list)
+    global_data: List[Any]          = field(default_factory=list)
     def get_visible_tiles(self) -> List[int]:
         return self.visible_tiles \
              + [DORA_INDICATOR[dora] for dora in self.current_doras if dora not in {51,52,53}]
@@ -344,12 +345,7 @@ class KyokuInfo:
                 if best_score is not None:
                     self.add_flag(chii_seat, Flags.CHII_GOT_OVERRIDDEN, chii_data)
 
-        # if our resulting calls contain 3+ dora, add a flag
-        num_dora = sum(self.current_doras.count(tile) for call in self.at[seat].hand.calls for tile in call.tiles)
-        if num_dora >= 3:
-            self.add_flag(seat, Flags.CALLS_CONTAIN_THREE_DORA, {"amount": num_dora})
-            self.add_global_flag(Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, {"seat": seat, "amount": num_dora})
-
+        self._process_call(seat, event_type, called_tile, call_tiles, call_dir)
         self._process_draw_call(i, seat, event_type, called_tile, prev_hand)
 
     def _process_draw_call(self, i: int, seat: int, event_type: str, tile: int, prev_hand: Hand) -> None:
@@ -399,11 +395,7 @@ class KyokuInfo:
                     ukeire = last_tenpai_data["ukeire"]
                     if tile in wait:
                         self.add_flag(player, Flags.ANKAN_ERASED_TENPAI_WAIT, {"tile": tile, "wait": wait, "caller": seat, "ukeire": ukeire})
-        # if our resulting calls contain 3+ dora, add a flag
-        num_dora = sum(self.current_doras.count(tile) for call in self.at[seat].hand.calls for tile in call.tiles)
-        if num_dora >= 3:
-            self.add_flag(seat, Flags.CALLS_CONTAIN_THREE_DORA, {"amount": num_dora})
-            self.add_global_flag(Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, {"seat": seat, "amount": num_dora})
+        self._process_call(seat, event_type, called_tile, call_tiles, call_dir)
 
     def process_discard(self, i: int, seat: int, event_type: str, tile: int) -> None:
         if event_type == "riichi":
@@ -453,6 +445,10 @@ class KyokuInfo:
                      if any(tile in wait for tile in self.at[seat].hand.hidden_part)}
             if all(any(tile in wait for wait in waits.values()) for tile in self.at[seat].hand.hidden_part):
                 self.add_flag(seat, Flags.YOUR_TILES_ALL_DEAL_IN, {"hand": prev_hand, "waits": waits})
+        # flip kan dora, if needed
+        if self.pending_kan is not None:
+            self._process_new_dora(seat, self.pending_kan)
+            self.pending_kan = None
 
         # check if this was tsumogiri honors (and you're not going for nagashi)
         is_tsumogiri = tile == self.at[seat].last_draw
@@ -634,20 +630,6 @@ class KyokuInfo:
             # filter for only the waits that let you reach kazoe yakuman
             kazoe_waits = {wait for wait, score in all_scores.items() if score.han >= 13}
             self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": {f"kazoe yakuman ({', '.join(y for y, _ in best_score.yaku)})"}, "waits": kazoe_waits})
-
-    def process_new_dora(self, i: int, seat: int, event_type: str,
-                         dora_indicator: int, kan_call: CallInfo) -> None:
-        dora = DORA[dora_indicator]
-        self.current_doras.append(dora)
-        # check if that just gave us 4 dora
-        if self.at[seat].hand.tiles_with_kans.count(dora) == 4:
-            self.add_flag(seat, Flags.YOU_FLIPPED_DORA_BOMB, {"doras": self.current_doras.copy(), "call": kan_call, "hand": self.at[seat].hand})
-        # if anyone's resulting calls contain 3+ dora, add a flag
-        for player in range(self.num_players):
-            num_dora = sum(self.current_doras.count(tile) for call in self.at[player].hand.calls for tile in call.tiles)
-            if num_dora >= 3:
-                self.add_flag(player, Flags.CALLS_CONTAIN_THREE_DORA, {"amount": num_dora})
-                self.add_global_flag(Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, {"seat": player, "amount": num_dora})
 
     def process_start_game(self, i: int, seat: int, event_type: str,
                            round: int, honba: int, riichi_sticks: int, scores: List[int]) -> None:
@@ -964,6 +946,36 @@ class KyokuInfo:
             if end_points >= 2 * self.kyoku.get_starting_score():
                 self.add_flag(player, Flags.REACHED_DOUBLE_STARTING_POINTS, {"points": end_points})
 
+    def _process_call(self, seat: int, event_type: str, called_tile: int, call_tiles: List[int], call_dir: Dir) -> None:
+        # flip kan dora, if needed
+        if event_type in {"minkan", "ankan", "kakan"}:
+            kan_call = CallInfo(event_type, called_tile, call_dir, call_tiles)
+            if self.kyoku.rules.immediate_kan_dora:
+                self._process_new_dora(seat, kan_call)
+            else:
+                self.pending_kan = kan_call
+        # if our resulting calls contain 3+ dora, add a flag
+        num_dora = sum(self.current_doras.count(tile) for call in self.at[seat].hand.calls for tile in call.tiles)
+        if num_dora >= 3:
+            self.add_flag(seat, Flags.CALLS_CONTAIN_THREE_DORA, {"amount": num_dora})
+            self.add_global_flag(Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, {"seat": seat, "amount": num_dora})
+
+    def _process_new_dora(self, seat: int, kan_call: CallInfo) -> None:
+        # need to check if there's dora since it's possible to have called kan and not reveal a dora
+        # (it's when you kan, but win on rinshan before the dora flip)
+        if len(self.current_doras) < len(self.kyoku.doras):
+            dora = self.kyoku.doras[len(self.current_doras)]
+            self.current_doras.append(dora)
+            # check if that just gave us 4 dora
+            if self.at[seat].hand.tiles_with_kans.count(dora) == 4:
+                self.add_flag(seat, Flags.YOU_FLIPPED_DORA_BOMB, {"doras": self.current_doras.copy(), "call": kan_call, "hand": self.at[seat].hand})
+            # if anyone's resulting calls contain 3+ dora, add a flag
+            for player in range(self.num_players):
+                num_dora = sum(self.current_doras.count(tile) for call in self.at[player].hand.calls for tile in call.tiles)
+                if num_dora >= 3:
+                    self.add_flag(player, Flags.CALLS_CONTAIN_THREE_DORA, {"amount": num_dora})
+                    self.add_global_flag(Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, {"seat": player, "amount": num_dora})
+
 def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]]]:
     """
     Analyze a parsed kyoku by spitting out an ordered list of all interesting facts about it (flags)
@@ -1024,8 +1036,6 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             prev_shanten, new_shanten, hand, ukeire, furiten = event_data
             if new_shanten[0] == 0:
                 info.process_tenpai(i, *event)
-        elif event_type == "dora_indicator":
-            info.process_new_dora(i, *event)
         elif event_type == "start_game":
             # check if anyone's starting shanten is 2 worse than everyone else
             info.process_start_game(i, *event)
