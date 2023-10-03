@@ -443,11 +443,12 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Shanten:
         ankan_tiles = {k for k, v in ctr.items() if v == 4}
         waits -= ankan_tiles
         # in the rare case that this removes all our waits
-        #   make it tanki iishanten waiting on every tile but that
-        #   (because it's a tanki wait on ankan)
+        #   make it tanki iishanten waiting on every tile
+        #   except for ones for which we already have 3 or 4 of
+        #   (because we need to replace ankan with a tanki)
         if len(waits) == 0 and len(ankan_tiles) > 0:
             shanten = 1.3
-            waits = (TANYAOHAI | YAOCHUUHAI) - ankan_tiles
+            waits = (TANYAOHAI | YAOCHUUHAI) - {k for k, v in ctr.items() if v >= 3}
 
     assert all(red not in waits for red in {51,52,53}), f"somehow returned a waits list with red five: {ph(sorted_hand(waits))}"
     timers["total"] += time.time() - start_time

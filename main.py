@@ -26,7 +26,7 @@ if __name__ == "__main__":
     # # shanten tests
     # from injustice_judge.display import ph, shanten_name
     # from injustice_judge.shanten import calculate_shanten
-    # hand = (24, 24, 52, 27, 28, 29, 33, 34, 35, 53, 37, 38, 39)
+    # hand = (11,11,12,12,13,13,15,15,15,15,19,19,19)
     # shanten = calculate_shanten(hand)
     # print(ph(hand), shanten, shanten_name(shanten))
 
@@ -76,12 +76,19 @@ if __name__ == "__main__":
     # assert calculate_shanten((15,16,16,17,24,24,52,27,27,35,53,37,37))[0] == 1.1
     # assert calculate_shanten((15,16,16,17,24,24,52,27,27,35,53,36,39))[0] == 2
     # assert calculate_shanten((15,15,16,16,17,17,23,23,24,24,25,37,37))[0] == 0 # ryanpeikou tenpai
+    # assert calculate_shanten((11,13,13,15,15,17,17,19,19,21,21,21,21))[0] == 2
+    # assert calculate_shanten((11,11,13,13,15,15,17,17,19,19,21,21,21))[0] == 1.1
+    # assert calculate_shanten((11,11,11,13,13,13,15,15,17,17,19,19,21))[0] == 1.001
+    # assert calculate_shanten((11,13,13,15,15,17,17,19,19,19,21,21,21))[0] == 1.002
     # test_shanten((15,15,16,16,17,17,23,23,24,24,25,31,39), (1.110, (22,25,31,39))) # 556677m33445p19s  ryanpeikou iishanten
     # print("kokushi musou iishanten:")
     # test_shanten((11,11,19,21,29,31,39,41,42,43,44,45,46), (0, (47,))) # kokushi musou tenpai
     # test_shanten((11,19,21,29,31,39,41,42,43,44,45,46,47), (0, (11,19,21,29,31,39,41,42,43,44,45,46,47))) # kokushi musou 13-sided tenpai
     # assert calculate_shanten((14,19,21,29,29,31,39,41,42,44,45,46,47))[0] == 1.2 # kokushi musou iishanten
     # assert calculate_shanten((19,19,21,29,29,31,39,41,42,44,46,46,47))[0] == 2
+    # print("tanki iishanten:")
+    # test_shanten((12,13,14,16,16,16,16,26,26,26,36,37,38), (1.3, (11,12,13,14,15,17,18,19,21,22,23,24,25,27,28,29,31,32,33,34,35,36,37,38,39,41,42,43,44,45,46,47))) # 2346666m666p678s tanki iishanten
+    # test_shanten((11,11,12,12,13,13,15,15,15,15,19,19,19), (1.3, (11,12,13,14,16,17,18,21,22,23,24,25,26,27,28,29,31,32,33,34,35,36,37,38,39,41,42,43,44,45,46,47))) # 11223355559999m11z tanki iishanten
     # print("2+ shanten:")
     # assert calculate_shanten((12,13,14,22,23,52,27,28,28,34,35,38,38))[0] == 2   # 234m230788p4588s  2-shanten
     # assert calculate_shanten((11,19,23,24,25,31,32,35,36,37,38,43,43))[0] == 2   # 19m345p125678s33z  2-shanten
