@@ -63,7 +63,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
     for events, dora_indicators, ura_indicators in zip(all_events, metadata.dora_indicators, metadata.ura_indicators):
         assert len(events) > 0, "somehow got an empty events list"
         kyoku: Kyoku = Kyoku(rules=metadata.rules)
-        nagashi_eligible: List[int] = [True] * metadata.num_players
         visible_tiles: List[int] = []
         shanten_before_last_draw: List[Shanten] = []
         num_doras = 1
@@ -122,10 +121,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 visible_tiles.append(tile)
                 kyoku.pond[seat].append(tile)
                 update_shanten(seat)
-                # check for nagashi
-                if nagashi_eligible[seat] and tile not in YAOCHUUHAI:
-                    kyoku.events.append((seat, "end_nagashi", seat, "discard", tile))
-                    nagashi_eligible[seat] = False
             elif event_type in {"chii", "pon", "minkan"}: # calls
                 called_tile, call_tiles, call_dir = event_data
                 shanten_before_last_draw[seat] = kyoku.hands[seat].shanten
@@ -133,11 +128,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                     kyoku.hands[seat] = kyoku.hands[seat].add(called_tile)
                     assert len(kyoku.hands[seat].tiles) == 14
                 kyoku.hands[seat] = kyoku.hands[seat].add_call(CallInfo(event_type, called_tile, call_dir, call_tiles))
-                # check for nagashi
-                callee_seat = (seat + call_dir) % 4
-                if nagashi_eligible[callee_seat]:
-                    kyoku.events.append((seat, "end_nagashi", callee_seat, event_type, called_tile))
-                    nagashi_eligible[callee_seat] = False
             elif event_type in {"ankan", "kakan", "kita"}: # special discards
                 called_tile, call_tiles, call_dir = event_data
                 shanten_before_last_draw[seat] = kyoku.hands[seat].shanten

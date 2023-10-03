@@ -290,6 +290,13 @@ class KyokuInfo:
             self.at[seat].hand = self.at[seat].hand.add(called_tile)
         call = CallInfo(event_type, called_tile, call_dir, call_tiles)
         self.at[seat].hand = self.at[seat].hand.add_call(call)
+        # end their nagashi
+        callee_seat = (seat + call_dir) % 4
+        if self.at[callee_seat].nagashi:
+            self.at[callee_seat].nagashi = False
+            # check if this happened after our final draw (if the game ended in ryuukyoku)
+            if self.kyoku.result[0] == "ryuukyoku" and i > self.kyoku.final_draw_event_index[seat]:
+                self.add_flag(callee_seat, Flags.YOUR_LAST_NAGASHI_TILE_CALLED, {"tile": called_tile, "caller": seat})
         if event_type in {"pon", "minkan"}:
             # for everyone whose turn was skipped, add Flags.TURN_SKIPPED_BY_PON
             if call_dir in {Dir.TOIMEN, Dir.SHIMOCHA}:
@@ -405,12 +412,18 @@ class KyokuInfo:
         self.at[seat].hand = self.at[seat].hand.remove(tile)
         self.visible_tiles.append(tile)
         self.at[seat].pond.append(tile)
-        # check if this makes us furiten
-        if self.at[seat].hand.shanten[0] == 0 and normalize_red_five(tile) in self.at[seat].hand.shanten[1]:
-            self.at[seat].furiten = True
         self.at[seat].num_discards += 1
         self.at[seat].last_discard = tile
         self.at[seat].last_discard_was_riichi = event_type == "riichi"
+        # check if this makes us furiten
+        if self.at[seat].hand.shanten[0] == 0 and normalize_red_five(tile) in self.at[seat].hand.shanten[1]:
+            self.at[seat].furiten = True
+        # check if this ends our nagashi
+        if self.at[seat].nagashi and tile not in YAOCHUUHAI:
+            self.at[seat].nagashi = False
+            # check if this happened after our final draw (if the game ended in ryuukyoku)
+            if self.kyoku.result[0] == "ryuukyoku" and i > self.kyoku.final_draw_event_index[seat]:
+                self.add_flag(seat, Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI, {"tile": tile})
         # add riichi flag
         if event_type == "riichi" and self.num_players == 4:
             self.at[seat].in_riichi = True
@@ -477,15 +490,6 @@ class KyokuInfo:
         # add to genbutsu for this player + all the riichi players
         for player in {player for player, at in enumerate(self.at) if at.in_riichi} | {seat}:
             self.at[player].genbutsu.add(tile)
-
-    def process_end_nagashi(self, i: int, seat: int, event_type: str, who: int, reason: str, tile: int) -> None:
-        self.at[who].nagashi = False
-        # check if this happened after our final draw (if the game ended in ryuukyoku)
-        if self.kyoku.result[0] == "ryuukyoku" and i > self.kyoku.final_draw_event_index[seat]:
-            if reason == "discard":
-                self.add_flag(who, Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI, {"tile": tile})
-            elif reason in {"minkan", "pon", "chii"}:
-                self.add_flag(who, Flags.YOUR_LAST_NAGASHI_TILE_CALLED, {"tile": tile, "caller": seat})
 
     def process_shanten_change(self, i: int, seat: int, event_type: str,
                                prev_shanten: Shanten, new_shanten: Shanten,
@@ -1008,8 +1012,6 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                     furiten = info.at[seat].furiten)
         elif event_type in {"discard", "riichi"}:
             info.process_discard(i, *event[:3]) # riichi has extra args we don't care about
-        elif event_type == "end_nagashi":
-            info.process_end_nagashi(i, *event)
         elif event_type == "shanten_change":
             info.process_shanten_change(i, *event)
             # check for tenpai
