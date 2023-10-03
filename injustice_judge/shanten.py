@@ -414,28 +414,29 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Shanten:
 
     # compare with chiitoitsu and kokushi shanten
     ctr = Counter(normalize_red_fives(starting_hand))
-    (c_shanten, c_waits) = calculate_chiitoitsu_shanten(starting_hand, ctr)
-    (k_shanten, k_waits) = calculate_kokushi_shanten(starting_hand, ctr)
-    if c_shanten <= shanten:
-        # take the min, unless we're iishanten in which case we add 0.1 to the shanten
-        if c_shanten == 1 and shanten >= 1 and shanten < 2:
-            shanten += 0.1
-            waits |= set(c_waits)
-        elif c_shanten < shanten:
-            shanten = c_shanten
-            waits = set(c_waits)
-        if shanten == 1:
-            shanten = 1.1
-    if k_shanten < shanten:
-        shanten = k_shanten
-        if shanten == 1:
-            shanten = 1.2
-        waits = set(k_waits)
+    if len(starting_hand) == 13:
+        (c_shanten, c_waits) = calculate_chiitoitsu_shanten(starting_hand, ctr)
+        (k_shanten, k_waits) = calculate_kokushi_shanten(starting_hand, ctr)
+        if c_shanten <= shanten:
+            # take the min, unless we're iishanten in which case we add 0.1 to the shanten
+            if c_shanten == 1 and shanten >= 1 and shanten < 2:
+                shanten += 0.1
+                waits |= set(c_waits)
+            elif c_shanten < shanten:
+                shanten = c_shanten
+                waits = set(c_waits)
+            if shanten == 1:
+                shanten = 1.1
+        if k_shanten < shanten:
+            shanten = k_shanten
+            if shanten == 1:
+                shanten = 1.2
+            waits = set(k_waits)
 
     # at this point, every iishanten and tenpai hand should have waits
     import os
     if os.getenv("debug"):
-        assert not (shanten < 2 and len(waits) == 0), f"somehow no waits for a shanten {shanten} hand"
+        assert not (shanten < 2 and len(waits) == 0), f"somehow no waits for a shanten {shanten} hand: {ph(starting_hand)}"
 
     if shanten < 2:
         # remove all ankan in hand from the waits
