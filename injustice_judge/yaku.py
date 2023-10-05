@@ -137,7 +137,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Shanten, is_clos
 
     # honroutou: check that all of the hand is terminal/honors
     # then every terminal/honor wait gives honroutou
-    non_honroutou_waits = waits
+    non_honroutou_waits = set(waits)
     if set(full_hand).issubset(YAOCHUUHAI):
         non_honroutou_waits -= YAOCHUUHAI
         for wait in waits & YAOCHUUHAI:
