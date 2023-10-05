@@ -1,5 +1,5 @@
 from .classes2 import Kyoku, Ron, Score, Tsumo
-from .constants import PLACEMENTS, SHANTEN_NAMES
+from .constants import DORA_INDICATOR, PLACEMENTS, SHANTEN_NAMES
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
@@ -1058,6 +1058,21 @@ def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], k
         else:
             what_happened = f"then someone ended the game with {draw_name}"
             last_subject = "someone"
+    # identify the location of the remaining waits
+    visible_tiles = [tile for seat in range(kyoku.num_players) for tile in kyoku.pond[seat]] \
+                  + [DORA_INDICATOR[dora] for dora in kyoku.doras if dora not in {51,52,53}] \
+                  + [tile for hand in kyoku.hands for call in hand.calls for tile in call.tiles]
+    all_waits = {wait for _, waits in yakuman_waits for wait in waits}
+    visible_waits = {wait: visible_tiles.count(wait) for wait in all_waits}
+    held_waits = {wait: [kyoku.hands[seat].hidden_part.count(wait) for seat in range(kyoku.num_players)] for wait in all_waits}
+    total_held_waits = [sum(v[seat] for k, v in held_waits.items()) for seat in range(kyoku.num_players)]
+    ukeire = 4 * len(all_waits) - sum(visible_waits.values()) - total_held_waits[player]
+    if ukeire > 0:
+        # some waits are in players' hands or dead wall
+        if sum(total_held_waits) - total_held_waits[player] == ukeire:
+            players_holding_waits = [seat for seat in range(kyoku.num_players) if seat != player and total_held_waits[seat] > 0]
+            what_happened += ", because " + " and ".join(relative_seat_name(player, seat) for seat in players_holding_waits) + " held all your waits"
+    # detail = ", ".join(players_holding_waits)
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="reached",
