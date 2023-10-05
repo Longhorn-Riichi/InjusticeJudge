@@ -208,8 +208,9 @@ def parse_result(result: List[Any], round: int, num_players: int, hand_is_hidden
         return ("ron", *rons)
     elif result_type in ({"流局", "全員聴牌", "全員不聴", "流し満貫"} # exhaustive draws
                        | {"九種九牌", "四家立直", "三家和了", "四槓散了", "四風連打"}): # abortive draws
-        return ("draw", Draw(score_delta = scores[0][0] if len(scores) > 0 else [0]*num_players,
-                             name = TRANSLATE[result_type]))
+        draw_type = "ryuukyoku" if result_type in {"流局", "全員聴牌", "全員不聴"} else "draw"
+        return (draw_type, Draw(score_delta = scores[0][0] if len(scores) > 0 else [0]*num_players,
+                                name = TRANSLATE[result_type]))
     else:
         assert False, f"unhandled Tenhou result type {result_type}"
 

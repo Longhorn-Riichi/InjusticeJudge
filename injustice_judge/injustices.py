@@ -1051,13 +1051,12 @@ def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], k
         tsumo = data[flags.index(Flags.GAME_ENDED_WITH_TSUMO)]["object"]
         what_happened = f"then {relative_seat_name(player, tsumo.winner)} just had to tsumo"
         last_subject = relative_seat_name(player, tsumo.winner)
+    elif Flags.GAME_ENDED_WITH_RYUUKYOKU in flags:
+        what_happened = f"you never got it"
     elif Flags.GAME_ENDED_WITH_ABORTIVE_DRAW in flags:
         draw_name = data[flags.index(Flags.GAME_ENDED_WITH_ABORTIVE_DRAW)]["object"].name
-        if draw_name == "ryuukyoku":
-            what_happened = f"you never got it"
-        else:
-            what_happened = f"then someone ended the game with {draw_name}"
-            last_subject = "someone"
+        what_happened = f"then someone ended the game with {draw_name}"
+        last_subject = "someone"
     # identify the location of the remaining waits
     visible_tiles = [tile for seat in range(kyoku.num_players) for tile in kyoku.pond[seat]] \
                   + [DORA_INDICATOR[dora] for dora in kyoku.doras if dora not in {51,52,53}] \
@@ -1071,7 +1070,8 @@ def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], k
         # some waits are in players' hands or dead wall
         if sum(total_held_waits) - total_held_waits[player] == ukeire:
             players_holding_waits = [seat for seat in range(kyoku.num_players) if seat != player and total_held_waits[seat] > 0]
-            what_happened += ", because " + " and ".join(relative_seat_name(player, seat) for seat in players_holding_waits) + " held all your waits"
+            conjunction = "because" if Flags.GAME_ENDED_WITH_RYUUKYOKU in flags else "while"
+            what_happened += f", {conjunction} " + " and ".join(relative_seat_name(player, seat) for seat in players_holding_waits) + " held all your waits"
     # detail = ", ".join(players_holding_waits)
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",

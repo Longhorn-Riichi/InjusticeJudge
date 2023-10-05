@@ -721,7 +721,7 @@ class KyokuInfo:
         # here we add all flags that have to do with ryuukyoku
         elif result_type == "ryuukyoku":
             draw = results[0]
-            assert isinstance(draw, Draw), f"result tagged draw got non-Draw object: {draw}"
+            assert isinstance(draw, Draw), f"result tagged ryuukyoku got non-Draw object: {draw}"
             self._process_ryuukyoku_result(draw)
             self.add_global_flag(Flags.GAME_ENDED_WITH_RYUUKYOKU, {"object": draw})
 
@@ -732,10 +732,7 @@ class KyokuInfo:
             draw = results[0]
             assert isinstance(draw, Draw), f"result tagged draw got non-Draw object: {draw}"
             self._process_draw_result(draw)
-            self.add_global_flag(Flags.GAME_ENDED_WITH_RYUUKYOKU, {"object": draw})
-
-        elif result_type == "draw":
-            self.add_global_flag(Flags.GAME_ENDED_WITH_ABORTIVE_DRAW, {"object": self.kyoku.result[1]})
+            self.add_global_flag(Flags.GAME_ENDED_WITH_ABORTIVE_DRAW, {"object": draw})
 
     def _process_ron_result(self, ron: Ron, num_rons: int) -> None:
         # check deal-ins
