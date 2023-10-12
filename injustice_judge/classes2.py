@@ -4,7 +4,7 @@ import functools
 from typing import *
 
 from .classes import CallInfo, Dir, GameRules, Interpretation
-from .constants import Event, Shanten, MANZU, PINZU, SOUZU, PRED, SUCC, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
+from .constants import Event, Shanten, MANZU, PINZU, SOUZU, PRED, SUCC, DOUBLE_YAKUMAN, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
 from .display import ph, pt, shanten_name
 from .utils import is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten
@@ -217,9 +217,11 @@ class Score:
                 self.yaku[i] = new_dora
         self.han += amount
     def count_yakuman(self):
-        double = ("kokushi musou 13-sided", "suuankou tanki", "junsei chuurenpoutou")
+        # check for 13 han yaku and that it isn't like "dora 13" or something
+        # (because dora shouldn't turn it into double yakuman)
+        # plus one for each yaku that is double yakuman
         return sum(1 for name, value in self.yaku if value == 13 and "13" not in name) \
-             + sum(1 for name, _ in self.yaku if name in double)
+             + sum(1 for name, _ in self.yaku if name in DOUBLE_YAKUMAN)
     def to_points(self) -> int:
         yakuman_factor = self.count_yakuman() or 1
         han = 5 if self.kiriage and (self.han, self.fu) in ((4,30), (3,60)) else self.han

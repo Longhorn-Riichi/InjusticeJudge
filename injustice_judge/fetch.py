@@ -7,7 +7,7 @@ from google.protobuf.json_format import MessageToDict  # type: ignore[import]
 from typing import *
 from .classes import CallInfo, GameRules, GameMetadata, Dir
 from .classes2 import Draw, Hand, Kyoku, Ron, Score, Tsumo
-from .constants import Event, Shanten, DORA, LIMIT_HANDS, TRANSLATE, YAKU_NAMES, YAKUMAN, YAOCHUUHAI
+from .constants import Event, Shanten, DORA, LIMIT_HANDS, MAJSOUL_YAKU, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, round_name
 from .utils import apply_delta_scores, is_mangan, normalize_red_five, sorted_hand, to_placement
 from .yaku import debug_yaku
@@ -453,7 +453,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             for h in action.hules:
                 han = sum(fan.val for fan in h.fans)
                 score_string = f"{h.fu}符{han}飜"
-                if any(fan.id in YAKUMAN.keys() for fan in h.fans):
+                if any(TRANSLATE[MAJSOUL_YAKU[fan.id]] in YAKUMAN for fan in h.fans):
                     score_string = "役満"
                 elif han >= 6 or is_mangan(han, h.fu):
                     score_string = LIMIT_HANDS[han]
@@ -467,7 +467,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                             point_string = f"{h.point_zimo_xian}-{h.point_zimo_qin}点"
                         else:
                             point_string = f"{h.point_zimo_xian}点∀"
-                yakus = [name for _, name in sorted((fan.id, f"{YAKU_NAMES[fan.id]}({'役満' if fan.id in YAKUMAN.keys() else str(fan.val)+'飜'})") for fan in h.fans if fan.val)]
+                fan_str = lambda fan: f"{MAJSOUL_YAKU[fan.id]}({'役満' if TRANSLATE[MAJSOUL_YAKU[fan.id]] in YAKUMAN else str(fan.val)+'飜'})"
+                yakus = [name for _, name in sorted((fan.id, fan_str(fan)) for fan in h.fans if fan.val)]
                 result.append(list(action.delta_scores))
                 result.append([h.seat, last_seat, pao_seat, score_string+point_string, *yakus])
                 dora_indicators = majsoul_hand_to_tenhou_unsorted(h.doras)

@@ -628,7 +628,7 @@ class KyokuInfo:
         yakuman_types: Set[str] = {t for t, waits in yakuman_waits if not all(visible.count(wait) == 4 for wait in waits)}
         if len(yakuman_types) > 0:
             self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": yakuman_types, "waits": yakuman_waits})
-        elif han >= 13 and not any(y in map(TRANSLATE.get, YAKUMAN.values()) for y, _ in best_score.yaku):
+        elif han >= 13 and not any(y in YAKUMAN for y, _ in best_score.yaku):
             # filter for only the waits that let you reach kazoe yakuman
             kazoe_waits = {wait for wait, score in all_scores.items() if score.han >= 13}
             self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": {f"kazoe yakuman ({', '.join(y for y, _ in best_score.yaku)})"}, "waits": kazoe_waits})
