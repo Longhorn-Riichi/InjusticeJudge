@@ -26,18 +26,18 @@ def try_remove_all_tiles(hand: Tuple[int, ...], tiles: Tuple[int, ...]) -> Tuple
             return orig_hand
     return hand
 
-def get_score(han: int, fu: int, is_dealer: bool, is_tsumo: bool, num_players: int):
+def get_score(han: int, fu: int, is_dealer: bool, is_tsumo: bool, num_players: int) -> int:
     if is_tsumo:
-        oya = OYA_TSUMO_SCORE[han][fu]  # type: ignore[index]
-        ko = KO_TSUMO_SCORE[han][fu]  # type: ignore[index]
+        oya: int = OYA_TSUMO_SCORE[han][fu]  # type: ignore[index]
+        ko: int = KO_TSUMO_SCORE[han][fu]  # type: ignore[index]
         return oya + (oya if is_dealer else ko) * (num_players - 2)
     else:
-        return (OYA_RON_SCORE if is_dealer else KO_RON_SCORE)[han][fu]  # type: ignore[index]
+        return cast(int, (OYA_RON_SCORE if is_dealer else KO_RON_SCORE)[han][fu])  # type: ignore[index]
 
 apply_delta_scores = lambda scores, delta_score: [score + delta for score, delta in zip(scores, delta_score)]
 to_placement = lambda scores: (ixs := sorted(range(len(scores)), key=lambda x: -scores[x]), [ixs.index(p) for p in range(len(scores))])[1]
 
-def get_taatsu_wait(taatsu: Tuple[int, int]) -> Set[int]:
+def get_taatsu_wait(taatsu: Tuple[int, ...]) -> Set[int]:
     t1, t2 = normalize_red_fives(taatsu)
     return {PRED[t1], SUCC[t2]} - {0} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
 

@@ -120,7 +120,7 @@ chiitoi_replacement_waits = lambda ctr: sorted_hand((TANYAOHAI | YAOCHUUHAI) - {
 # when the wait is all the single tiles we have in hand
 chiitoi_single_tiles = lambda ctr: sorted_hand(k for k, v in ctr.items() if v == 1)
 
-def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Shanten:
+def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter[int]) -> Shanten:
     # get chiitoitsu waits (iishanten or tenpai) and label iishanten type
     # note: ctr = Counter(normalize_red_fives(starting_hand))
     counts = tuple(ctr.values())
@@ -131,7 +131,7 @@ def calculate_chiitoitsu_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -
     waits = () if shanten > 1 else chiitoi_replacement_waits(ctr) if useless_tiles >= tiles_needed else chiitoi_single_tiles(ctr)
     return shanten, waits
 
-def calculate_kokushi_shanten(starting_hand: Tuple[int, ...], ctr: Counter) -> Shanten:
+def calculate_kokushi_shanten(starting_hand: Tuple[int, ...], ctr: Counter[int]) -> Shanten:
     # get kokushi waits (iishanten or tenpai) and label iishanten type
     # note: ctr = Counter(normalize_red_fives(starting_hand))
     has_pair = len([v for v in ctr.values() if v > 1]) >= 1
@@ -279,7 +279,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
 
     complete_waits = set()
     is_perfect_iishanten = False
-    def add_complex_hand(complex_shape, pair_shape, other_tiles):
+    def add_complex_hand(complex_shape: Tuple[int, ...], pair_shape: Tuple[int, ...], other_tiles: Tuple[int, ...]) -> None:
         nonlocal complete_waits
         nonlocal is_perfect_iishanten
         is_pair = lambda h: len(h) == 2 and h[0] == h[1]
@@ -300,7 +300,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
         complete_waits |= ({t2[0], pair_shape[0]} if is_pair(t2) else set())
 
     floating_waits = set()
-    def add_floating_hand(pair_shape, other_tiles):
+    def add_floating_hand(pair_shape: Tuple[int, ...], other_tiles: Tuple[int, ...]) -> None:
         nonlocal floating_waits
         h = (*pair_shape, *other_tiles)
         assert len(other_tiles) == 5
@@ -308,7 +308,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
         # shanpon waits are all pairs in the hand where removing it doesn't leave you with 3 floating tiles
         for i, tile in enumerate(other_tiles[:-1]):
             if other_tiles[i+1] == tile: # pair
-                t1,t2,t3 = (*other_tiles[:i],*other_tiles[i+2:])  # type: ignore[misc]
+                t1,t2,t3 = (*other_tiles[:i],*other_tiles[i+2:])
                 if t2 in (t1,SUCC[t1],SUCC[SUCC[t1]]) or t3 in (t2,SUCC[t2],SUCC[SUCC[t2]]):
                     floating_waits.add(tile)
                     floating_waits.add(pair_shape[0])

@@ -1,5 +1,5 @@
 from .classes2 import Kyoku, Ron, Score, Tsumo
-from .constants import DORA_INDICATOR, PLACEMENTS, SHANTEN_NAMES
+from .constants import Shanten, DORA_INDICATOR, PLACEMENTS, SHANTEN_NAMES
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
@@ -167,10 +167,10 @@ def evaluate_game(kyoku: Kyoku, players: Set[int], player_names: List[str], look
 
 checks: List[Dict[str, Any]] = []
 CheckFunc = Callable[[List[Flags], List[Dict[str, Any]], Kyoku, int], List[Injustice]]
-def make_check_decorator(check_type: str) -> Callable:
+def make_check_decorator(check_type: str) -> Callable[..., Callable[..., CheckFunc]]:
     def check_decorator(require: List[Flags] = [], forbid: List[Flags] = []) -> Callable[[CheckFunc], CheckFunc]:
         global checks
-        def decorator(callback):
+        def decorator(callback: CheckFunc) -> CheckFunc:
             checks.append({"type": check_type, "callback": callback, "required_flags": require, "forbidden_flags": forbid})
             return callback
         return decorator
@@ -521,7 +521,7 @@ def ended_with_triple_starting_points(flags: List[Flags], data: List[Dict[str, A
 @injustice(require=[Flags.FIVE_SHANTEN_START],
             forbid=[Flags.YOU_GAINED_POINTS, Flags.DREW_WORST_HAIPAI_SHANTEN])
 def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    shanten: Tuple[int, List[int]]
+    shanten: Shanten
     if Flags.FIVE_SHANTEN_START in flags:
         shanten = data[flags.index(Flags.FIVE_SHANTEN_START)]["hand"].shanten
     elif Flags.DREW_WORST_HAIPAI_SHANTEN in flags:

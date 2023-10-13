@@ -68,7 +68,7 @@ round_name = lambda rnd, honba: (f"East {rnd+1}" if rnd <= 3 else f"South {rnd-3
 short_round_name = lambda rnd, honba: (f"E{rnd+1}" if rnd <= 3 else f"S{rnd-3}" if rnd <= 7 else f"W{rnd-7}" if rnd <= 11 else f"N{rnd-11}") + f"-{honba}"
 relative_seat_name = lambda you, other: {0: "self", 1: "shimocha", 2: "toimen", 3: "kamicha"}[(other-you)%4]
 
-def shanten_name(shanten: Shanten):
+def shanten_name(shanten: Shanten) -> str:
     if shanten[0] >= 2:
         return SHANTEN_NAMES[shanten[0]]
     else:

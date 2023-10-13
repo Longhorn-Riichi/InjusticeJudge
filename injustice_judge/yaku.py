@@ -145,27 +145,28 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Shanten, is_clos
     # otherwise, we score junchan/chanta
     # junchan: if we remove all junchan groups and we're left with a terminal pair
     # chanta: if not junchan/honroutou and we remove all chanta groups and we're left with a terminal/honor pair
-    TERMINAL_SEQS = set().union(set(zip(range(11,40,10),range(12,40,10),range(13,40,10))),
-                                set(zip(range(21,40,10),range(22,40,10),range(23,40,10))),
-                                set(zip(range(31,40,10),range(32,40,10),range(33,40,10))),
-                                set(zip(range(17,40,10),range(18,40,10),range(19,40,10))),
-                                set(zip(range(27,40,10),range(28,40,10),range(29,40,10))),
-                                set(zip(range(37,40,10),range(38,40,10),range(39,40,10))))
-    JUNCHAN_TRIS = {(t,t,t) for t in {11,19,21,29,31,39}}
-    JUNCHAN_PAIRS = {(t,t) for t in {11,19,21,29,31,39}}
-    CHANTA_TRIS = {(t,t,t) for t in range(41,48)} | JUNCHAN_TRIS
-    CHANTA_PAIRS = {(t,t) for t in range(41,48)} | JUNCHAN_PAIRS
+    TERMINAL_SEQS: Set[Tuple[int, ...]] \
+        = set().union(set(zip(range(11,40,10),range(12,40,10),range(13,40,10))),
+                      set(zip(range(21,40,10),range(22,40,10),range(23,40,10))),
+                      set(zip(range(31,40,10),range(32,40,10),range(33,40,10))),
+                      set(zip(range(17,40,10),range(18,40,10),range(19,40,10))),
+                      set(zip(range(27,40,10),range(28,40,10),range(29,40,10))),
+                      set(zip(range(37,40,10),range(38,40,10),range(39,40,10))))
+    JUNCHAN_TRIS: Set[Tuple[int, ...]] = {(t,t,t) for t in {11,19,21,29,31,39}}
+    JUNCHAN_PAIRS: Set[Tuple[int, ...]] = {(t,t) for t in {11,19,21,29,31,39}}
+    CHANTA_TRIS: Set[Tuple[int, ...]] = {(t,t,t) for t in range(41,48)} | JUNCHAN_TRIS
+    CHANTA_PAIRS: Set[Tuple[int, ...]] = {(t,t) for t in range(41,48)} | JUNCHAN_PAIRS
     # check that every existing group is junchan
     if set(sequences).issubset(TERMINAL_SEQS):
         if set(triplets).issubset(JUNCHAN_TRIS) and (pair_tile is None or pair_tile in {11,19,21,29,31,39}):
             for wait in non_honroutou_waits:
-                if sorted_hand((*taatsu, wait)) in JUNCHAN_TRIS | TERMINAL_SEQS | JUNCHAN_PAIRS:
+                if sorted_hand((*taatsu, wait)) in (JUNCHAN_TRIS | TERMINAL_SEQS | JUNCHAN_PAIRS):
                     yaku_for_wait[wait].append(("junchan", 3 if is_closed_hand else 2))
                 elif sorted_hand((*taatsu, wait)) in CHANTA_TRIS | CHANTA_PAIRS:
                     yaku_for_wait[wait].append(("chanta", 2 if is_closed_hand else 1))
         elif set(triplets).issubset(CHANTA_TRIS) and (pair_tile is None or pair_tile in YAOCHUUHAI):
             for wait in non_honroutou_waits:
-                if sorted_hand((*taatsu, wait)) in CHANTA_TRIS | TERMINAL_SEQS | CHANTA_PAIRS:
+                if sorted_hand((*taatsu, wait)) in (CHANTA_TRIS | TERMINAL_SEQS | CHANTA_PAIRS):
                     yaku_for_wait[wait].append(("chanta", 2 if is_closed_hand else 1))
 
     # the following yaku_for_wait don't need to check the structure of the hand (sequences/triplets)
@@ -199,7 +200,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Shanten, is_clos
                     yaku_for_wait[wait].append(("chinitsu", 6 if is_closed_hand else 5))
             else:
                 for wait in waits & honitsu_suit:
-                    if len(yaku_for_wait[wait]) == 0 or yaku_for_wait[wait][-1] != "chinitsu":
+                    if len(yaku_for_wait[wait]) == 0 or yaku_for_wait[wait][-1][0] != "chinitsu":
                         yaku_for_wait[wait].append(("honitsu", 3 if is_closed_hand else 2))
 
     # shousangen: if your tenpai hand has 8 of the 9 dragons, then you just have shousangen for any wait
@@ -215,7 +216,9 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Shanten, is_clos
     #   is handled in add_tsumo_yaku
     if len(triplets) >= 3:
         # check they are all closed
-        num_open_triplets = sum(1 for tri in triplets for call in interpretation.calls if tri == tuple(normalize_red_fives(call.tiles[:3])))
+        called_triplets = {tuple(normalize_red_fives(call.tiles[:3])) for call in interpretation.calls}
+        our_triplets = {tuple(normalize_red_fives(tri)) for tri in triplets}
+        num_open_triplets = len(our_triplets & called_triplets)
         if len(triplets) - num_open_triplets >= 3:
             for wait in waits:
                 yaku_for_wait[wait].append(("sanankou", 2))
@@ -238,7 +241,7 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
                       uras: List[int],
                       round: int,
                       seat: int,
-                      is_last_tile: bool):
+                      is_last_tile: bool) -> YakuForWait:
     is_closed_hand = len(hand.closed_part) == 13
     ctr = Counter(hand.tiles)
     waits = set(yaku_for_wait.keys())
@@ -362,7 +365,9 @@ def add_tsumo_yaku(yaku_for_wait: YakuForWait, interpretation: Interpretation, i
     is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
     if len(triplets) >= 2 and is_pair(taatsu) and pair is not None:
         # check they are all closed
-        num_open_triplets = sum(1 for tri in triplets for call in interpretation.calls if tuple(normalize_red_fives(tri)) == tuple(normalize_red_fives(call.tiles[:3])))
+        called_triplets = {tuple(normalize_red_fives(call.tiles[:3])) for call in interpretation.calls}
+        our_triplets = {tuple(normalize_red_fives(tri)) for tri in triplets}
+        num_open_triplets = len(our_triplets & called_triplets)
         if len(triplets) - num_open_triplets >= 2:
             for wait in waits & {taatsu[0], pair[0]}:
                 if ("sanankou", 2) not in yaku_for_wait[wait]:
@@ -465,48 +470,50 @@ def get_yakuman_waits(hand: Hand, name: str) -> Set[int]:
     else:
         assert False, f"tried to get yakuman waits for {name}"
 
-def test_get_yakuman_tenpais():
+def test_get_yakuman_tenpais() -> None:
     print("daisangen:")
-    assert get_yakuman_tenpais([11,12,13,22,22,45,45,46,46,46,47,47,47], [47,47,47]) == {"daisangen"}
-    assert get_yakuman_tenpais([11,12,13,22,45,45,45,46,46,46,47,47,47], [47,47,47]) == {"daisangen"}
-    assert get_yakuman_tenpais([11,12,13,45,45,45,45,46,46,46,47,47,47], [47,47,47]) == {"daisangen"}
-    assert get_yakuman_tenpais([11,12,13,45,45,45,45,46,46,46,47,11,11]) == set()
+    from .classes import Dir
+    pon = lambda tile: CallInfo(type="pon", tile=tile, tiles=(tile,tile,tile), dir=Dir.SHIMOCHA)
+    assert get_yakuman_tenpais(Hand((11,12,13,22,22,45,45,46,46,46,47,47,47),calls=[pon(47)])) == {"daisangen"}
+    assert get_yakuman_tenpais(Hand((11,12,13,22,45,45,45,46,46,46,47,47,47),calls=[pon(47)])) == {"daisangen"}
+    assert get_yakuman_tenpais(Hand((11,12,13,45,45,45,45,46,46,46,47,47,47),calls=[pon(47)])) == {"daisangen"}
+    assert get_yakuman_tenpais(Hand((11,12,13,45,45,45,45,46,46,46,47,11,11))) == set()
 
-    assert get_yakuman_tenpais([11,19,21,29,29,31,39,41,42,43,44,45,47]) == {"kokushi musou"}
-    assert get_yakuman_tenpais([11,19,21,29,29,29,39,41,42,43,44,45,46]) == set()
+    assert get_yakuman_tenpais(Hand((11,19,21,29,29,31,39,41,42,43,44,45,47))) == {"kokushi musou"}
+    assert get_yakuman_tenpais(Hand((11,19,21,29,29,29,39,41,42,43,44,45,46))) == set()
 
     print("suuankou:")
-    assert get_yakuman_tenpais([11,11,11,12,12,12,13,13,14,14,15,15,15]) == {"suuankou"}
-    assert get_yakuman_tenpais([11,11,11,12,12,12,13,14,14,14,15,15,15]) == {"suuankou"}
-    assert get_yakuman_tenpais([11,11,11,12,12,12,13,14,14,14,15,15,15], [15,15,15]) == set()
+    assert get_yakuman_tenpais(Hand((11,11,11,12,12,12,13,13,14,14,15,15,15))) == {"suuankou"}
+    assert get_yakuman_tenpais(Hand((11,11,11,12,12,12,13,14,14,14,15,15,15))) == {"suuankou"}
+    assert get_yakuman_tenpais(Hand((11,11,11,12,12,12,13,14,14,14,15,15,15),calls=[pon(15)])) == set()
 
     print("shousuushi/daisuushi:")
-    assert get_yakuman_tenpais([11,12,13,41,42,42,42,43,43,43,44,44,44]) == {"shousuushi"}
-    assert get_yakuman_tenpais([11,12,41,41,42,42,42,43,43,43,44,44,44]) == {"shousuushi"}
-    assert get_yakuman_tenpais([11,12,13,14,42,42,42,43,43,43,44,44,44]) == set()
-    assert get_yakuman_tenpais([11,11,41,41,42,42,42,43,43,43,44,44,44]) == {"suuankou", "daisuushi"}
-    assert get_yakuman_tenpais([11,41,41,41,42,42,42,43,43,43,44,44,44]) == {"suuankou", "daisuushi"}
-    assert get_yakuman_tenpais([11,41,41,41,42,42,42,43,43,43,44,44,44], [44,44,44]) == {"daisuushi"}
+    assert get_yakuman_tenpais(Hand((11,12,13,41,42,42,42,43,43,43,44,44,44))) == {"shousuushi"}
+    assert get_yakuman_tenpais(Hand((11,12,41,41,42,42,42,43,43,43,44,44,44))) == {"shousuushi"}
+    assert get_yakuman_tenpais(Hand((11,12,13,14,42,42,42,43,43,43,44,44,44))) == set()
+    assert get_yakuman_tenpais(Hand((11,11,41,41,42,42,42,43,43,43,44,44,44))) == {"suuankou", "daisuushi"}
+    assert get_yakuman_tenpais(Hand((11,41,41,41,42,42,42,43,43,43,44,44,44))) == {"suuankou", "daisuushi"}
+    assert get_yakuman_tenpais(Hand((11,41,41,41,42,42,42,43,43,43,44,44,44),calls=[pon(44)])) == {"daisuushi"}
 
     print("tsuuiisou:")
-    assert get_yakuman_tenpais([41,41,42,42,43,43,44,44,45,45,46,46,47]) == {"tsuuiisou"}
-    assert get_yakuman_tenpais([45,45,45,46,46,47,47,47,41,41,41,42,42], [41,41,41]) == {"daisangen", "tsuuiisou"}
-    assert get_yakuman_tenpais([41,41,42,42,42,43,43,43,44,47,47,11,12]) == set()
-    assert get_yakuman_tenpais([41,41,41,42,42,42,43,43,43,44,44,44,45]) == {"suuankou", "daisuushi", "tsuuiisou"}
+    assert get_yakuman_tenpais(Hand((41,41,42,42,43,43,44,44,45,45,46,46,47))) == {"tsuuiisou"}
+    assert get_yakuman_tenpais(Hand((45,45,45,46,46,47,47,47,41,41,41,42,42),calls=[pon(41)])) == {"daisangen", "tsuuiisou"}
+    assert get_yakuman_tenpais(Hand((41,41,42,42,42,43,43,43,44,47,47,11,12))) == set()
+    assert get_yakuman_tenpais(Hand((41,41,41,42,42,42,43,43,43,44,44,44,45))) == {"suuankou", "daisuushi", "tsuuiisou"}
 
     print("ryuuiisou:")
-    assert get_yakuman_tenpais([32,32,33,33,34,34,36,36,36,38,38,46,46]) == {"ryuuiisou"}
-    assert get_yakuman_tenpais([22,22,23,23,24,24,26,26,26,28,28,46,46]) == set()
+    assert get_yakuman_tenpais(Hand((32,32,33,33,34,34,36,36,36,38,38,46,46))) == {"ryuuiisou"}
+    assert get_yakuman_tenpais(Hand((22,22,23,23,24,24,26,26,26,28,28,46,46))) == set()
 
     print("chinroutou:")
-    assert get_yakuman_tenpais([11,11,11,19,19,21,21,21,29,29,29,31,31]) == {"suuankou", "chinroutou"}
-    assert get_yakuman_tenpais([11,11,11,19,19,21,21,21,29,29,29,31,31], [29,29,29]) == {"chinroutou"}
+    assert get_yakuman_tenpais(Hand((11,11,11,19,19,21,21,21,29,29,29,31,31))) == {"suuankou", "chinroutou"}
+    assert get_yakuman_tenpais(Hand((11,11,11,19,19,21,21,21,29,29,29,31,31),calls=[pon(29)])) == {"chinroutou"}
 
     print("chuurenpoutou:")
-    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,19]) == {"chuurenpoutou"}
-    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,19], [19,19,19]) == set()
-    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,19,11]) == {"chuurenpoutou"}
-    assert get_yakuman_tenpais([11,11,11,12,13,14,15,16,17,18,19,11,11]) == set()
+    assert get_yakuman_tenpais(Hand((11,11,11,12,13,14,15,16,17,18,19,19,19))) == {"chuurenpoutou"}
+    assert get_yakuman_tenpais(Hand((11,11,11,12,13,14,15,16,17,18,19,19,19),calls=[pon(19)])) == set()
+    assert get_yakuman_tenpais(Hand((11,11,11,12,13,14,15,16,17,18,19,19,11))) == {"chuurenpoutou"}
+    assert get_yakuman_tenpais(Hand((11,11,11,12,13,14,15,16,17,18,19,11,11))) == set()
 
 def add_yakuman(yaku_for_wait: YakuForWait,
                 hand: Hand,
@@ -614,7 +621,7 @@ def get_yaku(hand: Hand,
 
     # best_score[wait] = the Score value representing the best interpretation for that wait
     best_score: Dict[int, Score] = {}
-    def add_best_score(wait, new_score):
+    def add_best_score(wait: int, new_score: Score) -> None:
         nonlocal best_score
         assert (new_score.han, new_score.fu) != (0, 0), f"somehow got a zero score: {new_score})"
         if wait not in best_score:
@@ -700,8 +707,8 @@ def get_final_yaku(kyoku: Kyoku,
 ### for debug use
 ###
 
-def debug_yaku(kyoku):
-    def print_hand_details_given_seat(kyoku, seat, print_final_tile=False):
+def debug_yaku(kyoku: Kyoku) -> None:
+    def print_hand_details_given_seat(kyoku: Kyoku, seat: int, print_final_tile: bool = False) -> str:
         final_tile = None if not print_final_tile else kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw
         return kyoku.hands[seat].print_hand_details(
                 ukeire=kyoku.final_ukeire[seat],

@@ -25,13 +25,13 @@ class Dir(IntEnum):
 @dataclass(frozen=True)
 class CallInfo:
     """Immutable object describing a single call (chii, pon, daiminkan, ankan, kakan)"""
-    type: str        # one of "chii", "pon", "minkan", "ankan", "kakan"
-    tile: int        # the called tile
-    dir: Dir         # where the tile was called from (indicates where to point the called tile)
-    tiles: List[int] # the 3 or 4 tiles set aside after calling
-    def __post_init__(self):
+    type: str              # one of "chii", "pon", "minkan", "ankan", "kakan"
+    tile: int              # the called tile
+    dir: Dir               # where the tile was called from (indicates where to point the called tile)
+    tiles: Tuple[int, ...] # the 3 or 4 tiles set aside after calling
+    def __post_init__(self) -> None:
         super().__setattr__("tiles", sorted_hand(self.tiles))
-    def to_str(self, doras=[], uras=[]):
+    def to_str(self, doras: List[int] = [], uras: List[int] = []) -> str:
         as_dora = lambda tile: tile + (100 if tile in doras or tile in uras else 0)
         tiles = tuple(map(as_dora, self.tiles))
         tile = as_dora(self.tile)
@@ -54,8 +54,9 @@ class CallInfo:
             return pt(other_tiles[0]) + sideways + ph(other_tiles[1:])
         elif self.dir == Dir.KAMICHA:
             return sideways + ph(other_tiles)
+        assert False, f"Somehow got Dir.SELF for a non-ankan call {self}"
         # dir == Dir.SELF is only for ankan and is handled above
-    def __str__(self):
+    def __str__(self) -> str:
         return self.to_str()
     
 # hand interpretations and yaku
@@ -69,11 +70,11 @@ class Interpretation:
     triplets: Tuple[Tuple[int, ...], ...] = ()      # Triplets taken from the original hand
     pair: Optional[Tuple[int, int]] = None          # A pair taken from the original hand
     calls: Tuple[CallInfo, ...] = ()                # A frozen list of calls from the original hand
-    def unpack(self):
+    def unpack(self) -> Tuple[Any, ...]:
         return (self.hand, self.ron_fu, self.tsumo_fu, self.sequences, self.triplets, self.pair)
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.unpack())
-    def __str__(self):
+    def __str__(self) -> str:
         full_hand = (*self.sequences, *self.triplets, self.pair, self.hand) if self.pair is not None else (*self.sequences, *self.triplets, self.hand)
         return " ".join(map(ph, full_hand)) + f" ron {self.ron_fu} tsumo {self.tsumo_fu}"
     def get_waits(self) -> Set[int]:
@@ -215,7 +216,7 @@ class GameRules:
     nagashi_mangan: bool = True       # whether nagashi mangan is enabled
     double_wind_4_fu: bool = True     # whether a round+seat wind pair is worth 4 fu
     @classmethod
-    def from_majsoul_detail_rule(cls, rules):
+    def from_majsoul_detail_rule(cls, rules: Dict[str, Any]) -> "GameRules":
         return cls(use_red_fives = rules.get("doraCount", 3) > 0,
                    immediate_kan_dora = rules.get("mingDoraImmediatelyOpen", False),
                    head_bump = rules.get("haveToutiao", False),
@@ -225,7 +226,7 @@ class GameRules:
                    double_wind_4_fu = not rules.get("disableDoubleWindFourFu", False),
                    )
     @classmethod
-    def from_tenhou_rules(cls, rule, csrule):
+    def from_tenhou_rules(cls, rule: List[str], csrule: List[str]) -> "GameRules":
         if isinstance(rule, dict):
             # normal game
             return cls(use_red_fives = "aka51" in rule and rule["aka51"])

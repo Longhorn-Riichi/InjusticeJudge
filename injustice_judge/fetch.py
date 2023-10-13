@@ -1,9 +1,10 @@
 import functools
 import re
-import google.protobuf as pb  # type: ignore[import]
+import google.protobuf as pb
+import google.protobuf.reflection
 from .proto import liqi_combined_pb2 as proto
-from google.protobuf.message import Message  # type: ignore[import]
-from google.protobuf.json_format import MessageToDict  # type: ignore[import]
+from google.protobuf.message import Message
+from google.protobuf.json_format import MessageToDict
 from typing import *
 from .classes import CallInfo, GameRules, GameMetadata, Dir
 from .classes2 import Draw, Hand, Kyoku, Ron, Score, Tsumo
@@ -47,7 +48,7 @@ def save_cache(filename: str, data: bytes) -> None:
 ###
 
 TenhouLog = List[List[List[Any]]]
-MajsoulLog = List[Message]
+MajsoulLog = List[Tuple[str, proto.Wrapper]]
 
 ###
 ### postprocess events obtained from parsing
@@ -67,7 +68,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
         shanten_before_last_draw: List[Shanten] = []
         num_doras = 1
         flip_kan_dora_next_discard = False
-        def update_shanten(seat):
+        def update_shanten(seat: int) -> None:
             old_shanten = shanten_before_last_draw[seat]
             new_shanten = kyoku.hands[seat].shanten
             if old_shanten != new_shanten:
@@ -129,7 +130,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 if event_type == "kakan":
                     kyoku.hands[seat] = kyoku.hands[seat].kakan(called_tile)
                 elif event_type == "ankan":
-                    kyoku.hands[seat] = kyoku.hands[seat].add_call(CallInfo("ankan", called_tile, Dir.SELF, [called_tile]*4))
+                    kyoku.hands[seat] = kyoku.hands[seat].add_call(CallInfo("ankan", called_tile, Dir.SELF, (called_tile,)*4))
                 elif event_type == "kita":
                     kyoku.hands[seat] = kyoku.hands[seat].kita()
                 kyoku.hands[seat] = kyoku.hands[seat].remove(called_tile)
@@ -220,37 +221,42 @@ def parse_result(result: List[Any], round: int, num_players: int, hand_is_hidden
 
 class MahjongSoulAPI:
     """Helper class to interface with the Mahjong Soul API"""
-    def __init__(self, endpoint):
+    def __init__(self, endpoint: str) -> None:
         self.endpoint = endpoint
-    async def __aenter__(self):
+    async def __aenter__(self) -> "MahjongSoulAPI":
         import websockets
-        self.ws = await websockets.connect(self.endpoint)
+        self.ws = await websockets.connect(self.endpoint)  # type: ignore[attr-defined]
         self.ix = 0
         return self
-    async def __aexit__(self, err_type, err_value, traceback):
+    async def __aexit__(self, err_type: Optional[Type[BaseException]], 
+                              err_value: Optional[BaseException], 
+                              traceback: Optional[Any]) -> bool:
         await self.ws.close()
+        return False
 
-    async def call(self, name, **fields: Dict[str, Any]) -> Message:
+    async def call(self, name: str, **fields: Any) -> Message:
         method = next((svc.FindMethodByName(name) for svc in proto.DESCRIPTOR.services_by_name.values() if name in [method.name for method in svc.methods]), None)
         assert method is not None, f"couldn't find method {name}"
 
         req: Message = pb.reflection.MakeClass(method.input_type)(**fields)
         res: Message = pb.reflection.MakeClass(method.output_type)()
+        # all Res* objects have an error field
+        assert hasattr(res, "error"), f"Got non-Res object: {res}\n\nfrom request: {req}"
 
-        tx: bytes = b'\x02' + self.ix.to_bytes(2, "little") + proto.Wrapper(name=f".{method.full_name}", data=req.SerializeToString()).SerializeToString()  # type: ignore[attr-defined]
+        tx: bytes = b'\x02' + self.ix.to_bytes(2, "little") + proto.Wrapper(name=f".{method.full_name}", data=req.SerializeToString()).SerializeToString()
         await self.ws.send(tx)
         rx: bytes = await self.ws.recv()
         assert rx[0] == 3, f"Expected response message, got message of type {rx[0]}"
         assert self.ix == int.from_bytes(rx[1:3], "little"), f"Expected response index {self.ix}, got index {int.from_bytes(rx[1:3], 'little')}"
         self.ix += 1
 
-        wrapper: Message = proto.Wrapper()  # type: ignore[attr-defined]
+        wrapper = proto.Wrapper()
         wrapper.ParseFromString(rx[3:])
         res.ParseFromString(wrapper.data)
         assert not res.error.code, f"{method.full_name} request received error {res.error.code}"
         return res
 
-def parse_wrapped_bytes(data):
+def parse_wrapped_bytes(data: bytes) -> Tuple[str, Message]:
     """Used to unwrap Mahjong Soul messages"""
     wrapper = proto.Wrapper()
     wrapper.ParseFromString(data)
@@ -292,7 +298,7 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
 
     try:
         f = open(f"cached_games/game-{identifier}.log", 'rb')
-        record = proto.ResGameRecord()  # type: ignore[attr-defined]
+        record = proto.ResGameRecord()
         record.ParseFromString(f.read())
     except Exception:
         import os
@@ -322,7 +328,7 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
                     random_key=str(uuid.uuid1()),
                     client_version_string=client_version_string)
                 print("Calling fetchGameRecord...")
-                record = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=client_version_string)
+                record = cast(proto.ResGameRecord, await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=client_version_string))
         else:
             # login to the EN server with UID and TOKEN
             UID = os.getenv("ms_uid")
@@ -335,23 +341,23 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
                 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
                 access_token = requests.post(url="https://passport.mahjongsoul.com/user/login", headers={"User-Agent": USER_AGENT, "Referer": "https://mahjongsoul.game.yo-star.com/"}, data={"uid":UID,"token":TOKEN,"deviceId":f"web|{UID}"}).json()["accessToken"]
                 print("Requesting oauth access token...")
-                oauth_token = (await api.call("oauth2Auth", type=7, code=access_token, uid=UID, client_version_string=f"web-{MS_VERSION}")).access_token
+                oauth_token = cast(proto.ResOauth2Auth, await api.call("oauth2Auth", type=7, code=access_token, uid=UID, client_version_string=f"web-{MS_VERSION}")).access_token
                 print("Calling heatbeat...")
                 await api.call("heatbeat")
                 print("Calling oauth2Check...")
-                assert (await api.call("oauth2Check", type=7, access_token=oauth_token)).has_account, "couldn't find account with oauth2Check"
+                assert cast(proto.ResOauth2Check, await api.call("oauth2Check", type=7, access_token=oauth_token)).has_account, "couldn't find account with oauth2Check"
                 print("Calling oauth2Login...")
                 client_device_info = {"platform": "pc", "hardware": "pc", "os": "mac", "is_browser": True, "software": "Firefox", "sale_platform": "web"}  # type: ignore[dict-item]
                 await api.call("oauth2Login", type=7, access_token=oauth_token, reconnect=False, device=client_device_info, random_key=str(uuid.uuid1()), client_version={"resource": f"{MS_VERSION}.w"}, currency_platforms=[], client_version_string=f"web-{MS_VERSION}", tag="en")
                 print("Calling fetchGameRecord...")
-                record = await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=f"web-{MS_VERSION}")
+                record = cast(proto.ResGameRecord, await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=f"web-{MS_VERSION}"))
         save_cache(filename=f"game-{identifier}.log", data=record.SerializeToString())
 
-    parsed = parse_wrapped_bytes(record.data)[1]
+    parsed = cast(proto.GameDetailRecords, parse_wrapped_bytes(record.data)[1])
     if parsed.actions != []:
-        actions = [parse_wrapped_bytes(action.result) for action in parsed.actions if len(action.result) > 0]
+        actions = [cast(Tuple[str, proto.Wrapper], parse_wrapped_bytes(action.result)) for action in parsed.actions if len(action.result) > 0]
     else:
-        actions = [parse_wrapped_bytes(record) for record in parsed.records]
+        actions = [cast(Tuple[str, proto.Wrapper], parse_wrapped_bytes(record)) for record in parsed.records]
     
     player = 0
     if player_seat is not None:
@@ -380,18 +386,18 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     # constants obtained in the main loop below
     num_players: int = -1
     
-    def end_round(result):
+    def end_round(result: Tuple[Any, ...]) -> None:
         nonlocal events
         nonlocal all_events
         nonlocal dora_indicators
         nonlocal ura_indicators
-        events.append((t, "end_game", result))
+        events.append((0, "end_game", result))
         all_events.append(events)
         all_dora_indicators.append(dora_indicators)
         all_ura_indicators.append(ura_indicators)
         events = []
     
-    def same_tile(tile1: str, tile2: str):
+    def same_tile(tile1: str, tile2: str) -> bool:
         # check if two tiles are equal, counting red
         # five as equal to regular fives
         if tile1[1] == tile2[1]:
@@ -402,8 +408,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
         return False
 
     for name, action in actions:
-        if name == "RecordNewRound":
-            haipai = [sorted_hand(majsoul_hand_to_tenhou(h)) for h in [action.tiles0, action.tiles1, action.tiles2, action.tiles3] if len(h) > 0]
+        if isinstance(action, proto.RecordNewRound):
+            haipai: List[Tuple[int, ...]] = [sorted_hand(majsoul_hand_to_tenhou(h)) for h in [action.tiles0, action.tiles1, action.tiles2, action.tiles3] if len(h) > 0]
             num_players = len(haipai)
             # dealer starts with 14, remove one tile and turn it into a draw
             *haipai[action.ju], first_tile = haipai[action.ju]
@@ -419,14 +425,15 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             # pretend we drew the first tile
             events.append((action.ju, "draw", first_tile))
             dora_indicators = [convert_tile(dora) for dora in action.doras]
-        elif name == "RecordDealTile":
+        elif isinstance(action, proto.RecordDealTile):
             events.append((action.seat, "draw", convert_tile(action.tile)))
             if len(action.doras) > 0:
                 dora_indicators = [convert_tile(dora) for dora in action.doras]
-        elif name == "RecordDiscardTile":
+        elif isinstance(action, proto.RecordDiscardTile):
             tile = convert_tile(action.tile)
             events.append((action.seat, "riichi" if action.is_liqi else "discard", tile))
-        elif name == "RecordChiPengGang":
+        elif isinstance(action, proto.RecordChiPengGang):
+            assert isinstance(action, proto.RecordChiPengGang)
             call_tiles = list(map(convert_tile, action.tiles))
             called_tile = call_tiles[-1]
             if len(action.tiles) == 4:
@@ -437,7 +444,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 call_type = "chii"
             call_dir = Dir((last_seat - action.seat) % 4)
             events.append((action.seat, call_type, called_tile, call_tiles, call_dir))
-        elif name == "RecordAnGangAddGang":
+        elif isinstance(action, proto.RecordAnGangAddGang):
             tile = convert_tile(action.tiles)
             if action.type == 2:
                 call_type = "kakan"
@@ -447,7 +454,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 raise Exception(f"unhandled RecordAnGangAddGang of type {action.type}: {action}")
             events.append((action.seat, call_type, tile, [tile], 0))
             dora_indicators.extend(convert_tile(dora) for dora in action.doras)
-        elif name == "RecordHule":
+        elif isinstance(action, proto.RecordHule):
             # construct a tenhou game result array
             result: List[Any] = ["和了"]
             for h in action.hules:
@@ -474,14 +481,14 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 dora_indicators = majsoul_hand_to_tenhou_unsorted(h.doras)
                 ura_indicators = majsoul_hand_to_tenhou_unsorted(h.li_doras)
             end_round(result)
-        elif name == "RecordNoTile":
+        elif isinstance(action, proto.RecordNoTile):
             if len(action.scores[0].delta_scores) == 0: # everybody/nobody is tenpai, so no score change
                 end_round(["流局", [0]*num_players])
             else:
                 end_round(["流局", *(score_info.delta_scores for score_info in action.scores)])
-        elif name == "RecordBaBei": # kita
+        elif isinstance(action, proto.RecordBaBei): # kita
             events.append((action.seat, "kita", 44, [44], 0))
-        elif name == "RecordLiuJu": # abortive draw
+        elif isinstance(action, proto.RecordLiuJu): # abortive draw
             # TODO: `action,.type` for 三家和了
             if action.type == 1:
                 end_round(["九種九牌", [0]*num_players])
@@ -577,7 +584,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
     use_red_fives = "aka51" in metadata["rule"] and metadata["rule"]["aka51"]
     # check to see if the name of the fourth player is empty; Sanma if empty, Yonma if not empty.
     num_players: int = 3 if metadata["name"][3] == "" else 4
-    def get_call_dir(call: str):
+    def get_call_dir(call: str) -> Dir:
         """
         Returns the number of seats "away" from the current
         player, in a yonma setting

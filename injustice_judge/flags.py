@@ -4,9 +4,9 @@ from dataclasses import dataclass, field
 from .constants import Event, Shanten, DORA, DORA_INDICATOR, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, print_pond, round_name
 from enum import Enum
-from .utils import apply_delta_scores, is_mangan, normalize_red_five, to_placement
+from .utils import apply_delta_scores, get_score, is_mangan, normalize_red_five, to_placement
 from .wwyd import is_safe
-from .yaku import get_final_yaku, get_score, get_yaku, get_yakuman_tenpais, get_yakuman_waits
+from .yaku import get_final_yaku, get_yaku, get_yakuman_tenpais, get_yakuman_waits
 from typing import *
 from pprint import pprint
 
@@ -162,7 +162,7 @@ class KyokuPlayerInfo:
     dangerous_discards_passed: List[int]    = field(default_factory=list)
     dangerous_draws_after_riichi: List[int] = field(default_factory=list)
     respects_riichi: List[Optional[bool]]   = field(default_factory=list)
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # respects_riichi[other_player] =
         #   True if their first discard after our riichi was a safe tile
         #   False if their first discard after our riichi was a dangerous tile
@@ -210,7 +210,7 @@ class KyokuInfo:
             del self.global_flags[ix]
             del self.global_data[ix]
 
-    def process_haipai(self, i: int, seat: int, event_type: str, hand: Tuple[int]) -> None:
+    def process_haipai(self, i: int, seat: int, event_type: str, hand: Tuple[int, ...]) -> None:
         assert len(self.at) == seat, f"got haipai out of order, expected seat {len(self.at)} but got seat {seat}"
         self.at.append(KyokuPlayerInfo(num_players=self.num_players, hand=Hand(hand)))
         # disable nagashi mangan if needed
@@ -289,7 +289,7 @@ class KyokuInfo:
                 break
         self._process_draw_call(i, seat, event_type, tile, prev_hand)
 
-    def process_chii_pon_daiminkan(self, i: int, seat: int, event_type: str, called_tile: int, call_tiles: List[int], call_dir: Dir) -> None:
+    def process_chii_pon_daiminkan(self, i: int, seat: int, event_type: str, called_tile: int, call_tiles: Tuple[int, ...], call_dir: Dir) -> None:
         prev_hand = self.at[seat].hand
         if event_type != "minkan":
             self.at[seat].hand = self.at[seat].hand.add(called_tile)
@@ -374,14 +374,14 @@ class KyokuInfo:
                         "discards": tuple(tenpai_discards.keys()),
                         "furiten": all(any(tile in self.at[seat].pond for tile in hand.hidden_part) for hand in tenpai_discards.values())})
 
-    def process_self_kan(self, i: int, seat: int, event_type: str, called_tile: int, call_tiles: List[int], call_dir: Dir) -> None:
+    def process_self_kan(self, i: int, seat: int, event_type: str, called_tile: int, call_tiles: Tuple[int, ...], call_dir: Dir) -> None:
         if event_type == "kakan":
             self.at[seat].hand = self.at[seat].hand.kakan(called_tile)
             # add to genbutsu for this player + all the riichi players
             for player in {player for player, at in enumerate(self.at) if at.in_riichi} | {seat}:
                 self.at[player].genbutsu.add(called_tile)
         elif event_type == "ankan":
-            self.at[seat].hand = self.at[seat].hand.add_call(CallInfo("ankan", called_tile, Dir.SELF, [called_tile]*4))
+            self.at[seat].hand = self.at[seat].hand.add_call(CallInfo("ankan", called_tile, Dir.SELF, (called_tile,)*4))
         elif event_type == "kita":
             self.at[seat].hand = self.at[seat].hand.kita()
         self.at[seat].hand = self.at[seat].hand.remove(called_tile)
@@ -497,7 +497,7 @@ class KyokuInfo:
         self.at[seat].draws_since_shanten_change = 0
         # record past waits if we've changed from tenpai
         if prev_shanten[0] == 0:
-            self.at[seat].past_waits.append(prev_shanten[1])
+            self.at[seat].past_waits.append(list(prev_shanten[1]))
             if new_shanten[0] > 0:
                 self.add_flag(seat, Flags.YOU_FOLDED_FROM_TENPAI)
                 self.add_global_flag(Flags.SOMEONE_FOLDED_FROM_TENPAI, {"seat": seat})
@@ -945,7 +945,7 @@ class KyokuInfo:
             if end_points >= 2 * self.kyoku.get_starting_score():
                 self.add_flag(player, Flags.REACHED_DOUBLE_STARTING_POINTS, {"points": end_points})
 
-    def _process_call(self, seat: int, event_type: str, called_tile: int, call_tiles: List[int], call_dir: Dir) -> None:
+    def _process_call(self, seat: int, event_type: str, called_tile: int, call_tiles: Tuple[int, ...], call_dir: Dir) -> None:
         # flip kan dora, if needed
         if event_type in {"minkan", "ankan", "kakan"}:
             kan_call = CallInfo(event_type, called_tile, call_dir, call_tiles)
