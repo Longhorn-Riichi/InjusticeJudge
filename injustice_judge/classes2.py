@@ -262,7 +262,7 @@ class Score:
                 score_deltas[winner] -= sum(score_deltas)
         return score_deltas
     def has_riichi(self) -> bool:
-        return ("riichi", 1) in self.yaku
+        return ("riichi", 1) in self.yaku or ("double riichi", 2) in self.yaku
     def has_ippatsu(self) -> bool:
         return ("ippatsu", 1) in self.yaku
     def has_haitei(self) -> bool:

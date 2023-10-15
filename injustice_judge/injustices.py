@@ -348,7 +348,7 @@ def won_something_silly(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
                   ("sankantsu", 2),
                   ("ryanpeikou", 3),
                   ("sanshoku doukou", 2),
-                  ("double riichi", 1)}
+                  ("double riichi", 2)}
     win_string = "with a " + " ".join(y[0] for y in silly_yaku if y in score.yaku)
     if win_string == "with a ":
         win_string = "with a"

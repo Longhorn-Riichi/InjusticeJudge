@@ -194,7 +194,7 @@ def parse_result(result: List[Any], round: int, num_players: int, hand_is_hidden
             kwargs = {
                 "score_delta": score_delta,
                 "winner": winner,
-                "dama": hand_is_hidden[winner] and not any(y.startswith("立直") for y in yaku_strs),
+                "dama": hand_is_hidden[winner] and not any(y.startswith("立直") or y.startswith("ダブル立直") or y.startswith("両立直") for y in yaku_strs),
                 "score": Score.from_tenhou_list(tenhou_result_list=tenhou_result_list,
                                                 round=round,
                                                 num_players=num_players,
