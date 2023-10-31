@@ -284,6 +284,8 @@ def parse_majsoul_link(link: str) -> Tuple[str, Optional[int], Optional[int]]:
     account_string = identifier_match.group(3)
     if account_string is not None:
         ms_account_id = int((((int(account_string)-1358437)^86216345)-1117113)/7)
+    else:
+        ms_account_id = 0
     player_seat = identifier_match.group(4)
     if player_seat is not None:
         player_seat = int(player_seat)
@@ -507,10 +509,12 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     assert len(all_events) > 0, "unable to read any kyoku"
 
     # parse metadata
-    acc_data = sorted((acc.get("seat", 0), acc["nickname"]) for acc in metadata["accounts"])
+    nicknames = ["AI"] * num_players
+    for acc in metadata["accounts"]:
+        nicknames[acc.get("seat", 0)] = acc["nickname"]
     result_data = sorted((res.get("seat", 0), res["partPoint1"], res["totalPoint"]) for res in metadata["result"]["players"])
     parsed_metadata = GameMetadata(num_players = num_players,
-                                   name = [acc_data[i][1] for i in range(num_players)],
+                                   name = nicknames,
                                    game_score = [result_data[i][1] for i in range(num_players)],
                                    final_score = [result_data[i][2] for i in range(num_players)],
                                    dora_indicators = all_dora_indicators,
