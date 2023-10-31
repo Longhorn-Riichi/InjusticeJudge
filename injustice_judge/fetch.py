@@ -512,7 +512,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     nicknames = ["AI"] * num_players
     for acc in metadata["accounts"]:
         nicknames[acc.get("seat", 0)] = acc["nickname"]
-    result_data = sorted((res.get("seat", 0), res["partPoint1"], res["totalPoint"]) for res in metadata["result"]["players"])
+    print(metadata["result"]["players"])
+    result_data = sorted((res.get("seat", 0), res.get("partPoint1", 0), res.get("totalPoint", 0)) for res in metadata["result"]["players"])
     parsed_metadata = GameMetadata(num_players = num_players,
                                    name = nicknames,
                                    game_score = [result_data[i][1] for i in range(num_players)],
