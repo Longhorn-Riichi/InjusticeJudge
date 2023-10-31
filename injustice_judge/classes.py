@@ -54,7 +54,7 @@ class CallInfo:
             return pt(other_tiles[0]) + sideways + ph(other_tiles[1:])
         elif self.dir == Dir.KAMICHA:
             return sideways + ph(other_tiles)
-        assert False, f"Somehow got Dir.SELF for a non-ankan call {self}"
+        assert False, f"Somehow got Dir.SELF for a non-ankan call {self!r}"
         # dir == Dir.SELF is only for ankan and is handled above
     def __str__(self) -> str:
         return self.to_str()

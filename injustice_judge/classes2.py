@@ -100,16 +100,16 @@ class Hand:
         """Immutable update for discarding a tile"""
         i = self.tiles.index(tile)
         return Hand((*self.tiles[:i], *self.tiles[i+1:]), [*self.calls], [*self.ordered_calls], prev_shanten=self.shanten, kita_count=self.kita_count)
-    def kakan(self, called_tile: int) -> "Hand":
+    def kakan(self, called_tile: int) -> Tuple[int, "Hand"]:
         """Immutable update for adding a tile to an existing pon call (kakan)"""
         pon_index = next((i for i, calls in enumerate(self.calls) if calls.type == "pon" and normalize_red_five(calls.tile) == normalize_red_five(called_tile)), None)
-        assert pon_index is not None, f"unable to find previous pon in calls: {self.calls}"
+        assert pon_index is not None, f"unable to find previous pon of {called_tile} in calls: {self.calls}"
         orig_direction = self.calls[pon_index].dir
         orig_tiles = (*self.calls[pon_index].tiles, called_tile)
         calls_copy = [*self.calls]
         call = CallInfo("kakan", called_tile, orig_direction, orig_tiles)
         calls_copy[pon_index] = call
-        return Hand(self.tiles, calls_copy, [*self.ordered_calls, call], prev_shanten=self.shanten, kita_count=self.kita_count)
+        return pon_index, Hand(self.tiles, calls_copy, [*self.ordered_calls, call], prev_shanten=self.shanten, kita_count=self.kita_count)
     def kita(self) -> "Hand":
         """Immutable update for adding kita"""
         calls_copy = [*self.calls]

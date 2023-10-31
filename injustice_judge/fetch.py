@@ -66,7 +66,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
         kyoku: Kyoku = Kyoku(rules=metadata.rules)
         visible_tiles: List[int] = []
         shanten_before_last_draw: List[Shanten] = []
-        num_doras = 1
+        num_doras = 4 if metadata.rules.use_red_fives else 1
         flip_kan_dora_next_discard = False
         def update_shanten(seat: int) -> None:
             old_shanten = shanten_before_last_draw[seat]
@@ -94,8 +94,8 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.round, kyoku.honba, kyoku.riichi_sticks, kyoku.start_scores = event_data
                 kyoku.num_players = metadata.num_players
                 kyoku.tiles_in_wall = 70 if kyoku.num_players == 4 else 55
-                kyoku.doras = [DORA[d] for d in dora_indicators] + ([51, 52, 53] if metadata.rules.use_red_fives else [])
-                kyoku.starting_doras = [DORA[dora_indicators[0]]] + ([51, 52, 53] if metadata.rules.use_red_fives else [])
+                kyoku.doras = ([51, 52, 53] if metadata.rules.use_red_fives else []) + [DORA[d] for d in dora_indicators]
+                kyoku.starting_doras = ([51, 52, 53] if metadata.rules.use_red_fives else []) + [DORA[dora_indicators[0]]]
                 kyoku.uras = [DORA[d] for d in ura_indicators]
                 kyoku.haipai_ukeire = [hand.ukeire(dora_indicators[:num_doras]) for hand in kyoku.hands]
             elif event_type == "draw":
@@ -128,7 +128,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 # if kakan, replace the old pon call with kakan
                 # and add the pon call to the kakan tiles
                 if event_type == "kakan":
-                    kyoku.hands[seat] = kyoku.hands[seat].kakan(called_tile)
+                    _, kyoku.hands[seat] = kyoku.hands[seat].kakan(called_tile)
                 elif event_type == "ankan":
                     kyoku.hands[seat] = kyoku.hands[seat].add_call(CallInfo("ankan", called_tile, Dir.SELF, (called_tile,)*4))
                 elif event_type == "kita":
@@ -452,7 +452,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                 call_type = "ankan"
             else:
                 raise Exception(f"unhandled RecordAnGangAddGang of type {action.type}: {action}")
-            events.append((action.seat, call_type, tile, [tile], 0))
+            events.append((action.seat, call_type, tile, (tile,)*4, Dir.SELF))
             dora_indicators.extend(convert_tile(dora) for dora in action.doras)
         elif isinstance(action, proto.RecordHule):
             # construct a tenhou game result array

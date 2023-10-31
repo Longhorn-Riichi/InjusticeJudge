@@ -348,7 +348,7 @@ class KyokuInfo:
                 if best_score is not None:
                     self.add_flag(chii_seat, Flags.CHII_GOT_OVERRIDDEN, chii_data)
 
-        self._process_call(seat, event_type, called_tile, call_tiles, call_dir)
+        self._process_call(seat, call)
         self._process_draw_call(i, seat, event_type, called_tile, prev_hand)
 
     def _process_draw_call(self, i: int, seat: int, event_type: str, tile: int, prev_hand: Hand) -> None:
@@ -376,14 +376,19 @@ class KyokuInfo:
 
     def process_self_kan(self, i: int, seat: int, event_type: str, called_tile: int, call_tiles: Tuple[int, ...], call_dir: Dir) -> None:
         if event_type == "kakan":
-            self.at[seat].hand = self.at[seat].hand.kakan(called_tile)
+            i, self.at[seat].hand = self.at[seat].hand.kakan(called_tile)
+            call = self.at[seat].hand.calls[i]
             # add to genbutsu for this player + all the riichi players
             for player in {player for player, at in enumerate(self.at) if at.in_riichi} | {seat}:
                 self.at[player].genbutsu.add(called_tile)
         elif event_type == "ankan":
-            self.at[seat].hand = self.at[seat].hand.add_call(CallInfo("ankan", called_tile, Dir.SELF, (called_tile,)*4))
+            call = CallInfo("ankan", called_tile, Dir.SELF, (called_tile,)*4)
+            self.at[seat].hand = self.at[seat].hand.add_call(call)
         elif event_type == "kita":
             self.at[seat].hand = self.at[seat].hand.kita()
+            call = self.at[seat].hand.calls[-1]
+        else:
+            assert False, f"process_self_kan called with non-self-kan type {event_type}"
         self.at[seat].hand = self.at[seat].hand.remove(called_tile)
         self.visible_tiles.append(called_tile)
         # check if anyone's tenpai and had their waits erased by ankan
@@ -398,7 +403,7 @@ class KyokuInfo:
                     ukeire = last_tenpai_data["ukeire"]
                     if tile in wait:
                         self.add_flag(player, Flags.ANKAN_ERASED_TENPAI_WAIT, {"tile": tile, "wait": wait, "caller": seat, "ukeire": ukeire})
-        self._process_call(seat, event_type, called_tile, call_tiles, call_dir)
+        self._process_call(seat, call)
 
     def process_discard(self, i: int, seat: int, event_type: str, tile: int) -> None:
         if event_type == "riichi":
@@ -945,16 +950,18 @@ class KyokuInfo:
             if end_points >= 2 * self.kyoku.get_starting_score():
                 self.add_flag(player, Flags.REACHED_DOUBLE_STARTING_POINTS, {"points": end_points})
 
-    def _process_call(self, seat: int, event_type: str, called_tile: int, call_tiles: Tuple[int, ...], call_dir: Dir) -> None:
+    def _process_call(self, seat: int, call: CallInfo) -> None:
         # flip kan dora, if needed
-        if event_type in {"minkan", "ankan", "kakan"}:
-            kan_call = CallInfo(event_type, called_tile, call_dir, call_tiles)
+        if call.type in {"minkan", "ankan", "kakan"}:
+            print(call)
             if self.kyoku.rules.immediate_kan_dora:
-                self._process_new_dora(seat, kan_call)
+                self._process_new_dora(seat, call)
             else:
-                self.pending_kan = kan_call
+                if self.pending_kan is not None:
+                    self._process_new_dora(seat, self.pending_kan)
+                self.pending_kan = call
         # if our resulting calls contain 3+ dora, add a flag
-        num_dora = sum(self.current_doras.count(tile) for call in self.at[seat].hand.calls for tile in call.tiles)
+        num_dora = sum(self.current_doras.count(tile) for c in self.at[seat].hand.calls for tile in c.tiles)
         if num_dora >= 3:
             self.add_flag(seat, Flags.CALLS_CONTAIN_THREE_DORA, {"amount": num_dora})
             self.add_global_flag(Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, {"seat": seat, "amount": num_dora})
@@ -963,10 +970,10 @@ class KyokuInfo:
         # need to check if there's dora since it's possible to have called kan and not reveal a dora
         # (it's when you kan, but win on rinshan before the dora flip)
         if len(self.current_doras) < len(self.kyoku.doras):
-            dora = self.kyoku.doras[len(self.current_doras)]
-            self.current_doras.append(dora)
+            new_dora = self.kyoku.doras[len(self.current_doras)]
+            self.current_doras.append(new_dora)
             # check if that just gave us 4 dora
-            if self.at[seat].hand.tiles_with_kans.count(dora) == 4:
+            if self.at[seat].hand.tiles_with_kans.count(new_dora) == 4:
                 self.add_flag(seat, Flags.YOU_FLIPPED_DORA_BOMB, {"doras": self.current_doras.copy(), "call": kan_call, "hand": self.at[seat].hand})
             # if anyone's resulting calls contain 3+ dora, add a flag
             for player in range(self.num_players):
