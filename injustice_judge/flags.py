@@ -635,7 +635,7 @@ class KyokuInfo:
             self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": yakuman_types, "waits": yakuman_waits})
         elif han >= 13 and not any(y in YAKUMAN for y, _ in best_score.yaku):
             # filter for only the waits that let you reach kazoe yakuman
-            kazoe_waits = {wait for wait, score in all_scores.items() if score.han >= 13}
+            kazoe_waits: List[Tuple[str, Set[int]]] = [("kazoe yakuman", {wait for wait, score in all_scores.items() if score.han >= 13})]
             self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": {f"kazoe yakuman ({', '.join(y for y, _ in best_score.yaku)})"}, "waits": kazoe_waits})
 
     def process_start_game(self, i: int, seat: int, event_type: str,
@@ -953,7 +953,6 @@ class KyokuInfo:
     def _process_call(self, seat: int, call: CallInfo) -> None:
         # flip kan dora, if needed
         if call.type in {"minkan", "ankan", "kakan"}:
-            print(call)
             if self.kyoku.rules.immediate_kan_dora:
                 self._process_new_dora(seat, call)
             else:

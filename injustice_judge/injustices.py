@@ -983,7 +983,7 @@ def drew_tile_completing_past_wait(flags: List[Flags], data: List[Dict[str, Any]
             CheckClause(subject="you",
                         verb="drew",
                         content=f"a tile {pt(tile + 100 if tile in kyoku.doras else tile)} that would have completed your past tenpai wait on {ph(wait, kyoku.doras)}"
-                                    f" if you didn't decide to {'switch to' + shanten_name(shanten) if shanten[0] == 0 else 'fold'}"))]
+                                    f" if you didn't decide to {'switch to ' + shanten_name(shanten) if shanten[0] == 0 else 'fold'}"))]
 
 # Print if you dealt into ura 3 OR if someone else tsumoed and got ura 3
 @injustice(require=[Flags.WINNER_GOT_URA_3, Flags.YOU_LOST_POINTS])
