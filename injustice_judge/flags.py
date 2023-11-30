@@ -643,8 +643,8 @@ class KyokuInfo:
         # give dealer a flag saying that they're dealer
         self.add_flag(round % 4, Flags.YOU_ARE_DEALER)
         # give everyone a flag for their placement
-        placement_flags = [Flags.YOU_WERE_FIRST, Flags.YOU_WERE_SECOND, Flags.YOU_WERE_THIRD, Flags.YOU_WERE_FOURTH]
-        for seat, placement in enumerate(to_placement(self.kyoku.start_scores)):
+        placement_flags = [Flags.YOU_WERE_FIRST, Flags.YOU_WERE_SECOND, Flags.YOU_WERE_THIRD, Flags.YOU_WERE_FOURTH][:self.num_players]
+        for seat, placement in enumerate(to_placement(self.kyoku.start_scores[:self.num_players])):
             self.add_flag(seat, placement_flags[placement])
         # add final round flag (NOT all last)
         if self.kyoku.is_final_round:
@@ -1042,7 +1042,6 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
             if new_shanten[0] == 0:
                 info.process_tenpai(i, *event)
         elif event_type == "start_game":
-            # check if anyone's starting shanten is 2 worse than everyone else
             info.process_start_game(i, *event)
         elif event_type == "result":
             info.process_result(i, *event)
