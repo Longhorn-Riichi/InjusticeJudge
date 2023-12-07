@@ -380,10 +380,13 @@ def won_something_silly(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
 def won_after_changing_wait(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     hand = data[flags.index(Flags.WON_AFTER_CHANGING_WAIT)]["hand"]
     winning_tile = data[flags.index(Flags.WON_AFTER_CHANGING_WAIT)]["winning_tile"]
-    return [Skill(kyoku.round, kyoku.honba, "Skill",
-        CheckClause(subject="you",
-                    verb="changed your hand's wait from",
-                    content=f"{ph(hand.prev_shanten[1], doras=kyoku.doras)} to {ph(hand.shanten[1], doras=kyoku.doras)} and immediately won on {pt(winning_tile + 100 if winning_tile in kyoku.doras else winning_tile)}"))]
+    if winning_tile not in hand.prev_shanten[1]:
+        return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="changed your hand's wait from",
+                        content=f"{ph(hand.prev_shanten[1], doras=kyoku.doras)} to {ph(hand.shanten[1], doras=kyoku.doras)} and immediately won on {pt(winning_tile + 100 if winning_tile in kyoku.doras else winning_tile)}"))]
+    else:
+        return []
 
 @skill(require=[Flags.YOU_WON, Flags.YOU_ARE_DEALER, Flags.YOU_WERE_FIRST])
 def won_first_place_3_honba(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:

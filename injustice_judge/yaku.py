@@ -241,6 +241,7 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
                       uras: List[int],
                       round: int,
                       seat: int,
+                      yakuhai: Tuple[int, ...],
                       is_last_tile: bool) -> YakuForWait:
     is_closed_hand = len(hand.closed_part) == 13
     ctr = Counter(hand.tiles)
@@ -297,8 +298,7 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
     # yakuhai: if your tenpai hand has three, then you just have yakuhai for any wait
     # alternatively if your tenpai hand has two, then any wait matching that has yakuhai
     YAKUHAI_NAMES = {41: "ton", 42: "nan", 43: "shaa", 44: "pei", 45: "haku", 46: "hatsu", 47: "chun"}
-    YAKUHAI = [45,46,47,(round//4)+41,((seat-round)%4)+41]
-    for tile in YAKUHAI:
+    for tile in yakuhai:
         for wait in waits:
             if ctr[tile] == 3 or (ctr[tile] == 2 and wait == tile):
                 yaku_for_wait[wait].append((YAKUHAI_NAMES[tile], 1))
@@ -632,7 +632,7 @@ def get_yaku(hand: Hand,
     # we want to get the best yaku for each wait
     # each hand interpretation gives han and fu for some number of waits
     # get the best han and fu for each wait across all interpretations
-    yakuhai: Tuple[int, ...] = (45,46,47,(round//4)+41,((seat-round)%4)+41)
+    yakuhai: Tuple[int, ...] = (45,46,47,(round//4)+41,((seat-(round%4))%num_players)+41)
     if not rules.double_wind_4_fu:
         yakuhai = tuple(set(yakuhai)) # remove duplicates
     is_closed_hand = len(hand.closed_part) == 13
@@ -643,7 +643,7 @@ def get_yaku(hand: Hand,
         #     print(f"{pt(k)}, {v.hand!s}")
         yaku_for_wait: YakuForWait = get_stateless_yaku(interpretation, hand.shanten, is_closed_hand)
         # pprint(yaku_for_wait)
-        yaku_for_wait = add_stateful_yaku(yaku_for_wait, hand, events, doras, uras, round, seat, is_last_tile)
+        yaku_for_wait = add_stateful_yaku(yaku_for_wait, hand, events, doras, uras, round, seat, yakuhai, is_last_tile)
         # print(round_name(round, 0), yaku_for_wait)
         # pprint([(a, b) for a, b, *_ in events])
         if check_tsumos:
