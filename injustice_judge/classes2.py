@@ -16,8 +16,7 @@ from .shanten import calculate_shanten
 # - Hand: represents a hand. Provides easy access to its open/closed/hidden parts and its shanten/waits.
 # - Score: summarizes a score for a single hand (han, fu, yaku), use .to_points() to calculate points.
 # - Win, Ron, Tsumo, Draw: objects representing the result of a game.
-# - Kyoku: object storing fundamental information for a round. Flags are calculated using a Kyoku object.
-#          Current goal is to remove fields in Kyoku that aren't essential to calculating flags.
+# - Kyoku: object representing a parsed round. Flags are calculated using a Kyoku object.
 
 @functools.lru_cache(maxsize=2048)
 def _hidden_part(hand: Tuple[int], calls: Tuple[int]) -> Tuple[int, ...]:

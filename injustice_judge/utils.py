@@ -4,7 +4,6 @@ from .constants import MANZU, PINZU, SOUZU, PRED, SUCC, TOGGLE_RED_FIVE, TRANSLA
 from typing import *
 
 # This file contains a bunch of utility functions that don't really belong anywhere else.
-# The goal is to move these someday, so they're not really documented right now.
 
 normalize_red_five = lambda tile: TOGGLE_RED_FIVE[tile] if tile in {51,52,53} else tile
 normalize_red_fives = lambda hand: map(normalize_red_five, hand)
@@ -27,6 +26,10 @@ def try_remove_all_tiles(hand: Tuple[int, ...], tiles: Tuple[int, ...]) -> Tuple
     return hand
 
 def get_score(han: int, fu: int, is_dealer: bool, is_tsumo: bool, num_players: int) -> int:
+    """
+    Calculate the score given han and fu.
+    Of course, score is influenced by dealership, tsumo, and (for tsumo) number of players.
+    """
     if is_tsumo:
         oya: int = OYA_TSUMO_SCORE[han][fu]  # type: ignore[index]
         ko: int = KO_TSUMO_SCORE[han][fu]  # type: ignore[index]
@@ -34,10 +37,17 @@ def get_score(han: int, fu: int, is_dealer: bool, is_tsumo: bool, num_players: i
     else:
         return cast(int, (OYA_RON_SCORE if is_dealer else KO_RON_SCORE)[han][fu])  # type: ignore[index]
 
+# Add a score delta array [0,1000,-1000,0] to an existing score array [25000,25000,25000,25000]
 apply_delta_scores = lambda scores, delta_score: [score + delta for score, delta in zip(scores, delta_score)]
+# Given a score array, calculate the placement: [10000,30000,20000,40000] -> [3, 1, 2, 0]
 to_placement = lambda scores: (ixs := sorted(range(len(scores)), key=lambda x: -scores[x]), [ixs.index(p) for p in range(len(scores))])[1]
 
 def get_taatsu_wait(taatsu: Tuple[int, ...]) -> Set[int]:
+    """
+    Given a two-element tuple of tiles, return the tile(s) it is waiting on, if any.
+    The reason the type is Tuple[int, ...] instead of Tuple[int, int] is because it's a pain
+    to cast from Tuple[int, ...] to Tuple[int, int] every time you use this function.
+    """
     t1, t2 = normalize_red_fives(taatsu)
     return {PRED[t1], SUCC[t2]} - {0} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
 

@@ -9,11 +9,11 @@ from .utils import get_waits, normalize_red_five, normalize_red_fives, sorted_ha
 
 # This file and classes2.py contain most of the classes used in InjusticeJudge.
 # In this file, we have:
-# - Dir: used for specifying the direction of a call.
+# - Dir: enum representing the direction of a call.
 # - CallInfo: stores all information about a call (name, tiles, direction)
 # - Interpretation: represents one way to break up a given hand into sets and a pair.
-# - GameRules: Summary of each game rule (parsed from log) that has an effect on parsing logic.
-# - GameMetadata: Extra data about a game. Currently planning to move these fields into Kyoku.
+# - GameRules: parses all game rules that InjusticeJudge cares about.
+# - GameMetadata: stores data about the players and round-to-round scores of a game.
 
 class Dir(IntEnum):
     """Enum representing a direction, add to a seat mod 4 to get the indicated seat"""
@@ -249,8 +249,8 @@ class GameMetadata:
     name: List[str]                  # name of each player indexed by seat
     game_score: List[int]            # final scores (points) indexed by seat
     final_score: List[int]           # final scores (points plus uma) indexed by seat
-    # the fields below are equivalent to Kyoku.doras/uras, and only here for technical reasons
-    # (they are parsed first from the raw log, and then used to populate Kyoku)
+    # the fields below are equivalent to Kyoku.doras/uras/rules, and only here for technical reasons
+    # (they are parsed first from the raw log, and then used to populate each Kyoku)
     dora_indicators: List[List[int]] # lists of dora indicators, one for each kyoku
     ura_indicators: List[List[int]]  # lists of ura indicators, one for each kyoku
     rules: GameRules                 # game rules

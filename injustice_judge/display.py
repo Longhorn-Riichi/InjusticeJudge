@@ -3,8 +3,8 @@ from .constants import Shanten, SHANTEN_NAMES
 from typing import *
 
 # Collection of all the display-related functions.
-# - Printing hands and tiles
-# - Printing round name, seat name, shanten name
+# - Printing hands and tiles (pt, ph, print_pond) 
+# - Printing round name, seat name, shanten name (round_name, relative_seat_name, shanten_name)
 
 def pt_unicode(tile: int, is_sideways: bool = False) -> str:
     """print tile (2-char representation)"""

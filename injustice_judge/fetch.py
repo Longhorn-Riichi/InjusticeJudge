@@ -30,6 +30,7 @@ from pprint import pprint
 # The sole uses of the resulting `Kyoku` objects are:
 # - `determine_flags` in `flags.py`, (used to calculate all the Flags)
 # - `evaluate_injustices` in `injustices.py`. (used to fetch data for printing, e.g. dora)
+# - in the Ronhorn bot, `parse_game` (used to fetch hand data, ukeire calculations)
 
 def save_cache(filename: str, data: bytes) -> None:
     """Save data to a cache file"""

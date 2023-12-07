@@ -18,9 +18,9 @@ from pprint import pprint
 # Most of this file consists of @injustice and @skill functions that fire
 #   when the requisite flags exist in a given Kyoku.
 #   
-# To add an injustice/skill, simply copy paste an existing function and change
+# To add an injustice/skill, simply copy-paste an existing function and change
 #   the flags it requires. You might need to implement a new flag in flags.py
-#   to get the information you need.
+#   that stores the relevant KyokuState data in `data` for use in this file.
 #   
 # See `evaluate_game` for more info.
 
