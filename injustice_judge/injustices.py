@@ -185,7 +185,8 @@ skill = make_check_decorator("skill")
 @skill(require=[Flags.YOU_WON, Flags.WINNER_GOT_DOUBLE_WIND])
 def started_with_double_wind(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     hand = data[flags.index(Flags.YOU_WON)]["hand"]
-    haipai = kyoku.haipai[player]
+    haipai = data[flags.index(Flags.YOU_WON)]["haipai"]
+    starting_doras = data[flags.index(Flags.YOU_WON)]["starting_doras"]
     wind = [41,42,43,44][player]
     starting_winds = haipai.tiles.count(wind)
     if starting_winds == 2:
@@ -226,8 +227,10 @@ def won_with_five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], 
 @skill(require=[Flags.STARTED_WITH_3_DORA, Flags.YOU_WON])
 def won_with_3_starting_dora(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     num_dora = data[flags.index(Flags.YOU_WON)]["score_object"].count_dora()
-    starting_dora = sorted(tile for tile in kyoku.haipai[player].tiles if tile in kyoku.starting_doras)
-    ending_dora = sorted(tile for tile in kyoku.hands[player].tiles if tile in kyoku.doras)
+    haipai = data[flags.index(Flags.YOU_WON)]["haipai"]
+    hand = data[flags.index(Flags.YOU_WON)]["hand"]
+    starting_dora = sorted(tile for tile in haipai.tiles if tile in kyoku.starting_doras)
+    ending_dora = sorted(tile for tile in hand.tiles if tile in kyoku.doras)
     return [Skill(kyoku.round, kyoku.honba, "Skill",
             CheckClause(subject="you",
                         verb="started with",
@@ -1036,8 +1039,9 @@ def iishanten_haipai_aborted(flags: List[Flags], data: List[Dict[str, Any]], kyo
 @injustice(require=[Flags.YOU_REACHED_YAKUMAN_TENPAI],
             forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_RONNED_SOMEONE, Flags.YOU_TSUMOED])
 def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    yakuman_types = data[flags.index(Flags.YOU_REACHED_YAKUMAN_TENPAI)]["types"]
-    yakuman_waits = data[flags.index(Flags.YOU_REACHED_YAKUMAN_TENPAI)]["waits"]
+    yakuman_types = data[len(data) - 1 - flags[::-1].index(Flags.YOU_REACHED_YAKUMAN_TENPAI)]["types"]
+    yakuman_waits = data[len(data) - 1 - flags[::-1].index(Flags.YOU_REACHED_YAKUMAN_TENPAI)]["waits"]
+    hand = data[len(data) - 1 - flags[::-1].index(Flags.YOU_REACHED_YAKUMAN_TENPAI)]["hand"]
     what_happened = "you didn't win"
     last_subject = "you"
     if Flags.GAME_ENDED_WITH_RON in flags:
@@ -1064,7 +1068,7 @@ def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], k
     all_waits = {wait for _, waits in yakuman_waits for wait in waits}
     visible_tiles = kyoku.get_visible_tiles()
     visible_waits = {wait: visible_tiles.count(wait) for wait in all_waits}
-    held_waits = {wait: [kyoku.hands[seat].hidden_part.count(wait) for seat in range(kyoku.num_players)] for wait in all_waits}
+    held_waits = {wait: [hand.hidden_part.count(wait) for seat in range(kyoku.num_players)] for wait in all_waits}
     total_held_waits = [sum(v[seat] for k, v in held_waits.items()) for seat in range(kyoku.num_players)]
     ukeire = 4 * len(all_waits) - sum(visible_waits.values()) - total_held_waits[player]
     if ukeire > 0:

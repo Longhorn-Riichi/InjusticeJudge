@@ -627,16 +627,16 @@ class KyokuState:
 
         # check if we are yakuman tenpai
         # first, do standard yakuman, otherwise, try kazoe yakuman
-        yakuman_waits: List[Tuple[str, Set[int]]] = [(y, get_yakuman_waits(self.kyoku.hands[seat], y)) for y in get_yakuman_tenpais(self.kyoku.hands[seat])]
+        yakuman_waits: List[Tuple[str, Set[int]]] = [(y, get_yakuman_waits(self.at[seat].hand, y)) for y in get_yakuman_tenpais(self.at[seat].hand)]
         # only report the yakuman if the waits are not dead
         visible = self.get_visible_tiles()
         yakuman_types: Set[str] = {t for t, waits in yakuman_waits if not all(visible.count(wait) == 4 for wait in waits)}
         if len(yakuman_types) > 0:
-            self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": yakuman_types, "waits": yakuman_waits})
+            self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"hand": self.at[seat].hand, "types": yakuman_types, "waits": yakuman_waits})
         elif han >= 13 and not any(y in YAKUMAN for y, _ in best_score.yaku):
             # filter for only the waits that let you reach kazoe yakuman
             kazoe_waits: List[Tuple[str, Set[int]]] = [("kazoe yakuman", {wait for wait, score in all_scores.items() if score.han >= 13})]
-            self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"types": {f"kazoe yakuman ({', '.join(y for y, _ in best_score.yaku)})"}, "waits": kazoe_waits})
+            self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"hand": self.at[seat].hand, "types": {f"kazoe yakuman ({', '.join(y for y, _ in best_score.yaku)})"}, "waits": kazoe_waits})
 
     def process_start_game(self, i: int, seat: int, event_type: str,
                            round: int, honba: int, riichi_sticks: int, scores: List[int]) -> None:
@@ -757,7 +757,7 @@ class KyokuState:
         if self.kyoku.furiten[tsumo.winner]:
             self.add_global_flag(Flags.WINNER_WAS_FURITEN,
                             {"seat": tsumo.winner,
-                             "wait": self.kyoku.hands[tsumo.winner].shanten[1],
+                             "wait": self.at[tsumo.winner].hand.shanten[1],
                              "ukeire": self.kyoku.get_ukeire(tsumo.winner)})
         # check ippatsu tsumo
         if tsumo.score.has_ippatsu():
@@ -775,7 +775,7 @@ class KyokuState:
         elif name in {"9 terminals draw", "4-wind draw"}:
             # check if anyone started with a really good hand
             for seat in range(self.num_players):
-                if self.kyoku.hands[seat].shanten[0] <= 1:
+                if self.at[seat].hand.shanten[0] <= 1:
                     self.add_flag(seat, Flags.IISHANTEN_HAIPAI_ABORTED,
                              {"draw_name": name,
                               "shanten": self.kyoku.haipai[seat].shanten,
@@ -857,6 +857,7 @@ class KyokuState:
         winner_data = {"seat": result.winner,
                        "won_from": result.won_from if isinstance(result, Ron) else None,
                        "hand": winning_hand,
+                       "haipai": self.kyoku.haipai[result.winner],
                        "ukeire": self.kyoku.get_ukeire(result.winner),
                        "score_object": result.score,
                        "turn": len(self.at[result.winner].pond),
