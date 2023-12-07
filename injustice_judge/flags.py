@@ -140,8 +140,8 @@ Flags = Enum("Flags", "_SENTINEL"
     )
 
 @dataclass
-class KyokuPlayerInfo:
-    """Information about a player that gets updated as we calculate flags."""
+class KyokuPlayerState:
+    """The state of a player that gets updated as we calculate flags."""
     num_players: int
     hand: Hand
     pond: List[int]                         = field(default_factory=list)
@@ -170,7 +170,7 @@ class KyokuPlayerInfo:
         self.respects_riichi = [None] * self.num_players
 
 @dataclass
-class KyokuInfo:
+class KyokuState:
     """
     Information about a round, the most important being the flags.
     Also provides a method for each event that generates flags for the event.
@@ -181,7 +181,7 @@ class KyokuInfo:
     pending_kan: Optional[CallInfo] = None
     starting_doras: List[int]       = field(default_factory=list)
     current_doras: List[int]        = field(default_factory=list)
-    at: List[KyokuPlayerInfo]       = field(default_factory=list)
+    at: List[KyokuPlayerState]      = field(default_factory=list)
     visible_tiles: List[int]        = field(default_factory=list)
     flags: List[List[Flags]]        = field(default_factory=list)
     data: List[List[Any]]           = field(default_factory=list)
@@ -212,7 +212,7 @@ class KyokuInfo:
 
     def process_haipai(self, i: int, seat: int, event_type: str, hand: Tuple[int, ...]) -> None:
         assert len(self.at) == seat, f"got haipai out of order, expected seat {len(self.at)} but got seat {seat}"
-        self.at.append(KyokuPlayerInfo(num_players=self.num_players, hand=Hand(hand)))
+        self.at.append(KyokuPlayerState(num_players=self.num_players, hand=Hand(hand)))
         # disable nagashi mangan if needed
         if not self.kyoku.rules.nagashi_mangan:
             for player in range(self.num_players):
@@ -758,7 +758,7 @@ class KyokuInfo:
             self.add_global_flag(Flags.WINNER_WAS_FURITEN,
                             {"seat": tsumo.winner,
                              "wait": self.kyoku.hands[tsumo.winner].shanten[1],
-                             "ukeire": self.kyoku.final_ukeire[tsumo.winner]})
+                             "ukeire": self.kyoku.get_ukeire(tsumo.winner)})
         # check ippatsu tsumo
         if tsumo.score.has_ippatsu():
             self.add_global_flag(Flags.WINNER_IPPATSU_TSUMO, {"seat": tsumo.winner})
@@ -857,7 +857,7 @@ class KyokuInfo:
         winner_data = {"seat": result.winner,
                        "won_from": result.won_from if isinstance(result, Ron) else None,
                        "hand": winning_hand,
-                       "ukeire": self.kyoku.final_ukeire[result.winner],
+                       "ukeire": self.kyoku.get_ukeire(result.winner),
                        "score_object": result.score,
                        "turn": len(self.at[result.winner].pond),
                        "winning_tile": winning_tile,
@@ -867,7 +867,7 @@ class KyokuInfo:
         for flag in limit_hand_flags:
             self.add_global_flag(flag, winner_data)
         self.add_flag(result.winner, Flags.YOU_WON, winner_data)
-        if self.kyoku.final_ukeire[result.winner] <= 4:
+        if self.kyoku.get_ukeire(result.winner) <= 4:
             self.add_global_flag(Flags.WINNER_HAD_BAD_WAIT, winner_data)
         # check for 3+ han from hidden dora
         if result.score.count_dora() >= 3:
@@ -989,17 +989,17 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
     assert kyoku.num_players in {3,4}, f"somehow we have {kyoku.num_players} players"
 
     # get all flags by parsing kyoku events
-    info = KyokuInfo(kyoku = kyoku,
-                     num_players = kyoku.num_players,
-                     tiles_in_wall = 70 if kyoku.num_players == 4 else 55,
-                     starting_doras = kyoku.starting_doras.copy(),
-                     current_doras = kyoku.starting_doras.copy(),
-                     flags = [[] for i in range(kyoku.num_players)],
-                     data = [[] for i in range(kyoku.num_players)])
+    state = KyokuState(kyoku = kyoku,
+                       num_players = kyoku.num_players,
+                       tiles_in_wall = 70 if kyoku.num_players == 4 else 55,
+                       starting_doras = kyoku.starting_doras.copy(),
+                       current_doras = kyoku.starting_doras.copy(),
+                       flags = [[] for i in range(kyoku.num_players)],
+                       data = [[] for i in range(kyoku.num_players)])
 
-    # Call the relevant info.process_* function on each event to generate
+    # Call the relevant state.process_* function on each event to generate
     # flags from each event in turn.
-    debug_prev_flag_len = [0] * info.num_players
+    debug_prev_flag_len = [0] * state.num_players
     debug_prev_global_flag_len = 0
     for i, event in enumerate(kyoku.events):
         seat, event_type, *event_data = event
@@ -1016,39 +1016,39 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
         # ### DEBUG ###
 
         if event_type == "haipai":
-            info.process_haipai(i, *event)
+            state.process_haipai(i, *event)
         elif event_type == "draw":
-            info.process_draw(i, *event)
+            state.process_draw(i, *event)
         elif event_type in {"chii", "pon", "minkan"}:
-            info.process_chii_pon_daiminkan(i, *event)
+            state.process_chii_pon_daiminkan(i, *event)
         elif event_type in {"ankan", "kakan", "kita"}:
-            prev_shanten = info.at[seat].hand.shanten
-            info.process_self_kan(i, *event)
-            new_shanten = info.at[seat].hand.shanten
+            prev_shanten = state.at[seat].hand.shanten
+            state.process_self_kan(i, *event)
+            new_shanten = state.at[seat].hand.shanten
             # self kans change the value of our tenpai
             if new_shanten[0] == 0:
-                info.process_tenpai(i, seat, event_type,
+                state.process_tenpai(i, seat, event_type,
                     prev_shanten = prev_shanten,
                     new_shanten = new_shanten,
-                    hand = info.at[seat].hand,
-                    ukeire = info.at[seat].hand.ukeire(info.get_visible_tiles()),
-                    furiten = info.at[seat].furiten)
+                    hand = state.at[seat].hand,
+                    ukeire = state.at[seat].hand.ukeire(state.get_visible_tiles()),
+                    furiten = state.at[seat].furiten)
         elif event_type in {"discard", "riichi"}:
-            info.process_discard(i, *event[:3]) # riichi has extra args we don't care about
+            state.process_discard(i, *event[:3]) # riichi has extra args we don't care about
         elif event_type == "shanten_change":
-            info.process_shanten_change(i, *event)
+            state.process_shanten_change(i, *event)
             # check for tenpai
             prev_shanten, new_shanten, hand, ukeire, furiten = event_data
             if new_shanten[0] == 0:
-                info.process_tenpai(i, *event)
+                state.process_tenpai(i, *event)
         elif event_type == "start_game":
-            info.process_start_game(i, *event)
+            state.process_start_game(i, *event)
         elif event_type == "result":
-            info.process_result(i, *event)
+            state.process_result(i, *event)
 
-    assert len(info.global_flags) == len(info.global_data), f"somehow got a different amount of global flags ({len(info.global_flags)}) than data ({len(info.global_data)})"
+    assert len(state.global_flags) == len(state.global_data), f"somehow got a different amount of global flags ({len(state.global_flags)}) than data ({len(state.global_data)})"
     for seat in range(kyoku.num_players):
-        assert len(info.flags[seat]) == len(info.data[seat]), f"somehow got a different amount of flags ({len(info.flags[seat])}) than data ({len(info.data[seat])})"
-        info.flags[seat] = info.global_flags + info.flags[seat]
-        info.data[seat] = info.global_data + info.data[seat]
-    return info.flags, info.data
+        assert len(state.flags[seat]) == len(state.data[seat]), f"somehow got a different amount of flags ({len(state.flags[seat])}) than data ({len(state.data[seat])})"
+        state.flags[seat] = state.global_flags + state.flags[seat]
+        state.data[seat] = state.global_data + state.data[seat]
+    return state.flags, state.data

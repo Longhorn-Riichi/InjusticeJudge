@@ -4,7 +4,7 @@ import functools
 from typing import *
 
 from .classes import CallInfo, Dir, GameRules, Interpretation
-from .constants import Event, Shanten, MANZU, PINZU, SOUZU, PRED, SUCC, DOUBLE_YAKUMAN, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
+from .constants import Event, Shanten, MANZU, PINZU, SOUZU, PRED, SUCC, DORA_INDICATOR, DOUBLE_YAKUMAN, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
 from .display import ph, pt, shanten_name
 from .utils import get_score, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten
@@ -105,9 +105,10 @@ class Hand:
         pon_index = next((i for i, calls in enumerate(self.calls) if calls.type == "pon" and normalize_red_five(calls.tile) == normalize_red_five(called_tile)), None)
         assert pon_index is not None, f"unable to find previous pon of {called_tile} in calls: {self.calls}"
         orig_direction = self.calls[pon_index].dir
+        orig_tile = self.calls[pon_index].tile
         orig_tiles = (*self.calls[pon_index].tiles, called_tile)
         calls_copy = [*self.calls]
-        call = CallInfo("kakan", called_tile, orig_direction, orig_tiles)
+        call = CallInfo("kakan", orig_tile, orig_direction, orig_tiles)
         calls_copy[pon_index] = call
         return pon_index, Hand(self.tiles, calls_copy, [*self.ordered_calls, call], prev_shanten=self.shanten, kita_count=self.kita_count)
     def kita(self) -> "Hand":
@@ -380,7 +381,6 @@ class Kyoku:
     num_players: int                              = 0
     final_draw: int                               = 0
     final_discard: int                            = 0
-    tiles_in_wall: int                            = 0
     is_final_round: bool                          = False
     rules: GameRules                              = field(default_factory=GameRules)
 
@@ -389,6 +389,17 @@ class Kyoku:
     # e.g. (2, "draw", 34) means original West seat drew 4 sou
     events: List[Event]                           = field(default_factory=list)
 
+    # The result of the kyoku in the format (type, result object(s))
+    # either ("ron", Ron(...), ...) for a (single, double, triple) ron
+    #     or ("tsumo", Tsumo(...)) for a tsumo
+    #     or ("ryuukyoku", Draw(...)) for a ryuukyoku
+    #     or ("draw", Draw(...)) for a draw
+    result: Tuple[Any, ...]                       = ()
+
+    # store the scores of each player at the beginning of the kyoku
+    start_scores: Tuple[int, ...]                 = ()
+    # store the starting hand of each player
+    haipai: List[Hand]                            = field(default_factory=list)
     # Index of the final "draw" and "discard" events for each player
     # Used to check if a given event is a player's last draw/discard
     final_draw_event_index: List[int]             = field(default_factory=list)
@@ -399,30 +410,34 @@ class Kyoku:
     starting_doras: List[int]                     = field(default_factory=list)
     uras: List[int]                               = field(default_factory=list)
 
-    # The result of the kyoku in the format (type, result object(s))
-    # either ("ron", Ron(...), ...) for a (single, double, triple) ron
-    #     or ("tsumo", Tsumo(...)) for a tsumo
-    #     or ("ryuukyoku", Draw(...)) for a ryuukyoku
-    #     or ("draw", Draw(...)) for a draw
-    result: Tuple[Any, ...]                       = ()
-
-    # for each player, we keep track of the current state of that player
-    # this is represented by several lists indexed by seat, below
+    # stateful variables
+    # need to keep track of _some_ state so that the Ronhorn bot can /parse a game
     # `hands` keeps track of hand, calls, shanten
     hands: List[Hand]                             = field(default_factory=list)
     # `pond` keeps track of all discards so far by each player
     pond: List[List[int]]                         = field(default_factory=list)
     # `furiten` keeps track of whether a player is in furiten
     furiten: List[bool]                           = field(default_factory=list)
+    # `num_dora_indicators_visible` keeps track of how many dora indicators are visible
+    num_dora_indicators_visible: int              = 1
+    # `tiles_in_wall` keeps track of how tiles are left in the wall
+    tiles_in_wall: int                            = 0
 
-    # we also keep track of some facts for each player
-    # store the scores of each player at the beginning of the kyoku
-    start_scores: Tuple[int, ...]                 = ()
-    # store the starting hand of each player
-    haipai: List[Hand]                            = field(default_factory=list)
-    # store each player's ukeire count at the start and the end of a round (if tenpai)
-    # -1 if the player is not tenpai
-    haipai_ukeire: List[int]                      = field(default_factory=list)
-    final_ukeire: List[int]                       = field(default_factory=list)
     def get_starting_score(self) -> int:
         return (sum(self.start_scores) + 1000*self.riichi_sticks) // self.num_players
+    def get_visible_tiles(self) -> List[int]:
+        pond_tiles = [tile for seat in range(self.num_players) for tile in self.pond[seat]]
+        if self.result and self.result[0] != "tsumo" and not (self.result[0] == "draw" and self.result[1].name == "9 terminals draw"):
+            # then the last action was a discard, and that discard should not count towards ukeire calculations
+            pond_tiles.remove(self.final_discard)
+        dora_indicators = [DORA_INDICATOR[dora] for dora in self.doras if dora not in {51,52,53}][:self.num_dora_indicators_visible]
+        def get_invisible_part(call):
+            # get the part of the call that isn't already counted as part of the pond
+            ret = list(call.tiles)
+            if call.type != "ankan":
+                ret.remove(call.tile)
+            return ret
+        visible_calls = [tile for hand in self.hands for call in hand.calls for tile in get_invisible_part(call)]
+        return pond_tiles + dora_indicators + visible_calls
+    def get_ukeire(self, seat) -> int:
+        return self.hands[seat].ukeire(self.get_visible_tiles())

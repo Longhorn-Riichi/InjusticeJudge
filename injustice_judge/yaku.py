@@ -711,7 +711,7 @@ def debug_yaku(kyoku: Kyoku) -> None:
     def print_hand_details_given_seat(kyoku: Kyoku, seat: int, print_final_tile: bool = False) -> str:
         final_tile = None if not print_final_tile else kyoku.final_discard if kyoku.result[0] == "ron" else kyoku.final_draw
         return kyoku.hands[seat].print_hand_details(
-                ukeire=kyoku.final_ukeire[seat],
+                ukeire=kyoku.get_ukeire(seat),
                 final_tile=final_tile,
                 furiten=kyoku.furiten[seat])
     if kyoku.result[0] in {"ron", "tsumo"}:

@@ -64,16 +64,14 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
     for events, dora_indicators, ura_indicators in zip(all_events, metadata.dora_indicators, metadata.ura_indicators):
         assert len(events) > 0, "somehow got an empty events list"
         kyoku: Kyoku = Kyoku(rules=metadata.rules)
-        visible_tiles: List[int] = []
         shanten_before_last_draw: List[Shanten] = []
-        num_doras = 4 if metadata.rules.use_red_fives else 1
         flip_kan_dora_next_discard = False
         def update_shanten(seat: int) -> None:
             old_shanten = shanten_before_last_draw[seat]
             new_shanten = kyoku.hands[seat].shanten
             if old_shanten != new_shanten:
                 # calculate ukeire/furiten (if not tenpai, gives 0/False)
-                ukeire = kyoku.hands[seat].ukeire(visible_tiles + dora_indicators[:num_doras])
+                ukeire = kyoku.get_ukeire(seat)
                 kyoku.furiten[seat] = new_shanten[0] == 0 and any(w in kyoku.pond[seat] for w in new_shanten[1])
                 kyoku.events.append((seat, "shanten_change", old_shanten, new_shanten, kyoku.hands[seat], ukeire, kyoku.furiten[seat]))
         for i, (seat, event_type, *event_data) in enumerate(events):
@@ -95,9 +93,8 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.num_players = metadata.num_players
                 kyoku.tiles_in_wall = 70 if kyoku.num_players == 4 else 55
                 kyoku.doras = ([51, 52, 53] if metadata.rules.use_red_fives else []) + [DORA[d] for d in dora_indicators]
-                kyoku.starting_doras = ([51, 52, 53] if metadata.rules.use_red_fives else []) + [DORA[dora_indicators[0]]]
+                kyoku.starting_doras = ([51, 52, 53] if metadata.rules.use_red_fives else []) + [DORA[d] for d in dora_indicators[:kyoku.num_dora_indicators_visible]]
                 kyoku.uras = [DORA[d] for d in ura_indicators]
-                kyoku.haipai_ukeire = [hand.ukeire(dora_indicators[:num_doras]) for hand in kyoku.hands]
             elif event_type == "draw":
                 tile = event_data[0]
                 shanten_before_last_draw[seat] = kyoku.hands[seat].shanten
@@ -112,7 +109,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.hands[seat] = kyoku.hands[seat].remove(tile)
                 kyoku.final_discard = tile
                 kyoku.final_discard_event_index[seat] = len(kyoku.events) - 1
-                visible_tiles.append(tile)
                 kyoku.pond[seat].append(tile)
                 update_shanten(seat)
             elif event_type in {"chii", "pon", "minkan"}: # calls
@@ -138,7 +134,6 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                 kyoku.final_discard = called_tile
                 kyoku.final_discard_event_index[seat] = len(kyoku.events) - 1
                 assert len(kyoku.hands[seat].tiles) == 13
-                visible_tiles.append(called_tile)
             elif event_type == "end_game":
                 unparsed_result = event_data[0]
                 hand_is_hidden = [len(hand.open_part) == 0 for hand in kyoku.hands]
@@ -150,21 +145,15 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
                         if len(kyoku.hands[seat].tiles) == 14:
                             kyoku.hands[seat] = kyoku.hands[seat].remove(kyoku.final_draw)
                             break
-                else: # otherwise we pop the deal-in tile from the visible tiles (so ukeire calculation won't count it)
-                    assert kyoku.final_discard == visible_tiles.pop(), f"final discard of round {round_name(kyoku.round, kyoku.honba)} was not equal to the last visible tile"
-                # save final waits and ukeire
-                for seat in range(kyoku.num_players):
-                    ukeire = kyoku.hands[seat].ukeire(visible_tiles + dora_indicators[:num_doras])
-                    kyoku.final_ukeire.append(ukeire)
             # flip kan dora
             if flip_kan_dora_next_discard and event_type in {"discard", "riichi"}:
-                num_doras += 1
+                flip_kan_dora_next_discard = False
+                kyoku.num_dora_indicators_visible += 1
             if event_type in {"minkan", "ankan", "kakan"}:
                 if metadata.rules.immediate_kan_dora:
-                    num_doras += 1
+                    kyoku.num_dora_indicators_visible += 1
                 else:
                     flip_kan_dora_next_discard = True
-
         assert len(kyoku.hands) > 0, f"somehow we never initialized the kyoku at index {len(kyokus)}"
         if len(kyokus) == 0:
             assert (kyoku.round, kyoku.honba) == (0, 0), f"kyoku numbering didn't start with East 1: instead it's {round_name(kyoku.round, kyoku.honba)}"
@@ -491,7 +480,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
         elif isinstance(action, proto.RecordBaBei): # kita
             events.append((action.seat, "kita", 44, [44], 0))
         elif isinstance(action, proto.RecordLiuJu): # abortive draw
-            # TODO: `action,.type` for 三家和了
+            # TODO: `action.type` for 三家和了
+            #       this requires getting triple ron with triple ron draw turned on
             if action.type == 1:
                 end_round(["九種九牌", [0]*num_players])
             elif action.type == 2:

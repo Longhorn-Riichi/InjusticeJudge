@@ -17,16 +17,16 @@ from .utils import get_waits, normalize_red_five, normalize_red_fives, sorted_ha
 
 class Dir(IntEnum):
     """Enum representing a direction, add to a seat mod 4 to get the indicated seat"""
-    SELF = 0
+    SELF     = 0
     SHIMOCHA = 1
-    TOIMEN = 2
-    KAMICHA = 3
+    TOIMEN   = 2
+    KAMICHA  = 3
 
 @dataclass(frozen=True)
 class CallInfo:
     """Immutable object describing a single call (chii, pon, daiminkan, ankan, kakan)"""
     type: str              # one of "chii", "pon", "minkan", "ankan", "kakan"
-    tile: int              # the called tile
+    tile: int              # the called tile (the one that is technically in the pond)
     dir: Dir               # where the tile was called from (indicates where to point the called tile)
     tiles: Tuple[int, ...] # the 3 or 4 tiles set aside after calling
     def __post_init__(self) -> None:

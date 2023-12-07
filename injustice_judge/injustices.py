@@ -1061,10 +1061,8 @@ def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], k
         what_happened = f"then someone ended the game with {draw_name}"
         last_subject = "someone"
     # identify the location of the remaining waits
-    visible_tiles = [tile for seat in range(kyoku.num_players) for tile in kyoku.pond[seat]] \
-                  + [DORA_INDICATOR[dora] for dora in kyoku.doras if dora not in {51,52,53}] \
-                  + [tile for hand in kyoku.hands for call in hand.calls for tile in call.tiles]
     all_waits = {wait for _, waits in yakuman_waits for wait in waits}
+    visible_tiles = kyoku.get_visible_tiles()
     visible_waits = {wait: visible_tiles.count(wait) for wait in all_waits}
     held_waits = {wait: [kyoku.hands[seat].hidden_part.count(wait) for seat in range(kyoku.num_players)] for wait in all_waits}
     total_held_waits = [sum(v[seat] for k, v in held_waits.items()) for seat in range(kyoku.num_players)]
