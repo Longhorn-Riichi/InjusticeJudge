@@ -8,7 +8,7 @@ from google.protobuf.json_format import MessageToDict
 from typing import *
 from .classes import CallInfo, GameRules, GameMetadata, Dir
 from .classes2 import Draw, Kyoku, Ron, Score, Tsumo
-from .constants import Event, Shanten, DORA, LIMIT_HANDS, MAJSOUL_YAKU, TRANSLATE, YAKUMAN, YAOCHUUHAI
+from .constants import Event, Shanten, DORA, LIMIT_HANDS, MAJSOUL_YAKU, TENHOU_LIMITS, TENHOU_YAKU, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, round_name
 from .hand import Hand
 from .utils import apply_delta_scores, is_mangan, normalize_red_five, sorted_hand, to_placement
@@ -565,19 +565,225 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
         url = f"https://tenhou.net/5/mjlog2json.cgi?{identifier}"
         # print(f" Fetching game log at url {url}")
         r = requests.get(url=url, headers={"User-Agent": USER_AGENT})
-        r.raise_for_status()
-        game_data = r.json()
+        try:
+            r.raise_for_status()
+            game_data = r.json()
+        except (requests.exceptions.HTTPError, requests.exceptions.JSONDecodeError):
+            url = f"https://tenhou.net/0/log/?{identifier}"
+            r = requests.get(url=url, headers={"User-Agent": USER_AGENT})
+            r.raise_for_status()
+            log, game_data = tenhou_xml_to_log(identifier, r.text)
+            game_data["log"] = log
         save_cache(filename=f"game-{identifier}.json", data=json.dumps(game_data, ensure_ascii=False).encode("utf-8"))
     log = game_data["log"]
     del game_data["log"]
-
     return log, game_data, (player_seat or 0)
+
+def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, Any]]:
+    xml = xml.replace("<mjloggm ver=\"2.3\">", "")
+    xml = xml.replace("</mjloggm>", "")
+    game_data = {"ver": 2.3, "ref": identifier}
+    wall_seed = ""
+    kyoku: Dict[str, Any] = {}
+    last_draw = [-1,-1,-1,-1]
+    calling_riichi = False
+    doras: List[int] = []
+    uras: List[int] = []
+    log = []
+    def format_kyoku(kyoku, doras, uras):
+        kyoku_obj = []
+        kyoku_obj.append(kyoku["seed"][:3])
+        kyoku_obj.append(kyoku["score"] + kyoku["shuugi"])
+        kyoku_obj.append(doras)
+        kyoku_obj.append(uras)
+        for h in zip(kyoku["haipai"], kyoku["draws"], kyoku["discards"]):
+            kyoku_obj.extend(list(h))
+        kyoku_obj.append(kyoku["result"]) 
+        return kyoku_obj
+    for tag in xml.split("/>")[:-1]:
+        tag = tag[1:] # remove "<"
+        name, *attr_strs = tag.split(" ")
+        attrs = dict(s.split("=") for s in attr_strs if s != "")
+        attrs = {k: v[1:-1] for k, v in attrs.items()}
+
+        tiles = [*range(11,20), *range(21,30), *range(31,40), *range(41,48)]
+        reds = {tiles.index(15): 51, tiles.index(25): 52, tiles.index(35): 53}
+        to_tile = lambda t: reds[t//4] if t//4 in reds and t%4==0 else tiles[t//4]
+        if name == "SHUFFLE":
+            wall_seed = attrs["seed"]
+        elif name == "GO":
+            game_data["lobby"] = int(attrs["lobby"])
+            game_data["rule"] = attrs["rule"].split(",")
+            game_data["csrule"] = attrs["csrule"].split(",")
+        elif name == "UN":
+            decodeURI = lambda str: str.replace("%","\\x").encode().decode("unicode_escape").encode("latin1").decode("utf-8")
+            names = []
+            names.append(decodeURI(attrs["n0"]))
+            names.append(decodeURI(attrs["n1"]))
+            names.append(decodeURI(attrs["n2"]))
+            if "n3" in attrs:
+                names.append(decodeURI(attrs["n3"]))
+            game_data["name"] = names
+            dans = "新人 ９級 ８級 ７級 ６級 ５級 ４級 ３級 ２級 １級 初段 二段 三段 四段 五段 六段 七段 八段 九段 十段 天鳳".split(" ")
+            game_data["dan"] = [dans[int(v)] for v in attrs["dan"].split(",")]
+            game_data["rate"] = [float(v) for v in attrs["rate"].split(",")]
+            game_data["sx"] = attrs["sx"].split(",")
+        elif name == "TAIKYOKU":
+            pass
+        elif name == "INIT":
+            if kyoku != {}:
+                log.append(format_kyoku(kyoku, doras, uras))
+            kyoku = {}
+            kyoku["seed"] = [int(v) for v in attrs["seed"].split(",")]
+            kyoku["score"] = [100 * int(v) for v in attrs["ten"].split(",")]
+            if "chip" in attrs:
+                kyoku["shuugi"] = [int(v) for v in attrs["chip"].split(",")]
+            kyoku["oya"] = int(attrs["oya"])
+            haipai0 = list(sorted_hand([to_tile(int(v)) for v in attrs["hai0"].split(",")]))
+            haipai1 = list(sorted_hand([to_tile(int(v)) for v in attrs["hai1"].split(",")]))
+            haipai2 = list(sorted_hand([to_tile(int(v)) for v in attrs["hai2"].split(",")]))
+            haipai3 = list(sorted_hand([to_tile(int(v)) for v in attrs["hai3"].split(",")]))
+            kyoku["haipai"] = [haipai0, haipai1, haipai2, haipai3]
+            kyoku["draws"] = [[],[],[],[]]
+            kyoku["discards"] = [[],[],[],[]]
+            last_draw = [-1,-1,-1,-1]
+            calling_riichi = False
+            doras = [to_tile(kyoku["seed"][-1])]
+            uras = []
+        elif len(attrs) == 0:
+            code, tile = name[0], to_tile(int(name[1:]))
+            if code in "TUVW": # draw
+                seat = "TUVW".index(code)
+                # print(seat, "<", tile)
+                kyoku["draws"][seat].append(tile)
+                last_draw[seat] = int(name[1:])
+            elif code in "DEFG": # discard
+                seat = "DEFG".index(code)
+                # print(seat, ">", tile)
+                if int(name[1:]) == last_draw[seat]:
+                    tile = 60
+                if calling_riichi:
+                    tile = "r" + str(tile)
+                kyoku["discards"][seat].append(tile)
+        elif name == "N": # call
+            caller = int(attrs["who"])
+            m = int(attrs["m"])
+            call_dir = m&3
+            if m & 0x4:
+                call_type = "chii"
+                tile_info = m>>10
+                rs = [(m>>3)&3, 4+((m>>5)&3), 8+((m>>7)&3)]
+            elif m & 0x8:
+                call_type = "pon"
+                tile_info = m>>9
+                rs = [0,1,2,3]
+                rs.remove((m>>5)&3)
+            elif m & 0x10:
+                call_type = "kakan"
+                tile_info = m>>9
+                rs = [(m>>5)&3]
+            else:
+                call_type = "minkan"
+                tile_info = m>>8
+                rs = [0,1,2,3]
+            num_tiles = 4 if call_type == "minkan" else 3
+            ix = tile_info//num_tiles
+            if call_type == "chii":
+                ix = (ix//7)*9+ix%7
+            called_tile = ix*4 + rs[tile_info%num_tiles]
+            called_tiles: List[Any] = [(ix*4)+r for r in rs]
+            called_tiles.remove(called_tile)
+            d = 3 - call_dir
+            called_tiles = called_tiles[:d] + [call_type[0] + str(to_tile(called_tile))] + called_tiles[d:]
+            call_str = "".join(str(to_tile(t) if type(t) != str else t) for t in called_tiles)
+            kyoku["draws"][caller].append(call_str)
+            last_draw[caller] = -1
+        elif name == "REACH": # riichi
+            step = int(attrs["step"])
+            if step == 1:
+                calling_riichi = True
+            elif step == 2:
+                calling_riichi = False
+        # elif name == "DORA": # new dora
+        elif name == "AGARI": # win
+            doras = [to_tile(int(v)) for v in attrs["doraHai"].split(",")]
+            if "doraHaiUra" in attrs:
+                uras = [to_tile(int(v)) for v in attrs["doraHaiUra"].split(",")]
+            if "owari" in attrs:
+                final_scores = [int(v) * 100 for v in attrs["owari"].split(",")[0:8:2]]
+                final_results = [float(v) for v in attrs["owari"].split(",")[1:8:2]]
+                final_shuugi = [int(v) * 100 for v in attrs["owari"].split(",")[8::2]]
+                final_scores += final_shuugi
+                game_data["sc"] = [s for sc in zip(final_scores, final_results) for s in sc]
+                
+            sc = attrs["sc"].split(",")
+            # scores = [int(v) * 100 for v in sc[0:8:2]]
+            deltas = [int(v) * 100 for v in sc[1:8:2]]
+            kyoku["shuugi"] = [int(v) for v in sc[8::2]]
+            shuugi_deltas = [int(v) for v in sc[9::2]]
+            deltas += shuugi_deltas
+            who, from_who = int(attrs["who"]), int(attrs["fromWho"])
+            fu, points, limit = [int(v) for v in attrs["ten"].split(",")]
+            is_closed_hand = "m" not in attrs
+            yaku = [int(v) for v in attrs["yaku"].split(",")[0::2]]
+            yaku_vals = [int(v) for v in attrs["yaku"].split(",")[1::2]]
+            yakuman = [int(v) for v in attrs["yakuman"].split(",")] if "yakuman" in attrs else []
+            honba, riichis = [int(v) for v in attrs["ba"].split(",")]
+
+            to_yaku_str = lambda id, val: f"{TENHOU_YAKU[id]}({val}飜)"
+            to_yakuman_str = lambda id: f"{TENHOU_YAKU[id]}(役満)"
+            han = sum(yaku_vals)
+            yakus = [to_yaku_str(id, val) for id, val in zip(yaku, yaku_vals) if val > 0]
+            yakumans = [to_yakuman_str(id) for id in yakuman]
+
+            if limit == 0:
+                value_string = str(fu) + "符" + str(han) + "飜"
+            else:
+                value_string = TENHOU_LIMITS[limit]
+            if who == from_who: # tsumo
+                if who == kyoku["seed"][0] // 4: # dealer tsumo
+                    point_string = f"{points//2}点∀"
+                else:
+                    point_string = f"{points//4}-{points//2}点"
+            else:
+                point_string = f"{points}点"
+
+            if "result" not in kyoku:
+                kyoku["result"] = ["和了"]
+                kyoku["result"].append(deltas)
+            kyoku["result"].append([who, from_who, who, value_string + point_string, *yakus, *yakumans])
+        elif name == "RYUUKYOKU": # draw
+            type_to_name = {
+                "nm":     "流し満貫",
+                "yao9":   "九種九牌",
+                "reach4": "四家立直",
+                "ron3":   "三家和了",
+                "kan4":   "四槓散了",
+                "kaze4":  "四風連打",
+            }
+            sc = attrs["sc"].split(",")
+            # scores = [int(v) * 100 for v in sc[0:8:2]]
+            deltas = [int(v) * 100 for v in sc[1:8:2]]
+            kyoku["shuugi"] = [int(v) for v in sc[8::2]]
+            shuugi_deltas = [int(v) for v in sc[9::2]]
+            deltas += shuugi_deltas
+            if "type" in attrs:
+                kyoku["result"] = [type_to_name[attrs["type"]]]
+            elif "hai0" in attrs and "hai1" in attrs and "hai2" in attrs and "hai3" in attrs:
+                kyoku["result"] = ["全員聴牌"]
+            elif "hai0" not in attrs and "hai1" not in attrs and "hai2" not in attrs and "hai3" not in attrs:
+                kyoku["result"] = ["全員不聴"]
+            else:
+                kyoku["result"] = ["流局"]
+            kyoku["result"].append(deltas)
+    log.append(format_kyoku(kyoku, doras, uras))
+    return log, game_data
 
 def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
     all_events: List[List[Event]] = []
     all_dora_indicators: List[List[int]] = []
     all_ura_indicators: List[List[int]] = []
-    use_red_fives = "aka51" in metadata["rule"] and metadata["rule"]["aka51"]
+    rules = GameRules.from_tenhou_rules(metadata["rule"], metadata.get("csrule", ["0"]*3 + [""]*37))
     # check to see if the name of the fourth player is empty; Sanma if empty, Yonma if not empty.
     num_players: int = 3 if metadata["name"][3] == "" else 4
     def get_call_dir(call: str) -> Dir:
@@ -619,7 +825,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         # (tenhou keeps 51,52,53 in these lists and just displays them as normal fives)
         # note that draws and discards can have strings, in which the red fives are handled
         # later
-        if not use_red_fives:
+        if not rules.use_red_fives:
             lists: List[List[int]] = \
                 [haipai0, haipai1, haipai2, haipai3, dora_indicators, ura_indicators]
             for lst in lists:
@@ -652,7 +858,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 Removes red fives when they are not in the ruleset
                 (through `extract_call_tiles()`)
                 """
-                call_tiles = extract_call_tiles(call, use_red_fives)
+                call_tiles = extract_call_tiles(call, rules.use_red_fives)
                 called_tile = call_tiles[0]
 
                 call_type = "chii"   if "c" in call else \
@@ -691,7 +897,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 i[curr_seat] += 1
                 continue
             else:
-                if not use_red_fives:
+                if not rules.use_red_fives:
                     draw = normalize_red_five(draw)
                 events.append((curr_seat, "draw", draw))
 
@@ -717,7 +923,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                 if discard == 60:
                     # tsumogiri
                     discard = draw
-                elif not use_red_fives:
+                elif not rules.use_red_fives:
                     # tedashi -- removes the five if necessary
                     discard = normalize_red_five(discard)
                 events.append((curr_seat, "discard", discard))
@@ -736,7 +942,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                     if type(next_draw := draws[seat][i[seat]]) is str and ("p" in next_draw or "m" in next_draw):
                         # check that it's calling from us, and that it's the same tile we discarded
                         same_dir = get_call_dir(next_draw) == Dir((curr_seat - seat) % 4)
-                        same_tile = extract_call_tiles(next_draw, use_red_fives)[0] == discard
+                        same_tile = extract_call_tiles(next_draw, rules.use_red_fives)[0] == discard
                         if same_dir and same_tile:
                             curr_seat = seat
                             keep_curr_seat = True # don't increment turn after this
@@ -756,7 +962,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                                    final_score = list(map(lambda s: int(1000*s), metadata["sc"][1::2])),
                                    dora_indicators = all_dora_indicators,
                                    ura_indicators = all_ura_indicators,
-                                   rules = GameRules.from_tenhou_rules(metadata["rule"], metadata.get("csrule", ["0"]*3 + [""]*37)))
+                                   rules = rules)
 
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
     return postprocess_events(all_events, parsed_metadata), parsed_metadata

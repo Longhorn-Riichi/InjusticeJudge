@@ -213,11 +213,7 @@ class KyokuState:
 
     def process_haipai(self, i: int, seat: int, event_type: str, hand: Tuple[int, ...]) -> None:
         assert len(self.at) == seat, f"got haipai out of order, expected seat {len(self.at)} but got seat {seat}"
-        self.at.append(KyokuPlayerState(num_players=self.num_players, hand=Hand(hand)))
-        # disable nagashi mangan if needed
-        if not self.kyoku.rules.nagashi_mangan:
-            for player in range(self.num_players):
-                self.at[player].nagashi = False
+        self.at.append(KyokuPlayerState(num_players=self.num_players, hand=Hand(hand), nagashi=self.kyoku.rules.nagashi_mangan))
         # check if we have at least 7 terminal/honor tiles
         num_types = len(set(hand) & YAOCHUUHAI) # of terminal/honor tiles
         if num_types >= 7:

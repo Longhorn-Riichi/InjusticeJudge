@@ -7,7 +7,9 @@ from typing import *
 #   SHANTEN_NAMES: the printed name for each number internally representing of a type of shanten
 #      PLACEMENTS: the printed name of a placement (1 -> "1st")
 #     LIMIT_HANDS: maps han count to tenhou limit hand name (5 -> "満貫")
+#   TENHOU_LIMITS: maps tenhou's limit field ID to limit hand name (5 -> "役満")
 #    MAJSOUL_YAKU: maps mahjong soul yaku IDs to tenhou yaku names
+#     TENHOU_YAKU: maps tenhou yaku IDs to tenhou yaku names
 #         YAKUMAN: set of yakuman names. there's also DOUBLE_YAKUMAN
 #       TRANSLATE: a big map from all Japanese terms to English terms
 #       PRED/SUCC: get the predecessor/successor of a number tile, 0 if nonexistent
@@ -80,6 +82,9 @@ LIMIT_HANDS = defaultdict(lambda: "役満", {
                 6: "跳満", 7: "跳満",
                 8: "倍満", 9: "倍満", 10: "倍満",
                 11: "三倍満", 12: "三倍満"})
+
+TENHOU_LIMITS = ["", "満貫", "跳満", "倍満", "三倍満", "役満"]
+
 MAJSOUL_YAKU = {
     1: "門前清自摸和",        # Fully Concealed Hand
     2: "立直",               # Riichi
@@ -145,6 +150,63 @@ MAJSOUL_YAKU = {
     62: "大数隣",            # Numerous Neighbours
     63: "石の上にも三年",      # Ishinouenimosannen
     64: "大七星",            # Big Seven Star
+}
+TENHOU_YAKU = {
+    0: "門前清自摸和",        # Fully Concealed Hand
+    1: "立直",               # Riichi
+    2: "一発",               # Ippatsu
+    3: "槍槓",               # Robbing a Kan
+    4: "嶺上開花",            # After a Kan
+    5: "海底摸月",            # Under the Sea
+    6: "河底撈魚",            # Under the River
+    7: "平和",               # Pinfu
+    8: "断幺九",             # All Simples
+    9: "一盃口",             # Pure Double Sequence
+    10: "自風 東",           # Seat Wind
+    11: "自風 南",           # Seat Wind
+    12: "自風 西",           # Seat Wind
+    13: "自風 北",           # Seat Wind
+    14: "場風 東",           # Prevalent Wind
+    15: "場風 南",           # Prevalent Wind
+    16: "場風 西",           # Prevalent Wind
+    17: "場風 北",           # Prevalent Wind
+    18: "役牌 白",           # White Dragon (Haku)
+    19: "役牌 發",           # Green Dragon (Hatsu)
+    20: "役牌 中",           # Red Dragon (Chun)
+    21: "ダブル立直",         # Double riichi
+    22: "七対子",            # Seven Pairs
+    23: "混全帯幺九",        # Half Outside Hand
+    24: "一気通貫",          # Pure Straight
+    25: "三色同順",           # Mixed Triple Sequence
+    26: "三色同刻",           # Triple Triplets
+    27: "三槓子",            # Three Quads
+    28: "対々和",            # All Triplets
+    29: "三暗刻",            # Three Concealed Triplets
+    30: "小三元",            # Little Three Dragons
+    31: "混老頭",            # All Terminals and Honours
+    32: "二盃口",            # Twice Pure Double Sequence
+    33: "純全帯幺九",        # Fully Outside Hand
+    34: "混一色",            # Half Flush
+    35: "清一色",            # Full Flush
+    36: "人和",              # Hand of Man
+    37: "天和",              # Blessing of Heaven
+    38: "地和",              # Blessing of Earth
+    39: "大三元",            # Big Three Dragons
+    40: "四暗刻",            # Four Concealed Triplets
+    41: "四暗刻単騎",         # Single-wait Four Concealed Triplets
+    42: "字一色",            # All Honors
+    43: "緑一色",            # All Green
+    44: "清老頭",            # All Terminals
+    45: "九蓮宝燈",          # Nine Gates
+    46: "純正九蓮宝燈",       # True Nine Gates
+    47: "国士無双十三面待ち",  # Thirteen-wait Thirteen Orphans
+    48: "国士無双",          # Thirteen Orphans
+    49: "大四喜",            # Four Big Winds
+    50: "小四喜",            # Four Little Winds
+    51: "四槓子",            # Four Quads
+    52: "ドラ",              # Dora/Kita
+    53: "裏ドラ",            # Uradora
+    54: "赤ドラ",            # Red Five
 }
 YAKUMAN = {
     'tenhou',

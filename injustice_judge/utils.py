@@ -40,7 +40,7 @@ def get_score(han: int, fu: int, is_dealer: bool, is_tsumo: bool, num_players: i
 # Add a score delta array [0,1000,-1000,0] to an existing score array [25000,25000,25000,25000]
 apply_delta_scores = lambda scores, delta_score: [score + delta for score, delta in zip(scores, delta_score)]
 # Given a score array, calculate the placement: [10000,30000,20000,40000] -> [3, 1, 2, 0]
-to_placement = lambda scores: (ixs := sorted(range(len(scores)), key=lambda x: -scores[x]), [ixs.index(p) for p in range(len(scores))])[1]
+to_placement = lambda scores: (ixs := sorted(range(4), key=lambda x: -scores[x]), [ixs.index(p) for p in range(4)])[1]
 
 def get_taatsu_wait(taatsu: Tuple[int, ...]) -> Set[int]:
     """

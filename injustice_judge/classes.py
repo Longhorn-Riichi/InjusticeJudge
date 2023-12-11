@@ -214,6 +214,7 @@ class GameRules:
     renhou: bool = False              # whether renhou is enabled
     kiriage_mangan: bool = False      # whether kiriage mangan is enabled
     nagashi_mangan: bool = True       # whether nagashi mangan is enabled
+    double_round_wind: bool = True    # whether double round wind is enabled (E = E+W; S = S+N)
     double_wind_4_fu: bool = True     # whether a round+seat wind pair is worth 4 fu
     starting_doras: int = 1           # number of doras started with
     riichi_value: int = 1000          # value of riichi bet
@@ -227,6 +228,7 @@ class GameRules:
                    renhou = rules.get("enableRenhe", False),
                    kiriage_mangan = rules.get("haveQieshangmanguan", False),
                    nagashi_mangan = rules.get("haveLiujumanguan", True),
+                   double_round_wind = False,
                    double_wind_4_fu = not rules.get("disableDoubleWindFourFu", False),
                    starting_doras = 3 if rules.get("dora3Mode", False) else 1,
                    riichi_value = rules.get("liqibang_value", 1000),
@@ -248,6 +250,7 @@ class GameRules:
                    renhou = 0x01000000 & rule2 != 0,
                    kiriage_mangan = 0x00000002 & rule2 != 0,
                    nagashi_mangan = 0x00000001 & rule2 != 0,
+                   double_round_wind = 0x00100000 & rule2 != 0,
                    double_wind_4_fu = 0x00000001 & rule3 == 0,
                    starting_doras = 1,
                    riichi_value = int(csrule[10] or 1000),

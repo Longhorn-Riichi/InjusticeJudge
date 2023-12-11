@@ -634,6 +634,8 @@ def get_yaku(hand: Hand,
     # each hand interpretation gives han and fu for some number of waits
     # get the best han and fu for each wait across all interpretations
     yakuhai: Tuple[int, ...] = (45,46,47,(round//4)+41,((seat-(round%4))%num_players)+41)
+    if rules.double_round_wind:
+        yakuhai = (*yakuhai, ((round//4)+2)+41)
     if not rules.double_wind_4_fu:
         yakuhai = tuple(set(yakuhai)) # remove duplicates
     is_closed_hand = len(hand.closed_part) == 13
