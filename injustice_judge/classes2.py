@@ -288,7 +288,10 @@ class Score:
                 return False
         return True
     def get_limit_hand_name(self) -> str:
-        if self.han >= 6 or is_mangan(self.han, self.fu):
+        if self.han >= 13:
+            tuples = ["", "", "double ", "triple ", "quadruple ", "quintuple ", "sextuple "]
+            return tuples[self.count_yakuman()] + "yakuman"
+        elif self.han >= 6 or is_mangan(self.han, self.fu):
             return TRANSLATE[LIMIT_HANDS[self.han]]
         return ""
     @classmethod
