@@ -1,9 +1,10 @@
 from .classes import CallInfo, Dir
-from .classes2 import Draw, Hand, Kyoku, Ron, Score, Tsumo, Win
+from .classes2 import Draw, Kyoku, Ron, Score, Tsumo, Win
 from dataclasses import dataclass, field
 from .constants import Event, Shanten, DORA, DORA_INDICATOR, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, print_pond, round_name
 from enum import Enum
+from .hand import Hand
 from .utils import apply_delta_scores, get_score, is_mangan, normalize_red_five, to_placement
 from .wwyd import is_safe
 from .yaku import get_final_yaku, get_yaku, get_yakuman_tenpais, get_yakuman_waits
@@ -179,10 +180,10 @@ class KyokuState:
     num_players: int
     tiles_in_wall: int              = 0
     pending_kan: Optional[CallInfo] = None
-    starting_doras: List[int]       = field(default_factory=list)
+    starting_doras: List[int]       = field(default_factory=list) # TODO 3 starting doras
     current_doras: List[int]        = field(default_factory=list)
     at: List[KyokuPlayerState]      = field(default_factory=list)
-    visible_tiles: List[int]        = field(default_factory=list)
+    visible_tiles: List[int]        = field(default_factory=list) # TODO remove
     flags: List[List[Flags]]        = field(default_factory=list)
     data: List[List[Any]]           = field(default_factory=list)
     global_flags: List[Flags]       = field(default_factory=list)

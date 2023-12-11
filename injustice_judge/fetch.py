@@ -7,9 +7,10 @@ from google.protobuf.message import Message
 from google.protobuf.json_format import MessageToDict
 from typing import *
 from .classes import CallInfo, GameRules, GameMetadata, Dir
-from .classes2 import Draw, Hand, Kyoku, Ron, Score, Tsumo
+from .classes2 import Draw, Kyoku, Ron, Score, Tsumo
 from .constants import Event, Shanten, DORA, LIMIT_HANDS, MAJSOUL_YAKU, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, round_name
+from .hand import Hand
 from .utils import apply_delta_scores, is_mangan, normalize_red_five, sorted_hand, to_placement
 from .yaku import debug_yaku
 from pprint import pprint

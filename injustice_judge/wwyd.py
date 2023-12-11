@@ -1,5 +1,5 @@
 from .constants import JIHAI, PRED, SUCC
-from .classes2 import Hand
+from .hand import Hand
 from .shanten import calculate_shanten
 from .utils import normalize_red_five
 from typing import *

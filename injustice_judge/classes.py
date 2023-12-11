@@ -216,6 +216,7 @@ class GameRules:
     nagashi_mangan: bool = True       # whether nagashi mangan is enabled
     double_wind_4_fu: bool = True     # whether a round+seat wind pair is worth 4 fu
     starting_doras: int = 1           # number of doras started with
+                                      # TODO riichi and honba value
     @classmethod
     def from_majsoul_detail_rule(cls, rules: Dict[str, Any]) -> "GameRules":
         return cls(use_red_fives = rules.get("doraCount", 3) > 0,

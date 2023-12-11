@@ -72,48 +72,6 @@ SHANTEN_NAMES = {
     5: "5-shanten",
     6: "6-shanten"
 }
-# SHANTEN_NAMES = {
-#     0: "tenpai",
-# # TODO make these all like 1.11111 where each one denotes a type of iishanten included
-#     1: "unknown iishanten", # unused
-#     1.05: "kokushi musou iishanten",
-#     1.1: "kuttsuki iishanten",
-#     1.12: "perfect kuttsuki iishanten",
-#     1.13: "kuttsuki iishanten",
-#     1.14: "floating kuttsuki iishanten",
-#     1.15: "kuttsuki headless iishanten",
-#     1.17: "kuttsuki headless iishanten",
-#     1.18: "kuttsuki headless iishanten",
-#     1.19: "kuttsuki headless iishanten",
-#     1.2: "headless iishanten",
-#     1.22: "perfect headless iishanten",
-#     1.23: "headless iishanten",
-#     1.24: "floating headless iishanten",
-#     1.32: "perfect iishanten",
-#     1.3: "imperfect iishanten",
-#     1.4: "floating iishanten",
-#     1.5: "chiitoitsu iishanten",
-#     1.6: "kuttsuki chiitoi iishanten",
-#     1.62: "kuttsuki chiitoi iishanten",
-#     1.63: "kuttsuki chiitoi iishanten",
-#     1.64: "kuttsuki chiitoi iishanten",
-#     1.65: "kuttsuki chiitoi iishanten",
-#     1.67: "kuttsuki chiitoi iishanten",
-#     1.68: "kuttsuki chiitoi iishanten",
-#     1.69: "kuttsuki chiitoi iishanten",
-#     1.7: "headless chiitoi iishanten",
-#     1.72: "headless chiitoi iishanten",
-#     1.73: "headless chiitoi iishanten",
-#     1.74: "headless chiitoi iishanten",
-#     1.82: "perfect chiitoi iishanten",
-#     1.83: "imperfect chiitoi iishanten",
-#     1.9: "floating chiitoi iishanten",
-#     2: "2-shanten",
-#     3: "3-shanten",
-#     4: "4-shanten",
-#     5: "5-shanten",
-#     6: "6-shanten"
-# }
 PLACEMENTS = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th"}
 
 LIMIT_HANDS = defaultdict(lambda: "役満", {
