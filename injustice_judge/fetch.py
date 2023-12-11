@@ -64,7 +64,7 @@ def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) ->
     kyokus: List[Kyoku] = []
     for events, dora_indicators, ura_indicators in zip(all_events, metadata.dora_indicators, metadata.ura_indicators):
         assert len(events) > 0, "somehow got an empty events list"
-        kyoku: Kyoku = Kyoku(rules=metadata.rules)
+        kyoku: Kyoku = Kyoku(rules=metadata.rules, num_dora_indicators_visible=metadata.rules.starting_doras)
         shanten_before_last_draw: List[Shanten] = []
         flip_kan_dora_next_discard = False
         def update_shanten(seat: int) -> None:

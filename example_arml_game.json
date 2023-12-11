@@ -295,6 +295,8 @@
                      // 0x0020: set if tokujou/houou table
                      // 0x0040: set if speed table
                      // 0x0080: set if joukyuu table
+                     // 0x0100: set if highlight tsumogiri
+                     // 0x0200: set if shuugi is used
              "0",
              "0",
              "0",
@@ -302,7 +304,8 @@
     "lobby": 18940,
     "title": "%41%52%4D%4C%20%4D%61%69%6E%20%4C%6F%62%62%79", // "ARML Main Lobby"
     "ranking": "",
-    "csrule": ["4120DF0F", // the ruleset, older arml games had "4020DF0F" i.e. no renhou
+    // information: http://blog.tenhou.net/article/39084756.html
+    "csrule": ["4120DF0F", // rule flags part 1, older arml games had "4020DF0F" i.e. no renhou
                            // here's how to interpret it:
                            // 0x00000001: set if nagashi mangan disabled
                            // 0x00000002: set if kiriage mangan enabled
@@ -333,29 +336,27 @@
                            // 0x04000000: set if ankan after riichi follows WRC rules (= can't ankan if it changes wait)
                            // 0x08000000: set if melding 4 of a tile means that tile doesn't count towards one's wait
                            // 0x40000000: set if hiding Join button (no effect?)
-               "00000001", // ruleset part 2
+               "00000001", // rule flags part 2
                            // 0x00000001: set if double wind pair counts as 2 fu instead of 4 fu
                            // 0x00000002: set if splitting uma (?)
                            // 0x00000004: set if leftover riichi sticks go to first place at the end
                            // 0x00000008: set if suukantsu pao enabled
                            // 0x00000010: set if kazoe yakuman disabled
-               "",
-               "",
+               "", // rule flags part 3
+               "", // rule flags part 4
                "30000", "30000", "30000", // starting pts, required points, 清算原点
+               "", // teppen 天辺 -- game ends immediately after a player passes this number of points
+               "", // least number of rounds (04=tonpuu)
+               "", // most number of rounds including sudden death (08=tonpuu)
+               "", // riichi stick points (default 1000)
+               "", // points per honba per person (default 100, meaning 300 for yonma and 200 for sanma)
                "",
                "",
                "",
                "",
-               "",
-               "",
-               "",
-               "",
-               "",
-               "",
-               "",
-               "",
-               "",
-               "",
+               "", "", "", // noten penalty for 1/2/3 person tenpai (1000/1500/3000)
+               "", // shuugi chip point value (default 1000 per chip)
+               "", // raw points to game points conversion factor (????)
                "5", "-5", "-15", // 2nd/3rd/4th uma (if no-one is below starting score)
                "5", "0", "-20",  // 2nd/3rd/4th uma (if 1 person is below starting score)
                "5", "-5", "-15", // 2nd/3rd/4th uma (if 2 people are below starting score)

@@ -215,6 +215,7 @@ class GameRules:
     kiriage_mangan: bool = False      # whether kiriage mangan is enabled
     nagashi_mangan: bool = True       # whether nagashi mangan is enabled
     double_wind_4_fu: bool = True     # whether a round+seat wind pair is worth 4 fu
+    starting_doras: int = 1           # number of doras started with
     @classmethod
     def from_majsoul_detail_rule(cls, rules: Dict[str, Any]) -> "GameRules":
         return cls(use_red_fives = rules.get("doraCount", 3) > 0,
@@ -224,6 +225,7 @@ class GameRules:
                    kiriage_mangan = rules.get("haveQieshangmanguan", False),
                    nagashi_mangan = rules.get("haveLiujumanguan", True),
                    double_wind_4_fu = not rules.get("disableDoubleWindFourFu", False),
+                   starting_doras = 3 if rules.get("dora3Mode", False) else 1,
                    )
     @classmethod
     def from_tenhou_rules(cls, rule: List[str], csrule: List[str]) -> "GameRules":
@@ -241,6 +243,7 @@ class GameRules:
                    kiriage_mangan = 0x00000002 & rule2 != 0,
                    nagashi_mangan = 0x00000001 & rule2 != 0,
                    double_wind_4_fu = 0x00000001 & rule3 == 0,
+                   starting_doras = 1,
                    )
 @dataclass
 class GameMetadata:

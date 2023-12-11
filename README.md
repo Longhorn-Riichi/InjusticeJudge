@@ -23,7 +23,6 @@ Analyzes your `Mahjong Soul` or `tenhou.net` game to find instances of mahjong i
 - You had an early 8 outs ryanmen (or better) and never folded, but didn't win
 - You keep drawing honor tiles that you discard immediately (6+ times)
 - You draw and discard the same tile 6 times in a row (not in tenpai)
-- You started with a shanten 2 worse than every other player
 - You discarded dora and immediately drew dora after
 - Your turn was skipped by pon/kan 3 or more times
 - Your tenpai wait was damaged by someone calling ankan
