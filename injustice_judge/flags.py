@@ -854,7 +854,9 @@ class KyokuState:
                             Flags.WINNER_GOT_HANEMAN, Flags.WINNER_GOT_BAIMAN,
                             Flags.WINNER_GOT_SANBAIMAN, Flags.WINNER_GOT_YAKUMAN]
         limit_hand_names = ["", "mangan", "haneman", "baiman", "sanbaiman", "yakuman"]
-        limit_hand_flags = limit_hand_flags[0:limit_hand_names.index(result.score.get_limit_hand_name())+1]
+        limit_hand_name = result.score.get_limit_hand_name()
+        limit_hand_name = "yakuman" if "yakuman" in limit_hand_name else limit_hand_name
+        limit_hand_flags = limit_hand_flags[0:limit_hand_names.index(limit_hand_name)+1]
         winner_data = {"seat": result.winner,
                        "won_from": result.won_from if isinstance(result, Ron) else None,
                        "hand": winning_hand,

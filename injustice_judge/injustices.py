@@ -243,7 +243,7 @@ def won_with_3_starting_dora(flags: List[Flags], data: List[Dict[str, Any]], kyo
 @skill(require=[Flags.EVERYONE_RESPECTED_YOUR_RIICHI, Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.YOU_GAINED_POINTS])
 def everyone_respected_your_riichi(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     points = data[flags.index(Flags.YOU_GAINED_POINTS)]["amount"]
-    if points == 3000: # TODO depends on ruleset?
+    if points == kyoku.rules.noten_payment[0] * kyoku.num_players:
         return [Skill(kyoku.round, kyoku.honba, "Skill",
                 CheckClause(subject="you",
                             verb="declared",
@@ -456,7 +456,7 @@ def gained_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]], 
         orig_placement = to_placement(prev_scores)
         orig_points = score.to_points()
         score.add_dora("ura", -ura)
-        uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round, kyoku.honba, [player], won_from, kyoku.rules.kiriage_mangan))
+        uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round, kyoku.honba, kyoku.rules.honba_value, [player], won_from, kyoku.rules.kiriage_mangan))
         uraless_points = score.to_points()
         score.add_dora("ura", ura)
         if orig_placement == uraless_placement:
@@ -1149,7 +1149,7 @@ def dropped_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]],
         orig_placement = to_placement(prev_scores)
         orig_points = score.to_points()
         score.add_dora("ura", -ura)
-        uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round, kyoku.honba, [winner], player, kyoku.rules.kiriage_mangan))
+        uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round, kyoku.honba, kyoku.rules.honba_value, [winner], player, kyoku.rules.kiriage_mangan))
         uraless_points = score.to_points()
         score.add_dora("ura", ura)
         if orig_placement == uraless_placement:

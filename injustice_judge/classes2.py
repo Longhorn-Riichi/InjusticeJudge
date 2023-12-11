@@ -78,7 +78,7 @@ class Score:
         han = 5 if self.kiriage and (self.han, self.fu) in ((4,30), (3,60)) else self.han
         return yakuman_factor * get_score(han, self.fu, self.is_dealer, self.tsumo, self.num_players)
 
-    def to_score_deltas(self, round: int, honba: int, winners: List[int], payer: int, kiriage: bool, pao_seat: Optional[int] = None) -> List[int]:
+    def to_score_deltas(self, round: int, honba: int, honba_value: int, winners: List[int], payer: int, kiriage: bool, pao_seat: Optional[int] = None) -> List[int]:
         yakuman_factor = self.count_yakuman() or 1
         prev_han = self.han
         han = 5 if self.kiriage and (self.han, self.fu) in ((4,30), (3,60)) else self.han
@@ -88,7 +88,8 @@ class Score:
             winner = winners[0]
             oya_payment = winner == round%4
             points = (OYA_RON_SCORE if oya_payment else KO_RON_SCORE)[han][self.fu]  # type: ignore[index]
-            points = (points * yakuman_factor) + (100 * self.num_players * honba)
+            points = (points * yakuman_factor)
+            honba_payment = honba_value * self.num_players * honba
             score_deltas[winner] += points
             if self.tsumo:
                 score_deltas[pao_seat] -= points
@@ -101,14 +102,14 @@ class Score:
                 for payer in set(range(self.num_players)) - {winners[0]}:
                     oya_payment = (winners[0] == round%4) or (payer == round%4)
                     points = (OYA_TSUMO_SCORE if oya_payment else KO_TSUMO_SCORE)[han][self.fu]  # type: ignore[index]
-                    points = (points * yakuman_factor) + (100 * honba)
+                    points = (points * yakuman_factor) + (honba_value * honba)
                     score_deltas[payer] -= points
                 score_deltas[payer] -= sum(score_deltas)
             else:
                 for winner in winners:
                     oya_payment = winner == round%4
                     points = (OYA_RON_SCORE if oya_payment else KO_RON_SCORE)[han][self.fu]  # type: ignore[index]
-                    points = (points * yakuman_factor) + (100 * self.num_players * honba)
+                    points = (points * yakuman_factor) + (honba_value * self.num_players * honba)
                     score_deltas[winner] += points
                 score_deltas[winner] -= sum(score_deltas)
         return score_deltas
@@ -277,20 +278,21 @@ class Kyoku:
     tiles_in_wall: int                            = 0
 
     def get_starting_score(self) -> int:
-        return (sum(self.start_scores) + 1000*self.riichi_sticks) // self.num_players
+        return (sum(self.start_scores) + self.rules.riichi_value*self.riichi_sticks) // self.num_players
     def get_visible_tiles(self) -> List[int]:
         pond_tiles = [tile for seat in range(self.num_players) for tile in self.pond[seat]]
-        if self.result and self.result[0] != "tsumo" and not (self.result[0] == "draw" and self.result[1].name == "9 terminals draw"):
-            # then the last action was a discard, and that discard should not count towards ukeire calculations
-            pond_tiles.remove(self.final_discard)
         dora_indicators = [DORA_INDICATOR[dora] for dora in self.doras if dora not in {51,52,53}][:self.num_dora_indicators_visible]
         def get_invisible_part(call):
             # get the part of the call that isn't already counted as part of the pond
             ret = list(call.tiles)
-            if call.type != "ankan":
+            if call.type not in {"ankan", "kita"}:
                 ret.remove(call.tile)
             return ret
         visible_calls = [tile for hand in self.hands for call in hand.calls for tile in get_invisible_part(call)]
-        return pond_tiles + dora_indicators + visible_calls
+        visible_tiles = pond_tiles + dora_indicators + visible_calls
+        if self.result and self.result[0] != "tsumo" and not (self.result[0] == "draw" and self.result[1].name == "9 terminals draw"):
+            # then the last action was a discard, and that discard should not count towards ukeire calculations
+            visible_tiles.remove(self.final_discard)
+        return visible_tiles
     def get_ukeire(self, seat) -> int:
         return self.hands[seat].ukeire(self.get_visible_tiles())
