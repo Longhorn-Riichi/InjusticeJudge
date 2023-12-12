@@ -745,7 +745,7 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
             kyoku["shuugi"] = [int(v) for v in sc[8::2]]
             shuugi_deltas = [int(v) for v in sc[9::2]]
             deltas += shuugi_deltas
-            who, from_who = int(attrs["who"]), int(attrs["fromWho"])
+            who, from_who, pao_who = int(attrs["who"]), int(attrs["fromWho"]), int(attrs["paoWho" if "paoWho" in attrs else "who"])
             fu, points, limit = [int(v) for v in attrs["ten"].split(",")]
             is_closed_hand = "m" not in attrs
             yaku = [int(v) for v in attrs["yaku"].split(",")[0::2]]
@@ -774,7 +774,7 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
             if "result" not in kyoku:
                 kyoku["result"] = ["和了"]
             kyoku["result"].append(deltas)
-            kyoku["result"].append([who, from_who, who, value_string + point_string, *yakus, *yakumans])
+            kyoku["result"].append([who, from_who, pao_who, value_string + point_string, *yakus, *yakumans])
         elif name == "RYUUKYOKU": # draw
             type_to_name = {
                 "nm":     "流し満貫",
