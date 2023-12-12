@@ -666,7 +666,7 @@ class KyokuState:
         if len(self.kyoku.wall) > 0:
             winners = {r[0] for r in raw_result[2::2]}
             for i in range(self.num_players):
-                player = (seat+i+1)%4
+                player = (seat+i+1)%self.num_players
                 if player not in winners and self.at[player].hand.shanten[0] == 0:
                     wait = self.at[player].hand.shanten[1]
                     yakuman_tenpais = get_yakuman_tenpais(self.at[player].hand)
@@ -678,12 +678,10 @@ class KyokuState:
                     if len(yakuman_tenpais) == 0:
                         draws = draws[:5]
                     if not set(wait).isdisjoint(set(normalize_red_fives(draws))):
-                        print(round_name(self.kyoku.round, self.kyoku.honba))
-                        print(f"player {player} was waiting on {ph(wait)} and would have drawn: {ph(draws)}")
                         self.add_flag(player, Flags.COULD_HAVE_TSUMOED, {"wait": wait, "draws": draws, "yakuman_tenpais": yakuman_tenpais})
                     # check if a riichi player would have drawn the tile
                     for j in range(self.num_players):
-                        riichi_player = (seat+j+1)%4
+                        riichi_player = (seat+j+1)%self.num_players
                         if player == riichi_player or not self.at[riichi_player].in_riichi:
                             continue
                         riichi_wait = self.at[riichi_player].hand.shanten[1]
@@ -694,10 +692,7 @@ class KyokuState:
                         if len(yakuman_tenpais) == 0:
                             draws = draws[:5]
                         if not (set(wait) - set(riichi_wait)).isdisjoint(set(normalize_red_fives(draws))):
-                            print(round_name(self.kyoku.round, self.kyoku.honba))
-                            print(f"player {player} was waiting on {ph(wait)} and riichi player {riichi_player} waiting on {ph(riichi_wait)} would have drawn: {ph(draws)}")
                             self.add_flag(player, Flags.COULD_HAVE_RONNED, {"riichi_player": riichi_player, "wait": wait, "draws": draws, "yakuman_tenpais": yakuman_tenpais})
-
 
     def process_result(self, i: int, seat: int, event_type: str, result_type: str, *results: Union[Ron, Tsumo, Draw]) -> None:
         # check if the last discard was a riichi (it must have dealt in)

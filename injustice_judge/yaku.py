@@ -363,7 +363,7 @@ def add_tsumo_yaku(yaku_for_wait: YakuForWait, interpretation: Interpretation, i
 
     # sanankou requires two closed triplets, and that the taatsu part is a shanpon wait
     taatsu, _, _, sequences, triplets, pair = interpretation.unpack()
-    is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
+    is_pair = lambda hand: len(hand) == 2 and normalize_red_five(hand[0]) == normalize_red_five(hand[1])
     if len(triplets) >= 2 and is_pair(taatsu) and pair is not None:
         # check they are all closed
         called_triplets = {tuple(normalize_red_fives(call.tiles[:3])) for call in interpretation.calls}
@@ -658,11 +658,11 @@ def get_yaku(hand: Hand,
         # if `interpretations.hand` is a pair, it's a shanpon wait
         # if it's a terminal pair then it's +4 fu for ron and +8 for tsumo
         # otherwise it's +2 fu for ron and +4 for tsumo
-        is_pair = lambda hand: len(hand) == 2 and hand[0] == hand[1]
+        is_pair = lambda hand: len(hand) == 2 and normalize_red_five(hand[0]) == normalize_red_five(hand[1])
         shanpon_fu = {wait: 0 for wait in yaku_for_wait.keys()} # times 2 for tsumo
         if is_pair(interpretation.hand):
             assert interpretation.pair is not None, "somehow got a shanpon tenpai hand without a pair"
-            for tile in (interpretation.hand[0], interpretation.pair[0]):
+            for tile in normalize_red_fives((interpretation.hand[0], interpretation.pair[0])):
                 shanpon_fu[tile] = 4 if tile in YAOCHUUHAI else 2
 
         # now total up the fu for each wait

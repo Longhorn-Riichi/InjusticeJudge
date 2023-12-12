@@ -90,12 +90,12 @@ class Score:
             points = (OYA_RON_SCORE if oya_payment else KO_RON_SCORE)[han][self.fu]  # type: ignore[index]
             points = (points * yakuman_factor)
             honba_payment = honba_value * self.num_players * honba
-            score_deltas[winner] += points
+            score_deltas[winner] += points + honba_payment
             if self.tsumo:
-                score_deltas[pao_seat] -= points
+                score_deltas[pao_seat] -= points - honba_payment
             else:
                 score_deltas[payer] -= points//2
-                score_deltas[pao_seat] -= points//2
+                score_deltas[pao_seat] -= points//2 - honba_payment
         else:
             if self.tsumo:
                 assert len(winners) == 1

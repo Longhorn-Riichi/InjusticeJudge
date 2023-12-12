@@ -1217,7 +1217,7 @@ def could_have_tsumoed(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
     wait = data[flags.index(Flags.COULD_HAVE_TSUMOED)]["wait"]
     draws = data[flags.index(Flags.COULD_HAVE_TSUMOED)]["draws"]
     yakuman_tenpais = data[flags.index(Flags.COULD_HAVE_TSUMOED)]["yakuman_tenpais"]
-    yakuman_str = f"for {' '.join(yakuman_tenpais)} tenpai" if len(yakuman_tenpais) > 0 else ""
+    yakuman_str = f" for {' '.join(yakuman_tenpais)} tenpai" if len(yakuman_tenpais) > 0 else ""
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="were waiting on",
@@ -1231,7 +1231,7 @@ def could_have_ronned(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyo
     draws = data[flags.index(Flags.COULD_HAVE_RONNED)]["draws"]
     yakuman_tenpais = data[flags.index(Flags.COULD_HAVE_RONNED)]["yakuman_tenpais"]
     riichi_player = data[flags.index(Flags.COULD_HAVE_RONNED)]["riichi_player"]
-    yakuman_str = f"for {' '.join(yakuman_tenpais)} tenpai" if len(yakuman_tenpais) > 0 else ""
+    yakuman_str = f" for {' '.join(yakuman_tenpais)} tenpai" if len(yakuman_tenpais) > 0 else ""
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="were waiting on",

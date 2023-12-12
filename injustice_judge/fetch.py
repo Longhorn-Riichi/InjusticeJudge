@@ -380,6 +380,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     majsoul_hand_to_tenhou_unsorted = lambda hand: list(map(convert_tile, hand))
     last_seat = 0
     all_events: List[List[Event]] = []
+    all_walls: List[List[int]] = []
     events: List[Event] = []
     # constants obtained in the main loop below
     num_players: int = -1
@@ -418,6 +419,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
             # this is actually how Tenhou logs store the round counter
             round = action.chang*4 + action.ju
             honba = action.ben
+            all_walls.append([convert_tile(a+b) for a, b in zip(action.paishan[::2], action.paishan[1::2])])
             riichi_sticks = action.liqibang
             events.append((t, "start_game", round, honba, riichi_sticks, tuple(action.scores)))
             # pretend we drew the first tile
@@ -516,7 +518,6 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                                    final_score = [result_data[i][2] for i in range(num_players)],
                                    rules = GameRules.from_majsoul_detail_rule(metadata["config"]["mode"]["detailRule"]))
 
-    all_walls: List[List[int]] = [[] for _ in all_events] # dummy
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)
     return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata
 
