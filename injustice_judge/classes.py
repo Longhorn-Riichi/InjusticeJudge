@@ -264,8 +264,4 @@ class GameMetadata:
     name: List[str]                  # name of each player indexed by seat
     game_score: List[int]            # final scores (points) indexed by seat
     final_score: List[int]           # final scores (points plus uma) indexed by seat
-    # the fields below are equivalent to Kyoku.doras/uras/rules, and only here for technical reasons
-    # (they are parsed first from the raw log, and then used to populate each Kyoku)
-    dora_indicators: List[List[int]] # lists of dora indicators, one for each kyoku
-    ura_indicators: List[List[int]]  # lists of ura indicators, one for each kyoku
     rules: GameRules                 # game rules

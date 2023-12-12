@@ -12,6 +12,7 @@ from .constants import Event, Shanten, DORA, LIMIT_HANDS, MAJSOUL_YAKU, TENHOU_L
 from .display import ph, pt, round_name
 from .hand import Hand
 from .utils import apply_delta_scores, is_mangan, normalize_red_five, sorted_hand, to_placement
+from .wall import seed_wall, next_wall
 from .yaku import debug_yaku
 from pprint import pprint
 
@@ -56,16 +57,20 @@ MajsoulLog = List[Tuple[str, proto.Wrapper]]
 ### postprocess events obtained from parsing
 ###
 
-def postprocess_events(all_events: List[List[Event]], metadata: GameMetadata) -> List[Kyoku]:
+def postprocess_events(all_events: List[List[Event]],
+                       metadata: GameMetadata,
+                       all_dora_indicators: List[List[int]],
+                       all_ura_indicators: List[List[int]],
+                       all_walls: List[List[int]]) -> List[Kyoku]:
     """
     Go through a game (represented as a list of events) and add more events to it
     e.g. shanten changes, tenpai, ending nagashi discards
     Return a list of kyoku, which contains the new event list plus all data about the round
     """
     kyokus: List[Kyoku] = []
-    for events, dora_indicators, ura_indicators in zip(all_events, metadata.dora_indicators, metadata.ura_indicators):
+    for events, dora_indicators, ura_indicators, wall in zip(all_events, all_dora_indicators, all_ura_indicators, all_walls):
         assert len(events) > 0, "somehow got an empty events list"
-        kyoku: Kyoku = Kyoku(rules=metadata.rules, num_dora_indicators_visible=metadata.rules.starting_doras)
+        kyoku: Kyoku = Kyoku(rules=metadata.rules, wall=wall, num_dora_indicators_visible=metadata.rules.starting_doras)
         shanten_before_last_draw: List[Shanten] = []
         flip_kan_dora_next_discard = False
         def update_shanten(seat: int) -> None:
@@ -509,12 +514,11 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                                    name = nicknames,
                                    game_score = [result_data[i][1] for i in range(num_players)],
                                    final_score = [result_data[i][2] for i in range(num_players)],
-                                   dora_indicators = all_dora_indicators,
-                                   ura_indicators = all_ura_indicators,
-                                   rules=GameRules.from_majsoul_detail_rule(metadata["config"]["mode"]["detailRule"]))
+                                   rules = GameRules.from_majsoul_detail_rule(metadata["config"]["mode"]["detailRule"]))
 
-    assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
-    return postprocess_events(all_events, parsed_metadata), parsed_metadata
+    all_walls: List[List[int]] = [] * len(all_events) # dummy
+    assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)
+    return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata
 
 ###
 ### loading and parsing tenhou games
@@ -583,7 +587,6 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
     xml = xml.replace("<mjloggm ver=\"2.3\">", "")
     xml = xml.replace("</mjloggm>", "")
     game_data = {"ver": 2.3, "ref": identifier}
-    wall_seed = ""
     kyoku: Dict[str, Any] = {}
     last_draw = [-1,-1,-1,-1]
     calling_riichi = False
@@ -610,7 +613,7 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
         reds = {tiles.index(15): 51, tiles.index(25): 52, tiles.index(35): 53}
         to_tile = lambda t: reds[t//4] if t//4 in reds and t%4==0 else tiles[t//4]
         if name == "SHUFFLE":
-            wall_seed = attrs["seed"]
+            game_data["wall_seed"] = attrs["seed"]
         elif name == "GO":
             game_data["lobby"] = int(attrs["lobby"])
             game_data["rule"] = attrs["rule"].split(",")
@@ -960,12 +963,16 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
                                    name = metadata["name"],
                                    game_score = metadata["sc"][::2],
                                    final_score = list(map(lambda s: int(1000*s), metadata["sc"][1::2])),
-                                   dora_indicators = all_dora_indicators,
-                                   ura_indicators = all_ura_indicators,
                                    rules = rules)
 
-    assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators)
-    return postprocess_events(all_events, parsed_metadata), parsed_metadata
+    if "wall_seed" in metadata:
+        seed_wall(metadata["wall_seed"][29:])
+        all_walls = [next_wall() for _ in range(len(all_events))]
+    else:
+        all_walls = [] * len(all_events) # dummy
+
+    assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)
+    return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata
 
 async def parse_game_link(link: str, specified_players: Set[int] = set()) -> Tuple[List[Kyoku], GameMetadata, Set[int]]:
     """Given a game link, fetch and parse the game into kyokus"""

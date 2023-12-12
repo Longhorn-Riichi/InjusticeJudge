@@ -237,6 +237,7 @@ class Kyoku:
     final_discard: int                            = 0
     is_final_round: bool                          = False
     rules: GameRules                              = field(default_factory=GameRules)
+    wall: List[int]                               = field(default_factory=list)
 
     # Events describing what happened in this kyoku
     # Each event is of the form (seat, event type, *event data)
