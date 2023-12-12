@@ -453,7 +453,7 @@ def gained_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]], 
     ura = score.count_ura()
     if ura > 0:
         # check if placement would have stayed constant had there been no ura
-        orig_placement = to_placement(prev_scores)
+        orig_placement = to_placement(prev_scores, kyoku.num_players)
         orig_points = score.to_points()
         score.add_dora("ura", -ura)
         uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round, kyoku.honba, kyoku.rules.honba_value, [player], won_from, kyoku.rules.kiriage_mangan))
@@ -1146,7 +1146,7 @@ def dropped_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]],
     ura = score.count_ura()
     if ura > 0:
         # check if placement would have stayed constant had there been no ura
-        orig_placement = to_placement(prev_scores)
+        orig_placement = to_placement(prev_scores, kyoku.num_players)
         orig_points = score.to_points()
         score.add_dora("ura", -ura)
         uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round, kyoku.honba, kyoku.rules.honba_value, [winner], player, kyoku.rules.kiriage_mangan))
@@ -1199,12 +1199,40 @@ def dealt_into_chankan_while_tenpai(flags: List[Flags], data: List[Dict[str, Any
 
 # Print if at least half of the tiles in your wait were in the dead wall
 @injustice(require=[Flags.WAIT_WAS_IN_DEAD_WALL],
-            forbid=[Flags.WINNER])
+            forbid=[Flags.YOU_WON])
 def wait_was_in_dead_wall(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     wait = data[flags.index(Flags.WAIT_WAS_IN_DEAD_WALL)]["wait"]
     ukeire = data[flags.index(Flags.WAIT_WAS_IN_DEAD_WALL)]["ukeire"]
     num_tiles = data[flags.index(Flags.WAIT_WAS_IN_DEAD_WALL)]["num_tiles"]
+    amt_string = f"{num_tiles} of {ukeire}" if num_tiles < ukeire else f"all ({ukeire}) of them"
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
-            CheckClause(subject=f"{num_tiles} out of {ukeire} of your waits {ph(wait, kyoku.doras)}",
+            CheckClause(subject=f"of your waits {ph(wait, kyoku.doras)}, {amt_string}",
                         verb="were hidden in",
                         object="the dead wall"))]
+
+# Print if, had the game not ended, you would have tsumoed within 5 turns
+@injustice(require=[Flags.COULD_HAVE_TSUMOED],
+            forbid=[Flags.YOU_WON])
+def could_have_tsumoed(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    wait = data[flags.index(Flags.COULD_HAVE_TSUMOED)]["wait"]
+    draws = data[flags.index(Flags.COULD_HAVE_TSUMOED)]["draws"]
+    yakuman_tenpais = data[flags.index(Flags.COULD_HAVE_TSUMOED)]["yakuman_tenpais"]
+    yakuman_str = f"for {' '.join(yakuman_tenpais)} tenpai" if len(yakuman_tenpais) > 0 else ""
+    return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+            CheckClause(subject="you",
+                        verb="were waiting on",
+                        content=f"{ph(wait, kyoku.doras)}{yakuman_str}, but had the game not ended, you would have drawn {ph(draws, kyoku.doras)}"))]
+
+# Print if, had the game not ended, you would have ronned a riichi player within 5 turns
+@injustice(require=[Flags.COULD_HAVE_RONNED],
+            forbid=[Flags.YOU_WON, Flags.COULD_HAVE_TSUMOED])
+def could_have_ronned(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    wait = data[flags.index(Flags.COULD_HAVE_RONNED)]["wait"]
+    draws = data[flags.index(Flags.COULD_HAVE_RONNED)]["draws"]
+    yakuman_tenpais = data[flags.index(Flags.COULD_HAVE_RONNED)]["yakuman_tenpais"]
+    riichi_player = data[flags.index(Flags.COULD_HAVE_RONNED)]["riichi_player"]
+    yakuman_str = f"for {' '.join(yakuman_tenpais)} tenpai" if len(yakuman_tenpais) > 0 else ""
+    return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+            CheckClause(subject="you",
+                        verb="were waiting on",
+                        content=f"{ph(wait, kyoku.doras)}{yakuman_str}, but had the game not ended, {relative_seat_name(player, riichi_player)} who was in riichi would have dropped {ph(draws, kyoku.doras)}"))]

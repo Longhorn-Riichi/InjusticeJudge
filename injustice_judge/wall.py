@@ -61,7 +61,7 @@ def print_wall(wall: List[int]) -> None:
 def get_hidden_dead_wall(wall: List[int], num_kans: int, sanma: bool, num_kitas: int = 0) -> List[int]:
     # Get the hidden part of the dead wall (i.e. not the visible dora indicators)
     kan_kita_tiles = wall[-(8 if sanma else 4):]
-    # kans/kita replacement tiles are drawn kind of weird: [6 7 4 5 2 3 0 1]
+    # kan/kita replacement tiles are drawn kind of weird: [6 7 4 5 2 3 0 1]
     ixs = [6,7,4,5,2,3,0,1] if sanma else [2,3,0,1]
     for i in ixs[:num_kans+num_kitas]:
         kan_kita_tiles.remove(wall[i-(8 if sanma else 4)])
@@ -69,3 +69,10 @@ def get_hidden_dead_wall(wall: List[int], num_kans: int, sanma: bool, num_kitas:
     ura_indicators = wall[-9:-19:-2] if sanma else wall[-5:-15:-2]
     later_tiles = wall[-14-num_kans-num_kitas:-14]
     return kan_kita_tiles + [0] + dora_indicators[1+num_kans:] + [0] + ura_indicators + [0] + later_tiles
+
+def get_remaining_wall(wall: List[int], tiles_in_wall: int, sanma: bool, num_kans_kitas: int = 0) -> List[int]:
+    offset = (55 if sanma else 70) - tiles_in_wall
+    return wall[52+offset:-14-num_kans_kitas]
+
+def get_remaining_draws(wall: List[int], tiles_in_wall: int, sanma: bool, num_kans_kitas: int = 0) -> List[int]:
+    return get_remaining_wall(wall, tiles_in_wall, sanma, num_kans_kitas)[::(3 if sanma else 4)]

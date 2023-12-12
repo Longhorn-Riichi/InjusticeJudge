@@ -975,7 +975,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
             curr_seat = curr_seat if keep_curr_seat else (curr_seat+1) % num_players
 
         assert all(i[seat] >= len(draws[seat]) for seat in range(num_players)), f"game ended prematurely in {round_name(round, honba)} on {curr_seat}'s turn; i = {i}, max i = {list(map(len, draws))}"
-        events.append((seat, "end_game", result))
+        events.append((curr_seat, "end_game", result))
         all_events.append(events)
 
     # parse metadata

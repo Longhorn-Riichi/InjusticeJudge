@@ -36,6 +36,8 @@ Analyzes your `Mahjong Soul` or `tenhou.net` game to find instances of mahjong i
 - You drew into tenpai but all the discards that give you tenpai will deal in
 - You could have called chii into a 4+ han tenpai but were overridden by pon/kan
 - At least half of your waits were in the dead wall
+- You would have drawn your tile had the game continued for five more draws
+- A riichi player would have dropped your tile had the game continued for five more draws
 
 __Note__: This program was explicitly written to
 

@@ -5,8 +5,8 @@ from .constants import Event, Shanten, DORA, DORA_INDICATOR, JIHAI, LIMIT_HANDS,
 from .display import ph, pt, print_pond, round_name
 from enum import Enum
 from .hand import Hand
-from .utils import apply_delta_scores, get_score, is_mangan, normalize_red_five, to_placement
-from .wall import print_wall, get_hidden_dead_wall
+from .utils import apply_delta_scores, get_score, is_mangan, normalize_red_five, normalize_red_fives, to_placement
+from .wall import print_wall, get_hidden_dead_wall, get_remaining_draws
 from .wwyd import is_safe
 from .yaku import get_final_yaku, get_yaku, get_yakuman_tenpais, get_yakuman_waits
 from typing import *
@@ -46,6 +46,8 @@ Flags = Enum("Flags", "_SENTINEL"
     " CHASER_GAINED_POINTS"
     " CHASER_LOST_POINTS"
     " CHII_GOT_OVERRIDDEN"
+    " COULD_HAVE_RONNED"
+    " COULD_HAVE_TSUMOED"
     " DREW_WORST_HAIPAI_SHANTEN"
     " EVERYONE_DISRESPECTED_YOUR_RIICHI"
     " EVERYONE_RESPECTED_YOUR_RIICHI"
@@ -182,6 +184,7 @@ class KyokuState:
     num_players: int
     tiles_in_wall: int              = 0
     num_kitas: int                  = 0
+    num_kans: int                   = 0
     pending_kan: Optional[CallInfo] = None
     starting_doras: List[int]       = field(default_factory=list) # TODO 3 starting doras
     current_doras: List[int]        = field(default_factory=list)
@@ -645,7 +648,7 @@ class KyokuState:
         self.add_flag(round % 4, Flags.YOU_ARE_DEALER)
         # give everyone a flag for their placement
         placement_flags = [Flags.YOU_WERE_FIRST, Flags.YOU_WERE_SECOND, Flags.YOU_WERE_THIRD, Flags.YOU_WERE_FOURTH][:self.num_players]
-        for seat, placement in enumerate(to_placement(self.kyoku.start_scores[:self.num_players])):
+        for seat, placement in enumerate(to_placement(self.kyoku.start_scores, self.num_players)):
             self.add_flag(seat, placement_flags[placement])
         # add final round flag (NOT all last)
         if self.kyoku.is_final_round:
@@ -658,6 +661,44 @@ class KyokuState:
             if get_starting_shanten(player) > second_worst_shanten:
                 self.add_flag(player, Flags.DREW_WORST_HAIPAI_SHANTEN, {"shanten": self.kyoku.haipai[player].shanten, "second_worst_shanten": second_worst_shanten})
         
+    def process_end_game(self, i: int, seat: int, event_type: str, raw_result: List[Any]):
+        # here we check the wall to see if we would have won had the game not ended
+        if len(self.kyoku.wall) > 0:
+            winners = {r[0] for r in raw_result[2::2]}
+            for i in range(self.num_players):
+                player = (seat+i+1)%4
+                if player not in winners and self.at[player].hand.shanten[0] == 0:
+                    wait = self.at[player].hand.shanten[1]
+                    yakuman_tenpais = get_yakuman_tenpais(self.at[player].hand)
+                    # check if we would have tsumoed the tile
+                    draws = get_remaining_draws(wall=self.kyoku.wall,
+                                                tiles_in_wall=self.tiles_in_wall - i,
+                                                sanma=self.num_players == 3,
+                                                num_kans_kitas=self.num_kans + self.num_kitas)
+                    if len(yakuman_tenpais) == 0:
+                        draws = draws[:5]
+                    if not set(wait).isdisjoint(set(normalize_red_fives(draws))):
+                        print(round_name(self.kyoku.round, self.kyoku.honba))
+                        print(f"player {player} was waiting on {ph(wait)} and would have drawn: {ph(draws)}")
+                        self.add_flag(player, Flags.COULD_HAVE_TSUMOED, {"wait": wait, "draws": draws, "yakuman_tenpais": yakuman_tenpais})
+                    # check if a riichi player would have drawn the tile
+                    for j in range(self.num_players):
+                        riichi_player = (seat+j+1)%4
+                        if player == riichi_player or not self.at[riichi_player].in_riichi:
+                            continue
+                        riichi_wait = self.at[riichi_player].hand.shanten[1]
+                        draws = get_remaining_draws(wall=self.kyoku.wall,
+                                                    tiles_in_wall=self.tiles_in_wall - j,
+                                                    sanma=self.num_players == 3,
+                                                    num_kans_kitas=self.num_kans + self.num_kitas)
+                        if len(yakuman_tenpais) == 0:
+                            draws = draws[:5]
+                        if not (set(wait) - set(riichi_wait)).isdisjoint(set(normalize_red_fives(draws))):
+                            print(round_name(self.kyoku.round, self.kyoku.honba))
+                            print(f"player {player} was waiting on {ph(wait)} and riichi player {riichi_player} waiting on {ph(riichi_wait)} would have drawn: {ph(draws)}")
+                            self.add_flag(player, Flags.COULD_HAVE_RONNED, {"riichi_player": riichi_player, "wait": wait, "draws": draws, "yakuman_tenpais": yakuman_tenpais})
+
+
     def process_result(self, i: int, seat: int, event_type: str, result_type: str, *results: Union[Ron, Tsumo, Draw]) -> None:
         # check if the last discard was a riichi (it must have dealt in)
         for player in range(self.num_players):
@@ -671,17 +712,17 @@ class KyokuState:
         # every result has result.score_delta
         # here we add YOU_GAINED_POINTS or YOU_LOST_POINTS as needed
         for result in results:
-            for seat in range(self.num_players):
+            for player in range(self.num_players):
                 # check for points won or lost
-                if result.score_delta[seat] > 0:
-                    self.add_flag(seat, Flags.YOU_GAINED_POINTS, {"amount": result.score_delta[seat]})
-                elif result.score_delta[seat] < 0:
-                    self.add_flag(seat, Flags.YOU_LOST_POINTS, {"amount": -result.score_delta[seat]})
+                if result.score_delta[player] > 0:
+                    self.add_flag(player, Flags.YOU_GAINED_POINTS, {"amount": result.score_delta[player]})
+                elif result.score_delta[player] < 0:
+                    self.add_flag(player, Flags.YOU_LOST_POINTS, {"amount": -result.score_delta[player]})
 
         # check for placement changes
-        placement_before = to_placement(self.kyoku.start_scores)
+        placement_before = to_placement(self.kyoku.start_scores, self.kyoku.num_players)
         new_scores = apply_delta_scores(self.kyoku.start_scores, self.kyoku.result[1].score_delta)
-        placement_after = to_placement(new_scores)
+        placement_after = to_placement(new_scores, self.kyoku.num_players)
         for old, new in set(zip(placement_before, placement_after)) - {(x,x) for x in range(4)}:
             self._process_placement_change(placement_before.index(old), old+1, new+1, self.kyoku.start_scores, self.kyoku.result[1].score_delta)
 
@@ -779,11 +820,10 @@ class KyokuState:
                               "shanten": self.kyoku.haipai[seat].shanten,
                               "hand": self.at[seat].hand})
 
-
         # if we have wall information, check the dead wall for players' waits
         if len(self.kyoku.wall) > 0:
             dead_wall = get_hidden_dead_wall(wall=self.kyoku.wall,
-                                             num_kans=len(set(self.current_doras)-{51,52,53})-1,
+                                             num_kans=self.num_kans,
                                              sanma=self.num_players == 3,
                                              num_kitas=self.num_kitas)
             for seat in range(self.num_players):
@@ -998,6 +1038,7 @@ class KyokuState:
                 if num_dora >= 3:
                     self.add_flag(player, Flags.CALLS_CONTAIN_THREE_DORA, {"amount": num_dora})
                     self.add_global_flag(Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, {"seat": player, "amount": num_dora})
+        self.num_kans += 1
 
 def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str, Any]]]]:
     """
@@ -1061,6 +1102,8 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                 state.process_tenpai(i, *event)
         elif event_type == "start_game":
             state.process_start_game(i, *event)
+        elif event_type == "end_game":
+            state.process_end_game(i, *event)
         elif event_type == "result":
             state.process_result(i, *event)
 
