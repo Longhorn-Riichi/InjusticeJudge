@@ -1,10 +1,9 @@
 from .classes import CallInfo, Dir
-from .classes2 import Draw, Kyoku, Ron, Score, Tsumo, Win
+from .classes2 import Draw, Hand, Kyoku, Ron, Score, Tsumo, Win
 from dataclasses import dataclass, field
 from .constants import Event, Shanten, DORA, DORA_INDICATOR, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, print_pond, round_name
 from enum import Enum
-from .hand import Hand
 from .utils import apply_delta_scores, get_score, is_mangan, normalize_red_five, normalize_red_fives, to_placement
 from .wall import print_wall, get_hidden_dead_wall, get_remaining_draws
 from .wwyd import is_safe

@@ -1,9 +1,8 @@
 from typing import *
 from .classes import CallInfo, GameRules, Interpretation
-from .classes2 import Kyoku, Score
+from .classes2 import Kyoku, Hand, Score
 from .constants import Event, Shanten, YakuForWait, LIMIT_HANDS, YAOCHUUHAI
 from .display import ph, pt, round_name, shanten_name
-from .hand import Hand
 from .utils import get_score, get_taatsu_wait, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand
 from pprint import pprint
 

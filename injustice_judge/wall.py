@@ -1,4 +1,5 @@
 from base64 import b64decode
+from .classes import mt19937
 from hashlib import sha512
 import struct
 from typing import *
@@ -15,7 +16,6 @@ def bytes_to_ints(bytes: bytes) -> List[int]:
     return ints
 # assert bytes_to_ints(bytearray([0, 0, 0, 1, 0, 0, 0, 1])) == [1, 1]
 
-from .mt import mt19937
 mt = mt19937()
 def seed_wall(seed):
     mt.init_by_array(bytes_to_ints(bytearray(b64decode(seed))))
