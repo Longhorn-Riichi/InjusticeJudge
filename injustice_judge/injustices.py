@@ -1196,3 +1196,15 @@ def dealt_into_chankan_while_tenpai(flags: List[Flags], data: List[Dict[str, Any
                             content="and dealt in while tenpai"))]
     else:
         return []
+
+# Print if at least half of the tiles in your wait were in the dead wall
+@injustice(require=[Flags.WAIT_WAS_IN_DEAD_WALL],
+            forbid=[Flags.WINNER])
+def wait_was_in_dead_wall(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    wait = data[flags.index(Flags.WAIT_WAS_IN_DEAD_WALL)]["wait"]
+    ukeire = data[flags.index(Flags.WAIT_WAS_IN_DEAD_WALL)]["ukeire"]
+    num_tiles = data[flags.index(Flags.WAIT_WAS_IN_DEAD_WALL)]["num_tiles"]
+    return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+            CheckClause(subject=f"{num_tiles} out of {ukeire} of your waits {ph(wait, kyoku.doras)}",
+                        verb="were hidden in",
+                        object="the dead wall"))]

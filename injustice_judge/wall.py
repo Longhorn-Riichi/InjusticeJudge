@@ -36,10 +36,7 @@ def next_wall() -> List[int]:
     to_tile = lambda t: reds[t//4] if t//4 in reds and t%4==0 else tiles[t//4]
     return list(reversed([to_tile(t) for t in wall]))
 
-def print_wall(wall_seed: str) -> None:
-    seed_wall(wall_seed)
-    wall = next_wall()
-
+def print_wall(wall: List[int]) -> None:
     haipai: List[List[int]] = [
         list(sorted_hand(wall[0:64:16]+wall[1:48:16]+wall[2:48:16]+wall[3:48:16]+[wall[52]])),
         list(sorted_hand(wall[4:64:16]+wall[5:48:16]+wall[6:48:16]+wall[7:48:16])),
@@ -47,8 +44,8 @@ def print_wall(wall_seed: str) -> None:
         list(sorted_hand(wall[12:64:16]+wall[13:48:16]+wall[14:48:16]+wall[15:48:16]))]
     draws: List[List[int]] = [wall[56:124:4],wall[53:125:4],wall[54:122:4],wall[55:123:4]]
     dead_wall = [t for t in wall[-14:]]
-    dora_indicators = wall[-6:-14:-2]
-    ura_indicators = wall[-5:-13:-2]
+    dora_indicators = wall[-6:-16:-2]
+    ura_indicators = wall[-5:-15:-2]
 
     for i, hand in enumerate(haipai):
         print(f"Player {i} haipai: {hand}")
@@ -56,6 +53,19 @@ def print_wall(wall_seed: str) -> None:
         print(f"Player {i} draws: {draw}")
     print(f"Haitei: {haipai[1][-1]}")
     print(f"Dead wall: {dead_wall}")
+    print(f"Hidden part of dead wall: {get_hidden_dead_wall(wall, 0, False)}")
     print(f"Dora indicator: {dora_indicators[0]}")
     print(f"Potential dora indicators: {dora_indicators}")
     print(f"Potential ura indicators: {ura_indicators}")
+
+def get_hidden_dead_wall(wall: List[int], num_kans: int, sanma: bool, num_kitas: int = 0) -> List[int]:
+    # Get the hidden part of the dead wall (i.e. not the visible dora indicators)
+    kan_kita_tiles = wall[-(8 if sanma else 4):]
+    # kans/kita replacement tiles are drawn kind of weird: [6 7 4 5 2 3 0 1]
+    ixs = [6,7,4,5,2,3,0,1] if sanma else [2,3,0,1]
+    for i in ixs[:num_kans+num_kitas]:
+        kan_kita_tiles.remove(wall[i-(8 if sanma else 4)])
+    dora_indicators = wall[-10:-20:-2] if sanma else wall[-6:-16:-2]
+    ura_indicators = wall[-9:-19:-2] if sanma else wall[-5:-15:-2]
+    later_tiles = wall[-14-num_kans-num_kitas:-14]
+    return kan_kita_tiles + [0] + dora_indicators[1+num_kans:] + [0] + ura_indicators + [0] + later_tiles

@@ -6,6 +6,7 @@ from .display import ph, pt, print_pond, round_name
 from enum import Enum
 from .hand import Hand
 from .utils import apply_delta_scores, get_score, is_mangan, normalize_red_five, to_placement
+from .wall import print_wall, get_hidden_dead_wall
 from .wwyd import is_safe
 from .yaku import get_final_yaku, get_yaku, get_yakuman_tenpais, get_yakuman_waits
 from typing import *
@@ -82,6 +83,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " STARTED_WITH_3_DORA"
     " TENPAI_ON_LAST_DISCARD"
     " TURN_SKIPPED_BY_PON"
+    " WAIT_WAS_IN_DEAD_WALL"
     " WINNER"
     " WINNER_GOT_BAIMAN"
     " WINNER_GOT_DOUBLE_WIND"
@@ -179,6 +181,7 @@ class KyokuState:
     kyoku: Kyoku
     num_players: int
     tiles_in_wall: int              = 0
+    num_kitas: int                  = 0
     pending_kan: Optional[CallInfo] = None
     starting_doras: List[int]       = field(default_factory=list) # TODO 3 starting doras
     current_doras: List[int]        = field(default_factory=list)
@@ -383,6 +386,7 @@ class KyokuState:
             self.at[seat].hand = self.at[seat].hand.add_call(call)
         elif event_type == "kita":
             self.at[seat].hand = self.at[seat].hand.kita()
+            self.num_kitas += 1
             call = self.at[seat].hand.calls[-1]
         else:
             assert False, f"process_self_kan called with non-self-kan type {event_type}"
@@ -724,7 +728,7 @@ class KyokuState:
         elif result_type == "ryuukyoku":
             draw = results[0]
             assert isinstance(draw, Draw), f"result tagged ryuukyoku got non-Draw object: {draw}"
-            self._process_ryuukyoku_result(draw)
+            self._process_draw_result(draw)
             self.add_global_flag(Flags.GAME_ENDED_WITH_RYUUKYOKU, {"object": draw})
 
         # here we add all flags that have to do with exhaustive or abortive draws
@@ -760,9 +764,6 @@ class KyokuState:
         if tsumo.score.has_ippatsu():
             self.add_global_flag(Flags.WINNER_IPPATSU_TSUMO, {"seat": tsumo.winner})
 
-    def _process_ryuukyoku_result(self, draw: Draw) -> None:
-        pass
-
     def _process_draw_result(self, draw: Draw) -> None:
         name = draw.name
         if name in {"ryuukyoku", "nagashi mangan"}:
@@ -777,6 +778,23 @@ class KyokuState:
                              {"draw_name": name,
                               "shanten": self.kyoku.haipai[seat].shanten,
                               "hand": self.at[seat].hand})
+
+
+        # if we have wall information, check the dead wall for players' waits
+        if len(self.kyoku.wall) > 0:
+            dead_wall = get_hidden_dead_wall(wall=self.kyoku.wall,
+                                             num_kans=len(set(self.current_doras)-{51,52,53})-1,
+                                             sanma=self.num_players == 3,
+                                             num_kitas=self.num_kitas)
+            for seat in range(self.num_players):
+                if self.at[seat].hand.shanten[0] == 0:
+                    in_dead_wall = sum(dead_wall.count(tile) for tile in self.at[seat].hand.shanten[1])
+                    ukeire = self.kyoku.get_ukeire(seat)
+                    if in_dead_wall >= (ukeire+1) // 2:
+                        self.add_flag(seat, Flags.WAIT_WAS_IN_DEAD_WALL,
+                                 {"wait": self.at[seat].hand.shanten[1],
+                                  "ukeire": ukeire,
+                                  "num_tiles": in_dead_wall})
 
     def _process_win_result(self, result: Win, is_tsumo: bool) -> None:
         winning_tile = self.kyoku.final_draw if is_tsumo else self.kyoku.final_discard

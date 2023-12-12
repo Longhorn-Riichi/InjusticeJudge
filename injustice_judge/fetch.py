@@ -516,7 +516,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                                    final_score = [result_data[i][2] for i in range(num_players)],
                                    rules = GameRules.from_majsoul_detail_rule(metadata["config"]["mode"]["detailRule"]))
 
-    all_walls: List[List[int]] = [] * len(all_events) # dummy
+    all_walls: List[List[int]] = [[] for _ in all_events] # dummy
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)
     return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata
 
@@ -552,7 +552,7 @@ def parse_tenhou_link(link: str) -> Tuple[str, Optional[int]]:
 
     return identifier, player_seat
 
-def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
+def fetch_tenhou(link: str, use_xml: bool = True) -> Tuple[TenhouLog, Dict[str, Any], int]:
     """
     Fetch a raw tenhou log from a given link, returning a parsed log and the specified player's seat
     Example link: https://tenhou.net/0/?log=2023072712gm-0089-0000-eff781e1&tw=1&ts=4
@@ -566,16 +566,21 @@ def fetch_tenhou(link: str) -> Tuple[TenhouLog, Dict[str, Any], int]:
     except Exception:
         import requests
         USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
-        url = f"https://tenhou.net/5/mjlog2json.cgi?{identifier}"
+        if use_xml:
+            url = f"https://tenhou.net/0/log/?{identifier}"
+        else:
+            url = f"https://tenhou.net/5/mjlog2json.cgi?{identifier}"
         # print(f" Fetching game log at url {url}")
         r = requests.get(url=url, headers={"User-Agent": USER_AGENT})
         try:
             r.raise_for_status()
             game_data = r.json()
         except (requests.exceptions.HTTPError, requests.exceptions.JSONDecodeError):
+            use_xml = True
             url = f"https://tenhou.net/0/log/?{identifier}"
             r = requests.get(url=url, headers={"User-Agent": USER_AGENT})
             r.raise_for_status()
+        if use_xml:
             log, game_data = tenhou_xml_to_log(identifier, r.text)
             game_data["log"] = log
         save_cache(filename=f"game-{identifier}.json", data=json.dumps(game_data, ensure_ascii=False).encode("utf-8"))
@@ -589,6 +594,7 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
     game_data = {"ver": 2.3, "ref": identifier}
     kyoku: Dict[str, Any] = {}
     last_draw = [-1,-1,-1,-1]
+    just_drew = False
     calling_riichi = False
     doras: List[int] = []
     uras: List[int] = []
@@ -616,9 +622,11 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
             game_data["wall_seed"] = attrs["seed"]
         elif name == "GO":
             game_data["lobby"] = int(attrs["lobby"])
-            game_data["rule"] = attrs["rule"].split(",")
-            game_data["csrule"] = attrs["csrule"].split(",")
+            game_data["rule"] = attrs["rule"].split(",") if "rule" in attrs else [""] * 7
+            game_data["csrule"] = attrs["csrule"].split(",") if "csrule" in attrs else [""] * 40
         elif name == "UN":
+            if "name" in game_data:
+                continue
             decodeURI = lambda str: str.replace("%","\\x").encode().decode("unicode_escape").encode("latin1").decode("utf-8")
             names = []
             names.append(decodeURI(attrs["n0"]))
@@ -660,6 +668,7 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
                 # print(seat, "<", tile)
                 kyoku["draws"][seat].append(tile)
                 last_draw[seat] = int(name[1:])
+                just_drew = True
             elif code in "DEFG": # discard
                 seat = "DEFG".index(code)
                 # print(seat, ">", tile)
@@ -668,6 +677,7 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
                 if calling_riichi:
                     tile = "r" + str(tile)
                 kyoku["discards"][seat].append(tile)
+                just_drew = False
         elif name == "N": # call
             caller = int(attrs["who"])
             m = int(attrs["m"])
@@ -686,20 +696,30 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
                 tile_info = m>>9
                 rs = [(m>>5)&3]
             else:
-                call_type = "minkan"
+                call_type = "ankan" if just_drew else "minkan"
                 tile_info = m>>8
                 rs = [0,1,2,3]
-            num_tiles = 4 if call_type == "minkan" else 3
+            num_tiles = 4 if call_type in {"minkan", "ankan"} else 3
             ix = tile_info//num_tiles
             if call_type == "chii":
                 ix = (ix//7)*9+ix%7
-            called_tile = ix*4 + rs[tile_info%num_tiles]
+            called_tile = ix*4 + (rs[0] if call_type == "kakan" else rs[tile_info%num_tiles])
             called_tiles: List[Any] = [(ix*4)+r for r in rs]
             called_tiles.remove(called_tile)
-            d = 3 - call_dir
-            called_tiles = called_tiles[:d] + [call_type[0] + str(to_tile(called_tile))] + called_tiles[d:]
-            call_str = "".join(str(to_tile(t) if type(t) != str else t) for t in called_tiles)
-            kyoku["draws"][caller].append(call_str)
+            if call_type == "kakan":
+                kyoku["discards"][caller].append("k" + str(to_tile(called_tile)))
+            else:
+                pos = 3 - call_dir
+                if call_type in {"minkan", "ankan"} and pos == 2:
+                    pos = 3
+                called_tiles = called_tiles[:pos] + [call_type[0] + str(to_tile(called_tile))] + called_tiles[pos:]
+                call_str = "".join(str(to_tile(t) if type(t) != str else t) for t in called_tiles)
+                if call_type == "ankan":
+                    kyoku["discards"][caller].append(call_str)
+                else:
+                    kyoku["draws"][caller].append(call_str)
+            if call_type == "minkan":
+                kyoku["discards"][caller].append(0)
             last_draw[caller] = -1
         elif name == "REACH": # riichi
             step = int(attrs["step"])
@@ -753,7 +773,7 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
 
             if "result" not in kyoku:
                 kyoku["result"] = ["和了"]
-                kyoku["result"].append(deltas)
+            kyoku["result"].append(deltas)
             kyoku["result"].append([who, from_who, who, value_string + point_string, *yakus, *yakumans])
         elif name == "RYUUKYOKU": # draw
             type_to_name = {
@@ -969,8 +989,7 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
         seed_wall(metadata["wall_seed"][29:])
         all_walls = [next_wall() for _ in range(len(all_events))]
     else:
-        all_walls = [] * len(all_events) # dummy
-
+        all_walls = [[] for _ in all_events] # dummy
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)
     return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata
 
