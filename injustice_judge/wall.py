@@ -2,7 +2,7 @@ from base64 import b64decode
 from hashlib import sha512
 import struct
 from typing import *
-from .utils import sorted_hand
+from .utils import ix_to_tile, sorted_hand
 
 def ints_to_bytes(ints: List[int]) -> bytearray:
     return bytearray(b for i in ints for b in struct.pack("<I", i))
@@ -148,10 +148,7 @@ def next_wall() -> List[int]:
         wall[i], wall[j] = wall[j], wall[i]
     # dice0 = rnd[135] % 6;
     # dice1 = rnd[136] % 6;
-    tiles = [*range(11,20), *range(21,30), *range(31,40), *range(41,48)]
-    reds = {tiles.index(15): 51, tiles.index(25): 52, tiles.index(35): 53}
-    to_tile = lambda t: reds[t//4] if t//4 in reds and t%4==0 else tiles[t//4]
-    return list(reversed([to_tile(t) for t in wall]))
+    return list(reversed([ix_to_tile(t) for t in wall]))
 
 def print_wall(wall: List[int]) -> None:
     haipai: List[List[int]] = [

@@ -230,7 +230,7 @@ class KyokuState:
         if self.at[seat].hand.shanten[0] >= 5:
             self.add_flag(seat, Flags.FIVE_SHANTEN_START, {"hand": self.at[seat].hand})
         # check if we started with 3 dora
-        starting_dora = sum(hand.count(dora) for dora in self.starting_doras)
+        starting_dora = sum(hand.count(dora) for dora in self.kyoku.get_starting_doras())
         if starting_dora >= 3:
             self.add_flag(seat, Flags.STARTED_WITH_3_DORA, {"num": starting_dora})
         # check if we started with at least two 1-4-7 shapes

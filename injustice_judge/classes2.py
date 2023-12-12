@@ -411,7 +411,6 @@ class Kyoku:
 
     # doras include the round doras AND the red fives; there can be multiple of the same dora tile
     doras: List[int]                              = field(default_factory=list)
-    starting_doras: List[int]                     = field(default_factory=list)
     uras: List[int]                               = field(default_factory=list)
 
     # stateful variables
@@ -446,3 +445,6 @@ class Kyoku:
         return visible_tiles
     def get_ukeire(self, seat) -> int:
         return self.hands[seat].ukeire(self.get_visible_tiles())
+    def get_starting_doras(self) -> List[int]:
+        return self.doras[:(3 if self.rules.use_red_fives else 0) + self.num_dora_indicators_visible]
+

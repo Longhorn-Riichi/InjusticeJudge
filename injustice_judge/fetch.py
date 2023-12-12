@@ -10,7 +10,7 @@ from .classes import CallInfo, GameRules, GameMetadata, Dir
 from .classes2 import Draw, Hand, Kyoku, Ron, Score, Tsumo
 from .constants import Event, Shanten, DORA, LIMIT_HANDS, MAJSOUL_YAKU, TENHOU_LIMITS, TENHOU_YAKU, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, round_name
-from .utils import apply_delta_scores, is_mangan, normalize_red_five, sorted_hand, to_placement
+from .utils import apply_delta_scores, is_mangan, ix_to_tile, normalize_red_five, sorted_hand, to_placement
 from .wall import seed_wall, next_wall
 from .yaku import debug_yaku
 from pprint import pprint
@@ -99,7 +99,6 @@ def postprocess_events(all_events: List[List[Event]],
                 kyoku.num_players = metadata.num_players
                 kyoku.tiles_in_wall = 70 if kyoku.num_players == 4 else 55
                 kyoku.doras = ([51, 52, 53] if metadata.rules.use_red_fives else []) + [DORA[d] for d in dora_indicators]
-                kyoku.starting_doras = ([51, 52, 53] if metadata.rules.use_red_fives else []) + [DORA[d] for d in dora_indicators[:kyoku.num_dora_indicators_visible]]
                 kyoku.uras = [DORA[d] for d in ura_indicators]
             elif event_type == "draw":
                 tile = event_data[0]
@@ -615,9 +614,6 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
         attrs = dict(s.split("=") for s in attr_strs if s != "")
         attrs = {k: v[1:-1] for k, v in attrs.items()}
 
-        tiles = [*range(11,20), *range(21,30), *range(31,40), *range(41,48)]
-        reds = {tiles.index(15): 51, tiles.index(25): 52, tiles.index(35): 53}
-        to_tile = lambda t: reds[t//4] if t//4 in reds and t%4==0 else tiles[t//4]
         if name == "SHUFFLE":
             game_data["wall_seed"] = attrs["seed"]
         elif name == "GO":
@@ -650,19 +646,19 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
             if "chip" in attrs:
                 kyoku["shuugi"] = [int(v) for v in attrs["chip"].split(",")]
             kyoku["oya"] = int(attrs["oya"])
-            haipai0 = list(sorted_hand([to_tile(int(v)) for v in attrs["hai0"].split(",")]))
-            haipai1 = list(sorted_hand([to_tile(int(v)) for v in attrs["hai1"].split(",")]))
-            haipai2 = list(sorted_hand([to_tile(int(v)) for v in attrs["hai2"].split(",")]))
-            haipai3 = list(sorted_hand([to_tile(int(v)) for v in attrs["hai3"].split(",")]))
+            haipai0 = list(sorted_hand([ix_to_tile(int(v)) for v in attrs["hai0"].split(",")]))
+            haipai1 = list(sorted_hand([ix_to_tile(int(v)) for v in attrs["hai1"].split(",")]))
+            haipai2 = list(sorted_hand([ix_to_tile(int(v)) for v in attrs["hai2"].split(",")]))
+            haipai3 = list(sorted_hand([ix_to_tile(int(v)) for v in attrs["hai3"].split(",")]))
             kyoku["haipai"] = [haipai0, haipai1, haipai2, haipai3]
             kyoku["draws"] = [[],[],[],[]]
             kyoku["discards"] = [[],[],[],[]]
             last_draw = [-1,-1,-1,-1]
             calling_riichi = False
-            doras = [to_tile(kyoku["seed"][-1])]
+            doras = [ix_to_tile(kyoku["seed"][-1])]
             uras = []
         elif len(attrs) == 0:
-            code, tile = name[0], to_tile(int(name[1:]))
+            code, tile = name[0], ix_to_tile(int(name[1:]))
             if code in "TUVW": # draw
                 seat = "TUVW".index(code)
                 # print(seat, "<", tile)
@@ -707,13 +703,13 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
             called_tiles: List[Any] = [(ix*4)+r for r in rs]
             called_tiles.remove(called_tile)
             if call_type == "kakan":
-                kyoku["discards"][caller].append("k" + str(to_tile(called_tile)))
+                kyoku["discards"][caller].append("k" + str(ix_to_tile(called_tile)))
             else:
                 pos = 3 - call_dir
                 if call_type in {"minkan", "ankan"} and pos == 2:
                     pos = 3
-                called_tiles = called_tiles[:pos] + [call_type[0] + str(to_tile(called_tile))] + called_tiles[pos:]
-                call_str = "".join(str(to_tile(t) if type(t) != str else t) for t in called_tiles)
+                called_tiles = called_tiles[:pos] + [call_type[0] + str(ix_to_tile(called_tile))] + called_tiles[pos:]
+                call_str = "".join(str(ix_to_tile(t) if type(t) != str else t) for t in called_tiles)
                 if call_type == "ankan":
                     kyoku["discards"][caller].append(call_str)
                 else:
@@ -729,9 +725,9 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
                 calling_riichi = False
         # elif name == "DORA": # new dora
         elif name == "AGARI": # win
-            doras = [to_tile(int(v)) for v in attrs["doraHai"].split(",")]
+            doras = [ix_to_tile(int(v)) for v in attrs["doraHai"].split(",")]
             if "doraHaiUra" in attrs:
-                uras = [to_tile(int(v)) for v in attrs["doraHaiUra"].split(",")]
+                uras = [ix_to_tile(int(v)) for v in attrs["doraHaiUra"].split(",")]
             if "owari" in attrs:
                 final_scores = [int(v) * 100 for v in attrs["owari"].split(",")[0:8:2]]
                 final_results = [float(v) for v in attrs["owari"].split(",")[1:8:2]]

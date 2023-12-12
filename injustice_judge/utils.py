@@ -74,3 +74,7 @@ def get_waits(hand: Tuple[int, ...]) -> Set[int]:
                 taatsu = (tile, SUCC[SUCC[tile]])
                 to_update.add((try_remove_all_tiles(hand, taatsu), (*taatsus, taatsu)))
     return waits
+
+_tiles = [*range(11,20), *range(21,30), *range(31,40), *range(41,48)]
+_reds = {_tiles.index(15): 51, _tiles.index(25): 52, _tiles.index(35): 53}
+ix_to_tile = lambda ix: _reds[ix//4] if ix//4 in _reds and ix%4==0 else _tiles[ix//4]

@@ -193,17 +193,17 @@ def started_with_double_wind(flags: List[Flags], data: List[Dict[str, Any]], kyo
         return [Skill(kyoku.round, kyoku.honba, "Skill",
                 CheckClause(subject="you",
                             verb="won",
-                            content=f"after starting with your double wind {ph((wind,wind), doras=kyoku.starting_doras)} and calling it"))]
+                            content=f"after starting with your double wind {ph((wind,wind), doras=kyoku.get_starting_doras())} and calling it"))]
     elif starting_winds == 3:
         return [Skill(kyoku.round, kyoku.honba, "Skill",
                 CheckClause(subject="you",
                             verb="won",
-                            content=f"after starting with a triplet of your double wind {ph((wind,wind,wind), doras=kyoku.starting_doras)}"))]
+                            content=f"after starting with a triplet of your double wind {ph((wind,wind,wind), doras=kyoku.get_starting_doras())}"))]
     elif starting_winds == 4:
         return [Skill(kyoku.round, kyoku.honba, "Skill",
                 CheckClause(subject="you",
                             verb="won",
-                            content=f"after starting with four of your double winds {ph((wind,wind,wind,wind), doras=kyoku.starting_doras)}"))]
+                            content=f"after starting with four of your double winds {ph((wind,wind,wind,wind), doras=kyoku.get_starting_doras())}"))]
     else:
         return []
 
@@ -229,7 +229,7 @@ def won_with_3_starting_dora(flags: List[Flags], data: List[Dict[str, Any]], kyo
     num_dora = data[flags.index(Flags.YOU_WON)]["score_object"].count_dora()
     haipai = data[flags.index(Flags.YOU_WON)]["haipai"]
     hand = data[flags.index(Flags.YOU_WON)]["hand"]
-    starting_dora = sorted(tile for tile in haipai.tiles if tile in kyoku.starting_doras)
+    starting_dora = sorted(tile for tile in haipai.tiles if tile in kyoku.get_starting_doras())
     ending_dora = sorted(tile for tile in hand.tiles if tile in kyoku.doras)
     return [Skill(kyoku.round, kyoku.honba, "Skill",
             CheckClause(subject="you",
