@@ -6,12 +6,9 @@ from typing import *
 # - Printing hands and tiles (pt, ph, print_pond) 
 # - Printing round name, seat name, shanten name (round_name, relative_seat_name, shanten_name)
 
-def pt_unicode(tile: int, is_sideways: bool = False) -> str:
+def pt_unicode(tile: int, doras: List[int] = [], is_sideways: bool = False) -> str:
     """print tile (2-char representation)"""
     TILE_REPRS = "🀇🀈🀉🀊🀋🀌🀍🀎🀏🀙🀚🀛🀜🀝🀞🀟🀠🀡🀐🀑🀒🀓🀔🀕🀖🀗🀘🀀🀁🀂🀃🀆🀅🀄︎"
-    is_dora = tile >= 100
-    if is_dora:
-        tile -= 100
     ret = "??"
     if tile < 20:
         ret = TILE_REPRS[tile - 11] + " "
@@ -32,16 +29,14 @@ def pt_unicode(tile: int, is_sideways: bool = False) -> str:
         ret = "🀝·"
     elif tile == 53:
         ret = "🀔·"
-    if is_dora:
+    if tile in doras:
         ret += "\u20f0" # combining asterisk
     if is_sideways:
         ret = f"₍{ret}₎"
     return ret
 
-def pt_discord(tile: int, is_sideways: bool = False) -> str:
-    if tile >= 100:
-        # tile is dora
-        tile -= 100
+def pt_discord(tile: int, doras: List[int] = [], is_sideways: bool = False) -> str:
+    if tile in doras:
         if is_sideways:
             return DISCORD_CALLED_DORA_TILES[tile]
         else: 
@@ -53,8 +48,8 @@ def pt_discord(tile: int, is_sideways: bool = False) -> str:
             return DISCORD_TILES[tile]
 
 # print tile, print hand
-pt = lambda tile, is_sideways=False: pt_discord(tile, is_sideways) if os.getenv("use_discord_tile_emoji") == "True" else pt_unicode(tile, is_sideways)
-ph = lambda hand, doras=[]: "".join(map(pt, map(lambda tile: tile + 100 if tile in doras else tile, hand)))
+pt = lambda tile, doras=[], is_sideways=False: pt_discord(tile, doras, is_sideways) if os.getenv("use_discord_tile_emoji") == "True" else pt_unicode(tile, doras, is_sideways)
+ph = lambda hand, doras=[]: "".join(map(lambda t: pt(t, doras=doras), hand))
 
 def print_pond(pond: Iterable[int], doras: List[int] = [], riichi_index: Optional[int] = None) -> str:
     if riichi_index is None:

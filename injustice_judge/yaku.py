@@ -672,16 +672,16 @@ def get_yaku(hand: Hand,
                 han = sum(b for _, b in yaku_for_wait[wait])
                 ron_fu = interpretation.ron_fu + shanpon_fu[wait]
                 fixed_fu = fixed_fu or (30 if ron_fu == 20 else None) # open pinfu ron = 30
-                add_best_score(wait, Score(yaku_for_wait[wait], han, fixed_fu or round_fu(ron_fu), seat == round%4, False, num_players, rules.kiriage_mangan, interpretation, hand))
+                add_best_score(wait, Score(yaku_for_wait[wait], han, fixed_fu or round_fu(ron_fu), seat == round%4, False, num_players, rules, interpretation, hand))
             if check_tsumos:
                 han = sum(b for _, b in tsumo_yaku[wait])
                 if is_closed_hand:
                     tsumo_fu = interpretation.tsumo_fu + 2*shanpon_fu[wait]
                     fixed_fu = fixed_fu or (20 if ("pinfu", 1) in tsumo_yaku[wait] else None) # closed pinfu tsumo = 20
-                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), seat == round%4, True, num_players, rules.kiriage_mangan, interpretation, hand))
+                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), seat == round%4, True, num_players, rules, interpretation, hand))
                 else:
                     tsumo_fu = interpretation.tsumo_fu + 2*shanpon_fu[wait]
-                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), seat == round%4, True, num_players, rules.kiriage_mangan, interpretation, hand))
+                    add_best_score(wait, Score(tsumo_yaku[wait], han, fixed_fu or round_fu(tsumo_fu), seat == round%4, True, num_players, rules, interpretation, hand))
         # for k, v in best_score.items():
         #     print(f"{pt(k)}, {v!s}")
         # print("========")

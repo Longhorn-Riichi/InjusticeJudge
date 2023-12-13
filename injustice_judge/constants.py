@@ -103,7 +103,7 @@ MAJSOUL_YAKU = {
     15: "混全帯幺九",        # Half Outside Hand
     16: "一気通貫",          # Pure Straight
     17: "三色同順",           # Mixed Triple Sequence
-    18: "ダブル立直",         # Double riichi
+    18: "ダブル立直",         # Double Riichi
     19: "三色同刻",           # Triple Triplets
     20: "三槓子",            # Three Quads
     21: "対々和",            # All Triplets
@@ -149,7 +149,7 @@ MAJSOUL_YAKU = {
     61: "大竹林",            # Bamboo Forest
     62: "大数隣",            # Numerous Neighbours
     63: "石の上にも三年",      # Ishinouenimosannen
-    64: "大七星",            # Big Seven Star
+    64: "大七星",            # Big Seven Stars
 }
 TENHOU_YAKU = {
     0: "門前清自摸和",        # Fully Concealed Hand
@@ -173,7 +173,7 @@ TENHOU_YAKU = {
     18: "役牌 白",           # White Dragon (Haku)
     19: "役牌 發",           # Green Dragon (Hatsu)
     20: "役牌 中",           # Red Dragon (Chun)
-    21: "ダブル立直",         # Double riichi
+    21: "ダブル立直",         # Double Riichi
     22: "七対子",            # Seven Pairs
     23: "混全帯幺九",        # Half Outside Hand
     24: "一気通貫",          # Pure Straight

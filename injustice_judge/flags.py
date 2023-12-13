@@ -1045,8 +1045,8 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
     state = KyokuState(kyoku = kyoku,
                        num_players = kyoku.num_players,
                        tiles_in_wall = 70 if kyoku.num_players == 4 else 55,
-                       starting_doras = kyoku.starting_doras.copy(),
-                       current_doras = kyoku.starting_doras.copy(),
+                       starting_doras = kyoku.get_starting_doras(),
+                       current_doras = kyoku.get_starting_doras(),
                        flags = [[] for i in range(kyoku.num_players)],
                        data = [[] for i in range(kyoku.num_players)])
 

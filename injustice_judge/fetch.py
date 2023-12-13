@@ -142,7 +142,7 @@ def postprocess_events(all_events: List[List[Event]],
             elif event_type == "end_game":
                 unparsed_result = event_data[0]
                 hand_is_hidden = [len(hand.open_part) == 0 for hand in kyoku.hands]
-                kyoku.result = parse_result(unparsed_result, kyoku.round, metadata.num_players, hand_is_hidden, [h.kita_count for h in kyoku.hands], kyoku.rules.kiriage_mangan)
+                kyoku.result = parse_result(unparsed_result, kyoku.round, metadata.num_players, hand_is_hidden, [h.kita_count for h in kyoku.hands], kyoku.rules)
                 kyoku.events.append((0, "result", *kyoku.result))
                 # if tsumo or kyuushu kyuuhai, pop the final tile from the winner's hand
                 if kyoku.result[0] == "tsumo" or (kyoku.result[0] == "draw" and kyoku.result[1].name == "9 terminals draw"):
@@ -170,7 +170,7 @@ def postprocess_events(all_events: List[List[Event]],
         # debug_yaku(kyoku)
     return kyokus
 
-def parse_result(result: List[Any], round: int, num_players: int, hand_is_hidden: List[bool], kita_counts: List[int], kiriage: bool) -> Tuple[Any, ...]:
+def parse_result(result: List[Any], round: int, num_players: int, hand_is_hidden: List[bool], kita_counts: List[int], rules: GameRules) -> Tuple[Any, ...]:
     """
     Given a Tenhou game result list, parse it into a tuple where the first
     element is either "ron", "tsumo", or "draw"; the remainder of the tuple
@@ -192,7 +192,7 @@ def parse_result(result: List[Any], round: int, num_players: int, hand_is_hidden
                 "score": Score.from_tenhou_list(tenhou_result_list=tenhou_result_list,
                                                 round=round,
                                                 num_players=num_players,
-                                                kiriage=kiriage,
+                                                rules=rules,
                                                 kita=kita_counts[winner]),
                 "pao_from": None if winner == pao_seat else pao_seat,
             }
@@ -744,8 +744,8 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
             who, from_who, pao_who = int(attrs["who"]), int(attrs["fromWho"]), int(attrs["paoWho" if "paoWho" in attrs else "who"])
             fu, points, limit = [int(v) for v in attrs["ten"].split(",")]
             is_closed_hand = "m" not in attrs
-            yaku = [int(v) for v in attrs["yaku"].split(",")[0::2]]
-            yaku_vals = [int(v) for v in attrs["yaku"].split(",")[1::2]]
+            yaku = [int(v) for v in attrs["yaku"].split(",")[0::2]] if "yaku" in attrs else []
+            yaku_vals = [int(v) for v in attrs["yaku"].split(",")[1::2]] if "yaku" in attrs else []
             yakuman = [int(v) for v in attrs["yakuman"].split(",")] if "yakuman" in attrs else []
             honba, riichis = [int(v) for v in attrs["ba"].split(",")]
 

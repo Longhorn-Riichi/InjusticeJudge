@@ -32,40 +32,40 @@ class CallInfo:
     def __post_init__(self) -> None:
         super().__setattr__("tiles", sorted_hand(self.tiles))
     def to_str(self, doras: List[int] = [], uras: List[int] = []) -> str:
-        as_dora = lambda tile: tile + (100 if tile in doras or tile in uras else 0)
-        tiles = tuple(map(as_dora, self.tiles))
-        tile = as_dora(self.tile)
         # other_tiles is all the non-called tiles in the call
-        other_tiles = try_remove_all_tiles(tiles, (tile,))
-        sideways = pt(tile, is_sideways=True)
+        d = doras+uras
+        other_tiles = try_remove_all_tiles(self.tiles, (self.tile,))
+        sideways = pt(self.tile, doras=d, is_sideways=True)
         if self.type == "ankan":
-            if any(tile in {51,52,53} for tile in tiles):
-                return ph((50, TOGGLE_RED_FIVE[tile], tile, 50))
+            if any(tile in {51,52,53} for tile in self.tiles):
+                return ph((50, TOGGLE_RED_FIVE[self.tile], self.tile, 50), doras=d)
             else:
-                return ph((50, tile, tile, 50))
+                return ph((50, self.tile, self.tile, 50), doras=d)
         elif self.type == "kita":
-            return pt(tile)
+            return pt(self.tile, doras=d)
         elif self.type == "kakan": # print two consecutive sideways tiles
-            sideways = pt(other_tiles[0], is_sideways=True) + sideways
+            sideways = pt(other_tiles[0], doras=d, is_sideways=True) + sideways
             other_tiles = other_tiles[1:]
         if self.dir == Dir.SHIMOCHA:
-            return ph(other_tiles) + sideways
+            return ph(other_tiles, doras=d) + sideways
         elif self.dir == Dir.TOIMEN:
-            return pt(other_tiles[0]) + sideways + ph(other_tiles[1:])
+            return pt(other_tiles[0], doras=d) + sideways + ph(other_tiles[1:], doras=d)
         elif self.dir == Dir.KAMICHA:
-            return sideways + ph(other_tiles)
+            return sideways + ph(other_tiles, doras=d)
         assert False, f"Somehow got Dir.SELF for a non-ankan call {self!r}"
         # dir == Dir.SELF is only for ankan and is handled above
     def __str__(self) -> str:
         return self.to_str()
     
+add_group = lambda groups, group: tuple(sorted((*groups, tuple(sorted(group)))))
+
 # hand interpretations and yaku
 @dataclass
 class Interpretation:
     """A single interpretation of a single hand (decomposed into triplets, sequences, and pair)"""
     hand: Tuple[int, ...]                           # The non-decomposed part of the original hand
-    ron_fu: int = 0                                 # ron fu using this interpretation of the hand (not rounded)
-    tsumo_fu: int = 0                               # tsumo fu using this interpretation of the hand (not rounded)
+    ron_fu: int = 20                                # ron fu using this interpretation of the hand (not rounded)
+    tsumo_fu: int = 22                              # tsumo fu using this interpretation of the hand (not rounded)
     sequences: Tuple[Tuple[int, ...], ...] = ()     # Sequences taken from the original hand
     triplets: Tuple[Tuple[int, ...], ...] = ()      # Triplets taken from the original hand
     pair: Optional[Tuple[int, int]] = None          # A pair taken from the original hand
@@ -76,7 +76,10 @@ class Interpretation:
         return hash(self.unpack())
     def __str__(self) -> str:
         full_hand = (*self.sequences, *self.triplets, self.pair, self.hand) if self.pair is not None else (*self.sequences, *self.triplets, self.hand)
-        return " ".join(map(ph, full_hand)) + f" ron {self.ron_fu} tsumo {self.tsumo_fu}"
+        return " ".join(map(ph, full_hand)) + f" ron {self.ron_fu} tsumo {self.tsumo_fu}" + ("" if len(self.calls) == 0 else f" ({len(self.calls)} calls)")
+    def is_shanpon(self) -> bool:
+        hand = tuple(normalize_red_fives(self.hand))
+        return self.pair is not None and hand[0] == hand[1]
     def get_waits(self) -> Set[int]:
         hand = tuple(normalize_red_fives(self.hand))
         if len(hand) == 1: # tanki
@@ -98,111 +101,116 @@ class Interpretation:
                 elif len(kokushi_wait) == 0: # 13-way wait
                     return YAOCHUUHAI
         return set()
+    def add_triplet(self, triplet: Tuple[int, int, int], call: bool = False, closed: bool = True, kan: bool = False) -> "Interpretation":
+        triplet_fu = (4 if triplet[0] in YAOCHUUHAI else 2) * (2 if closed else 1) * (4 if kan else 1)
+        # print(f"add {triplet_fu} for closed triplet {ph(triplet)}, {ph(self.hand)}")
+        return Interpretation(self.hand if call else try_remove_all_tiles(self.hand, triplet),
+                              self.ron_fu + triplet_fu,
+                              self.tsumo_fu + triplet_fu,
+                              self.sequences,
+                              add_group(self.triplets, triplet),
+                              self.pair, calls=self.calls)
+    def add_sequence(self, sequence: Tuple[int, int, int], call: bool = False) -> "Interpretation":
+        return Interpretation(self.hand if call else try_remove_all_tiles(self.hand, sequence),
+                              self.ron_fu,
+                              self.tsumo_fu,
+                              add_group(self.sequences, sequence),
+                              self.triplets,
+                              self.pair, calls=self.calls)
+    def add_pair(self, pair: Tuple[int, int], yakuhai: Tuple[int, ...]) -> "Interpretation":
+        if self.pair is None:
+            yakuhai_fu = 2 * yakuhai.count(pair[0])
+            # print(f"add {yakuhai_fu} for yakuhai pair {ph(pair)}, {ph(self.hand)}")
+            return Interpretation(try_remove_all_tiles(self.hand, pair),
+                                  self.ron_fu + yakuhai_fu,
+                                  self.tsumo_fu + yakuhai_fu,
+                                  self.sequences, self.triplets,
+                                  pair, calls=self.calls)
+        return self
+    def add_wait_fu(self, yakuhai: Tuple[int, ...]) -> bool:
+        """return True if the final wait is valid"""
+        if len(self.hand) == 2:
+            # taatsu wait -- might be a single wait
+            is_shanpon = self.is_shanpon()
+            waits = self.get_waits()
+            if is_shanpon or len(waits) > 0:
+                single_wait_fu = 2 if (len(waits) == 1 and not is_shanpon) else 0
+                # print(f"add {single_wait_fu} for single wait {ph(self.hand)}")
+                self.ron_fu += single_wait_fu
+                self.tsumo_fu += single_wait_fu
+                return True
+        elif len(self.hand) == 1:
+            # tanki wait -- is a single wait, and might be yakuhai
+            # print(f"add 2 for single wait {pt(self.hand[0])}")
+            # print(f"add 2 for yakuhai pair {pt(self.hand[0])}")
+            yakuhai_fu = 2 * yakuhai.count(self.hand[0])
+            self.ron_fu += yakuhai_fu + 2
+            self.tsumo_fu += yakuhai_fu + 2
+            return True
+        return False
     def generate_all_interpretations(self, yakuhai: Tuple[int, ...] = (), is_closed_hand: bool = False) -> Set["Interpretation"]:
         """
         From this Interpretation, remove all combinations of sequences,
         triplets, and pair from self.hand to arrive at several
-        Interpretations. Calculates fu obtained in the process, after you
-        pass in the yakuhai tiles, base ron fu, and base tsumo fu.
+        Interpretations. Calculates fu obtained in the process, requiring you
+        pass in the yakuhai tiles. Doesn't take into account the fu obtained
+        by completing a triplet as a final wait (shanpon fu) -- that's taken
+        care of in `get_yaku` in yaku.py.
+
+        Note: calling this will reset self.ron_fu and self.tsumo_fu
         """
 
-        # first, use the call info to filter some groups out of the hand
-        base_fu = 20
+        base_interpretation = self
+        self.ron_fu = 20 + (10 if is_closed_hand else 0)
+        self.tsumo_fu = 22
+
+        # the call info forces some sequences/triplets
         for call in self.calls:
+            mktuple = lambda t: cast(Tuple[int, int, int], tuple(t))
             if call.type == "chii":
-                self.sequences = (*self.sequences, tuple(call.tiles))
-            if call.type == "pon":
-                base_fu += 4 if call.tile in YAOCHUUHAI else 2
-                # print(f"add {4 if call.tile in YAOCHUUHAI else 2} for open triplet {pt(call.tile)}")
-                self.triplets = (*self.triplets, tuple(call.tiles))
-            if "kan" in call.type: 
-                base_fu += 16 if call.tile in YAOCHUUHAI else 8
-                if call.type == "ankan":
-                    base_fu += 16 if call.tile in YAOCHUUHAI else 8
-                    # print(f"add {32 if call.tile in YAOCHUUHAI else 16} for closed kan {pt(call.tile)}")
-                else:
-                    pass
-                    # print(f"add {16 if call.tile in YAOCHUUHAI else 8} for open kan {pt(call.tile)}")
-                self.triplets = (*self.triplets, tuple(call.tiles[:3]))
-        # print(f"base fu + calls = {base_fu} fu")
-        base_ron_fu = base_fu + (10 if is_closed_hand else 0)
-        base_tsumo_fu = base_fu + 2
+                base_interpretation = base_interpretation.add_sequence(mktuple(call.tiles), call=True)
+            elif call.type == "pon":
+                base_interpretation = base_interpretation.add_triplet(mktuple(call.tiles), call=True, closed=False)
+            elif "kan" in call.type: 
+                base_interpretation = base_interpretation.add_triplet(mktuple(call.tiles[:3]), call=True, closed=(call.type == "ankan"), kan=True)
 
         # finally, iterate through all possible interpretations of the hand
         interpretations: Set[Interpretation] = set()
-        to_update: Set[Interpretation] = {self}
+        to_update: Set[Interpretation] = {base_interpretation}
         already_processed: Set[Tuple[int, ...]] = set()
-        add_group = lambda groups, group: tuple(sorted((*groups, tuple(sorted(group)))))
         while len(to_update) > 0:
-            unprocessed_part, fu, _, sequences, triplets, pair = to_update.pop().unpack()
-            if unprocessed_part in already_processed:
+            interpretation = to_update.pop()
+            interpretation.hand = interpretation.hand
+            if interpretation.hand in already_processed:
                 continue
             else:
-                already_processed.add(unprocessed_part)
-            for tile in set(unprocessed_part):
-                # remove a triplet
-                triplet = (tile, tile, tile)
-                removed_triplet = try_remove_all_tiles(unprocessed_part, triplet)
-                if removed_triplet != unprocessed_part: # removal was a success
-                    # add fu for this triplet
-                    triplet_fu = 8 if tile in YAOCHUUHAI else 4
-                    # print(f"add {triplet_fu} for closed triplet {pt(tile)}, {ph(unprocessed_part)}")
-                    to_update.add(Interpretation(removed_triplet, fu + triplet_fu, fu + triplet_fu, sequences, add_group(triplets, triplet), pair, calls=self.calls))
+                already_processed.add(interpretation.hand)
+            if len(interpretation.hand) <= 2:
+                if interpretation.add_wait_fu(yakuhai):
+                    interpretations.add(interpretation)
+                tanki_wait = len(interpretation.hand) == 1
+                # check pinfu conditions
+                no_calls = len(self.calls) == 0
+                all_sequences = len(interpretation.triplets) == 0
+                no_yakuhai_pair = interpretation.hand[0] not in yakuhai
+                if tanki_wait and no_calls and all_sequences and no_yakuhai_pair:
+                    # could also be interpreted as aryanmen wait for pinfu
+                    tanki = interpretation.hand[0]
+                    # look for sequences that form aryanmen with the tanki,
+                    # where the ryanmen part is not penchan
+                    for i, (t1,t2,t3) in enumerate(interpretation.sequences):
+                        remaining_seqs = (*interpretation.sequences[:i], *interpretation.sequences[i+1:])
+                        if tanki == t1 and SUCC[t3] != 0:
+                            interpretations.add(Interpretation((t2,t3), 20, 20, remaining_seqs, interpretation.triplets, (tanki, tanki), calls=self.calls))
+                        elif tanki == t3 and PRED[t1] != 0:
+                            interpretations.add(Interpretation((t1,t2), 20, 20, remaining_seqs, interpretation.triplets, (tanki, tanki), calls=self.calls))
+            else:
+                for tile in set(interpretation.hand):
+                    nodes = [interpretation.add_triplet((tile, tile, tile)),
+                             interpretation.add_sequence((SUCC[SUCC[tile]], SUCC[tile], tile)),
+                             interpretation.add_pair((tile, tile), yakuhai=yakuhai)]
+                    to_update |= {n for n in nodes if n is not None}
 
-                # remove a sequence
-                sequence = (SUCC[SUCC[tile]], SUCC[tile], tile)
-                removed_sequence = try_remove_all_tiles(unprocessed_part, sequence)
-                if removed_sequence != unprocessed_part: # removal was a success
-                    to_update.add(Interpretation(removed_sequence, fu, fu, add_group(sequences, sequence), triplets, pair, calls=self.calls))
-
-                # remove a pair, if we haven't yet
-                if pair is None:
-                    yakuhai_fu = 2 * yakuhai.count(tile)
-                    # print(f"add {yakuhai_fu} for yakuhai pair {pt(tile)}, {ph(unprocessed_part)}")
-                    removed_pair = try_remove_all_tiles(unprocessed_part, (tile, tile))
-                    if removed_pair != unprocessed_part: # removal was a success
-                        to_update.add(Interpretation(removed_pair, fu + yakuhai_fu, fu + yakuhai_fu, sequences, triplets, (tile, tile), calls=self.calls))
-                
-            if len(unprocessed_part) == 2:
-                # now evaluate the remaining taatsu
-                tile1, tile2 = sorted_hand(normalize_red_fives(unprocessed_part))
-                is_shanpon = tile1 == tile2
-                is_penchan = SUCC[tile1] == tile2 and 0 in {PRED[tile1], SUCC[tile2]}
-                is_ryanmen = SUCC[tile1] == tile2 and 0 not in {PRED[tile1], SUCC[tile2]}
-                is_kanchan = SUCC[SUCC[tile1]] == tile2
-                single_wait_fu = 2 if is_penchan or is_kanchan else 0
-                # print(f"add {single_wait_fu} for single wait {pt(tile1)pt(tile2)}, {ph(unprocessed_part)}")
-                if True in {is_ryanmen, is_shanpon, is_penchan, is_kanchan}:
-                    ron_fu = base_ron_fu + fu + single_wait_fu
-                    tsumo_fu = base_tsumo_fu + fu + single_wait_fu
-                    interpretations.add(Interpretation(unprocessed_part, ron_fu, tsumo_fu, sequences, triplets, pair, calls=self.calls))
-            elif len(unprocessed_part) == 1:
-                # either a tanki or aryanmen wait for pinfu
-                # first take care of the tanki possibility:
-                # print(f"add 2 for single wait {pt(unprocessed_part[0])}")
-                tanki = unprocessed_part[0]
-                yakuhai_fu = 2 * yakuhai.count(tile)
-                ron_fu = base_ron_fu + fu + yakuhai_fu + 2
-                tsumo_fu = base_tsumo_fu + fu + yakuhai_fu + 2
-                interpretations.add(Interpretation(unprocessed_part, ron_fu, tsumo_fu, sequences, triplets, calls=self.calls))
-                # then take care of the pinfu aryanmen possibility:
-                if len(triplets) == 0: # all sequences
-                    # check that it's a tanki overlapping a sequence
-                    has_pair = False
-                    for i, (t1,t2,t3) in enumerate(sequences):
-                        remaining_seqs = (*sequences[:i], *sequences[i+1:])
-
-                        if tanki == t1 and PRED[t1] != 0:
-                            ryanmen = (t2,t3)
-                        elif tanki == t3 and SUCC[t3] != 0:
-                            ryanmen = (t1,t2)
-                        else:
-                            continue
-                        if tanki not in yakuhai:
-                            has_pair = True
-                            break
-                    if has_pair == True:
-                        interpretations.add(Interpretation(ryanmen, 30, 22, remaining_seqs, triplets, (tanki, tanki), calls=self.calls))
         return interpretations if len(interpretations) > 0 else {self}
 
 @dataclass

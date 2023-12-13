@@ -136,18 +136,16 @@ class mt19937(object):
 mt = mt19937()
 def seed_wall(seed):
     mt.init_by_array(bytes_to_ints(bytearray(b64decode(seed))))
-sha512_bytes = lambda x: bytes_to_ints(sha512(ints_to_bytes(x)).digest())
+sha512_ints = lambda x: bytes_to_ints(sha512(ints_to_bytes(x)).digest())
 def next_wall() -> List[int]:
     r: List[int] = []
     for i in range(9):
-        r += sha512_bytes([mt.int32() for _ in range(32)])
+        r += sha512_ints([mt.int32() for _ in range(32)])
     wall = list(range(136))
     # Fisher-Yates using r to supply random values
     for i in range(135):
         j = i + (r[i] % (136-i))
         wall[i], wall[j] = wall[j], wall[i]
-    # dice0 = rnd[135] % 6;
-    # dice1 = rnd[136] % 6;
     return list(reversed([ix_to_tile(t) for t in wall]))
 
 def print_wall(wall: List[int]) -> None:

@@ -81,9 +81,7 @@ class Hand:
     def to_str(self, doras: List[int] = [], uras: List[int] = []) -> str:
         to_str = lambda call: call.to_str(doras, uras)
         call_string = "" if len(self.calls) == 0 else "\u2007" + "\u2007".join(map(to_str, reversed(self.calls)))
-        as_dora = lambda tile: tile + (100 if tile in doras or tile in uras else 0)
-        hidden_part = tuple(map(as_dora, self.hidden_part))
-        return f"{ph(hidden_part)}{call_string}"
+        return f"{ph(self.hidden_part, doras=doras)}{call_string}"
     def __str__(self) -> str:
         return self.to_str()
     def __hash__(self) -> int:
@@ -103,19 +101,15 @@ class Hand:
         """Immutable update for adding a tile to an existing pon call (kakan)"""
         pon_index = next((i for i, calls in enumerate(self.calls) if calls.type == "pon" and normalize_red_five(calls.tile) == normalize_red_five(called_tile)), None)
         assert pon_index is not None, f"unable to find previous pon of {called_tile} in calls: {self.calls}"
-        orig_direction = self.calls[pon_index].dir
-        orig_tile = self.calls[pon_index].tile
-        orig_tiles = (*self.calls[pon_index].tiles, called_tile)
         calls_copy = [*self.calls]
-        call = CallInfo("kakan", orig_tile, orig_direction, orig_tiles)
-        calls_copy[pon_index] = call
-        return pon_index, Hand(self.tiles, calls_copy, [*self.ordered_calls, call], prev_shanten=self.shanten, kita_count=self.kita_count)
+        pon_call = self.calls[pon_index]
+        calls_copy[pon_index] = CallInfo("kakan", pon_call.tile, pon_call.dir, (*pon_call.tiles, called_tile))
+        return pon_index, Hand(self.tiles, calls_copy, [*self.ordered_calls, calls_copy[pon_index]], prev_shanten=self.shanten, kita_count=self.kita_count)
     def kita(self) -> "Hand":
         """Immutable update for adding kita"""
         calls_copy = [*self.calls]
-        call = CallInfo("kita", 44, Dir.SELF, (44,))
-        calls_copy.append(call)
-        return Hand(self.tiles, calls_copy, [*self.ordered_calls, call], prev_shanten=self.prev_shanten, kita_count=self.kita_count+1)
+        calls_copy.append(CallInfo("kita", 44, Dir.SELF, (44,)))
+        return Hand(self.tiles, calls_copy, [*self.ordered_calls, calls_copy[-1]], prev_shanten=self.prev_shanten, kita_count=self.kita_count+1)
     def print_hand_details(self,
                            ukeire: int,
                            final_tile: Optional[int] = None,
@@ -125,10 +119,9 @@ class Hand:
         """print this hand + calls + optional final tile + furiten state + shanten/waits + number of ukeire"""
         wait_string = ""
         win_string = ""
-        as_dora = lambda tile: tile + (100 if tile in doras or tile in uras else 0)
         if self.shanten[0] == 0:
             wait_string = f"{' (furiten) ' if furiten else ' '}waits: {ph(sorted_hand(self.shanten[1]))} ({ukeire} out{'s' if ukeire > 1 else ''})"
-            win_string = f"\u2007{pt(as_dora(final_tile))}" if final_tile is not None else ""
+            win_string = f"\u2007{pt(final_tile, doras=doras)}" if final_tile is not None else ""
         elif self.shanten[0] > 0:
             wait_string = f" ({shanten_name(self.shanten)})"
         return f"{self.to_str(doras, uras)}{win_string}{wait_string}"
@@ -140,9 +133,9 @@ class Hand:
         shanten, waits = self.shanten
         if shanten >= 2:
             return 0
-        relevant_tiles = set(normalize_red_fives(waits))
+        wait_tiles = set(normalize_red_fives(waits))
         visible = list(normalize_red_fives(list(self.tiles_with_kans) + list(visible)))
-        return 4 * len(relevant_tiles) - sum(visible.count(wait) for wait in relevant_tiles)
+        return 4 * len(wait_tiles) - sum(visible.count(wait) for wait in wait_tiles)
     def get_majority_suit(self) -> Optional[Set[int]]:
         # returns one of {MANZU, PINZU, SOUZU}
         # or None if there is no majority suit (i.e. there's a tie)
@@ -158,12 +151,15 @@ class Hand:
         else:
             return None
     def get_possible_tenpais(self) -> Dict[int, "Hand"]:
+        # return {tile to discard: resulting tenpai hand}
+        # for all valid discards that lead you to tenpai
         if len(self.tiles) not in {2, 5, 8, 11, 14}:
             return {}
         if self.prev_shanten[0] >= 2:
             return {}
         return {tile: hand for tile in self.hidden_part for hand in (self.remove(tile),) if hand.shanten[0] == 0}
     def possible_chiis(self, tile: int) -> Iterable[CallInfo]:
+        # get all possible chii calls you can make with this hand
         chiis = ((PRED[PRED[tile]], PRED[tile]), (PRED[tile], SUCC[tile]), (SUCC[tile], SUCC[SUCC[tile]]))
         return (CallInfo("chii", tile, Dir.KAMICHA, sorted_hand((*chii, tile)))
             for chii in chiis if all(tile in self.hidden_part for tile in chii))
@@ -187,10 +183,10 @@ class Score:
     yaku: List[Tuple[str, int]] # list of ("yaku name", han value)
     han: int                    # total han for those yaku
     fu: int                     # total fu for some interpretation of the hand
-    is_dealer: bool             # whether it was dealer win (for calculating points)
+    is_dealer: bool             # whether it was a dealer win (for calculating points)
     tsumo: bool                 # whether it was a tsumo (for calculating points)
     num_players: int            # number of players (for calculating tsumo points)
-    kiriage: bool               # whether kiriage mangan is enabled (rounding up)
+    rules: GameRules            # a reference to the game rules
     def __hash__(self) -> int:
         return hash((self.fu, tuple(self.yaku)))
     def __lt__(self, other: "Score") -> bool:
@@ -224,43 +220,34 @@ class Score:
              + sum(1 for name, _ in self.yaku if name in DOUBLE_YAKUMAN)
     def to_points(self) -> int:
         yakuman_factor = self.count_yakuman() or 1
-        han = 5 if self.kiriage and (self.han, self.fu) in ((4,30), (3,60)) else self.han
+        han = 5 if self.rules.kiriage_mangan and (self.han, self.fu) in ((4,30), (3,60)) else self.han
         return yakuman_factor * get_score(han, self.fu, self.is_dealer, self.tsumo, self.num_players)
-
-    def to_score_deltas(self, round: int, honba: int, honba_value: int, winners: List[int], payer: int, kiriage: bool, pao_seat: Optional[int] = None) -> List[int]:
-        yakuman_factor = self.count_yakuman() or 1
-        prev_han = self.han
-        han = 5 if self.kiriage and (self.han, self.fu) in ((4,30), (3,60)) else self.han
+    def to_score_deltas(self, dealer_seat: int, honba: int, riichi_sticks: int, winner: int, payer: Optional[int] = None, pao_seat: Optional[int] = None) -> List[int]:
         score_deltas = [0]*self.num_players
+        basic_score = self.to_points()
+        riichi_payment = self.rules.riichi_value * riichi_sticks
+        honba_payment = self.rules.honba_value * honba
+        direct_hit = not self.tsumo
         if pao_seat is not None:
-            assert len(winners) == 1, "don't know how to handle pao when there's a multiple ron"
-            winner = winners[0]
-            oya_payment = winner == round%4
-            points = (OYA_RON_SCORE if oya_payment else KO_RON_SCORE)[han][self.fu]  # type: ignore[index]
-            points = (points * yakuman_factor)
-            honba_payment = honba_value * self.num_players * honba
-            score_deltas[winner] += points + honba_payment
-            if self.tsumo:
-                score_deltas[pao_seat] -= points - honba_payment
-            else:
-                score_deltas[payer] -= points//2
-                score_deltas[pao_seat] -= points//2 - honba_payment
+            direct_hit = True
+            if not self.tsumo:
+                basic_score //= 2
+                assert payer is not None
+                score_deltas[payer] -= basic_score
+                score_deltas[winner] += basic_score
+            payer = pao_seat
+        if direct_hit: # either ron or tsumo pao or remaining ron pao payment
+            assert payer is not None
+            honba_payment *= self.num_players
+            score_deltas[payer] -= basic_score + honba_payment
+            score_deltas[winner] += basic_score + honba_payment + riichi_payment
         else:
-            if self.tsumo:
-                assert len(winners) == 1
-                for payer in set(range(self.num_players)) - {winners[0]}:
-                    oya_payment = (winners[0] == round%4) or (payer == round%4)
-                    points = (OYA_TSUMO_SCORE if oya_payment else KO_TSUMO_SCORE)[han][self.fu]  # type: ignore[index]
-                    points = (points * yakuman_factor) + (honba_value * honba)
-                    score_deltas[payer] -= points
-                score_deltas[payer] -= sum(score_deltas)
-            else:
-                for winner in winners:
-                    oya_payment = winner == round%4
-                    points = (OYA_RON_SCORE if oya_payment else KO_RON_SCORE)[han][self.fu]  # type: ignore[index]
-                    points = (points * yakuman_factor) + (honba_value * self.num_players * honba)
-                    score_deltas[winner] += points
-                score_deltas[winner] -= sum(score_deltas)
+            divisor = self.num_players-1 if self.is_dealer else self.num_players
+            ko_payment = int(round(basic_score/divisor, -2))
+            oya_payment = basic_score - (self.num_players-2) * ko_payment
+            for payer in set(range(self.num_players)) - {winner}:
+                score_deltas[payer] -= (oya_payment if payer == dealer_seat else ko_payment) + honba_payment
+            score_deltas[winner] = riichi_payment - sum(score_deltas)
         return score_deltas
     def has_riichi(self) -> bool:
         return ("riichi", 1) in self.yaku or ("double riichi", 2) in self.yaku
@@ -299,7 +286,7 @@ class Score:
     def from_tenhou_list(cls, tenhou_result_list: List[Any],
                               round: int,
                               num_players: int,
-                              kiriage: bool,
+                              rules: GameRules,
                               kita: int = 0) -> "Score":
         w, won_from, _, score_str, *yaku_strs = tenhou_result_list
         is_dealer = w == round%4
@@ -321,9 +308,9 @@ class Score:
                 elif name == "kita":
                     yaku_kita = han
             if kita > 0 and yaku_kita == 0:
-                assert dora_index is not None, f"somehow we know there's {kita} kita, but tenhou didn't count it as dora?"
-                # must be a Tenhou sanma game hand with kita because
+                # must be a Tenhou sanma hand with kita because
                 # it counts kita as regular dora (not "抜きドラ")
+                assert dora_index is not None, f"somehow we know there's {kita} kita, but tenhou didn't count it as dora?"
                 non_kita_dora_count = yaku_dora - kita
                 assert non_kita_dora_count >= 0
                 if non_kita_dora_count == 0:
@@ -342,7 +329,7 @@ class Score:
         han = sum(han for _, han in yaku)
         assert han > 0, f"somehow got a {han} han score"
         fu = int(score_str.split("符")[0]) if "符" in score_str else 70
-        return cls(yaku, han, fu, is_dealer, is_tsumo, num_players, kiriage)
+        return cls(yaku, han, fu, is_dealer, is_tsumo, num_players, rules)
 
     # these fields are only for debug use
     interpretation: Optional[Interpretation] = None # the interpretation used to calculate yaku and fu

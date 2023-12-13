@@ -282,7 +282,7 @@ def called_kan_and_got_4_dora(flags: List[Flags], data: List[Dict[str, Any]], ky
             CheckClause(subject="your kan call",
                         subject_description=call.to_str(doras=doras),
                         verb="gave you",
-                        content=f"four dora {pt(doras[-1]+100)} in hand ({hand.to_str(doras=doras)})"))]
+                        content=f"four dora {pt(doras[-1], doras=doras)} in hand ({hand.to_str(doras=doras)})"))]
 
 # Print if you melded consecutively 2+ times and then immediately won
 @skill(require=[Flags.YOU_WON, Flags.WINNER_WON_WITH_PON_PON_RON])
@@ -367,7 +367,7 @@ def won_something_silly(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
             win_string = "with an"
         win_string += " ippatsu tsumo"
     if won_hell_wait:
-        win_string += f" hell wait on {pt(winning_tile + 100 if winning_tile in kyoku.doras else winning_tile)}"
+        win_string += f" hell wait on {pt(winning_tile, doras=kyoku.doras)}"
     else:
         win_string += " hand"
 
@@ -387,7 +387,7 @@ def won_after_changing_wait(flags: List[Flags], data: List[Dict[str, Any]], kyok
         return [Skill(kyoku.round, kyoku.honba, "Skill",
             CheckClause(subject="you",
                         verb="changed your hand's wait from",
-                        content=f"{ph(hand.prev_shanten[1], doras=kyoku.doras)} to {ph(hand.shanten[1], doras=kyoku.doras)} and immediately won on {pt(winning_tile + 100 if winning_tile in kyoku.doras else winning_tile)}"))]
+                        content=f"{ph(hand.prev_shanten[1], doras=kyoku.doras)} to {ph(hand.shanten[1], doras=kyoku.doras)} and immediately won on {pt(winning_tile, doras=kyoku.doras)}"))]
     else:
         return []
 
@@ -434,12 +434,16 @@ def won_chase_with_ippatsu(flags: List[Flags], data: List[Dict[str, Any]], kyoku
 @skill(require=[Flags.YOU_GAINED_POINTS, Flags.WINNER_GOT_SANBAIMAN])
 def got_sanbaiman_or_yakuman(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     score = data[flags.index(Flags.WINNER_GOT_SANBAIMAN)]["score_object"]
+    seat = data[flags.index(Flags.WINNER_GOT_SANBAIMAN)]["seat"]
     yaku = score.yaku
     limit_name = score.get_limit_hand_name()
-    return [Skill(kyoku.round, kyoku.honba, "Skill",
-        CheckClause(subject="you",
-                    verb="got",
-                    content=f"{limit_name} ({', '.join(y for y, _ in yaku)})"))]
+    if player == seat:
+        return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="got",
+                        content=f"{limit_name} ({', '.join(y for y, _ in yaku)})"))]
+    else:
+        return []
 
 # Print if you gained placement only because of ura
 @skill(require=[Flags.YOU_WON, Flags.YOU_GAINED_PLACEMENT],
@@ -456,7 +460,7 @@ def gained_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]], 
         orig_placement = to_placement(prev_scores, kyoku.num_players)
         orig_points = score.to_points()
         score.add_dora("ura", -ura)
-        uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round, kyoku.honba, kyoku.rules.honba_value, [player], won_from, kyoku.rules.kiriage_mangan))
+        uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round%4, kyoku.honba, kyoku.riichi_sticks, player, won_from))
         uraless_points = score.to_points()
         score.add_dora("ura", ura)
         if orig_placement == uraless_placement:
@@ -672,7 +676,7 @@ def drew_dora_you_just_discarded(flags: List[Flags], data: List[Dict[str, Any]],
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="immediately drew",
-                        content=f"a dora {pt(tile+100)} that you just discarded"))]
+                        content=f"a dora {pt(tile, doras=kyoku.doras)} that you just discarded"))]
 
 # Print if your turn was skipped 3 times due to pon/kan
 @injustice(require=[Flags.TURN_SKIPPED_BY_PON],
@@ -719,7 +723,7 @@ def lost_nagashi_to_draw(flags: List[Flags], data: List[Dict[str, Any]], kyoku: 
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="lost",
-                        content=f"nagashi on your last discard ({pt(tile + 100 if tile in kyoku.doras else tile)})"))]
+                        content=f"nagashi on your last discard ({pt(tile, doras=kyoku.doras)})"))]
 
 # Print if someone calls your last tile for nagashi (not ron)
 @injustice(require=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
@@ -730,7 +734,7 @@ def lost_nagashi_to_call(flags: List[Flags], data: List[Dict[str, Any]], kyoku: 
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="lost",
-                        content=f"nagashi on your last discard {pt(tile + 100 if tile in kyoku.doras else tile)} because {relative_seat_name(player, caller)} called it"))]
+                        content=f"nagashi on your last discard {pt(tile, doras=kyoku.doras)} because {relative_seat_name(player, caller)} called it"))]
 
 # Print if ankan removed (part of) your tenpai wait
 @injustice(require=[Flags.ANKAN_ERASED_TENPAI_WAIT])
@@ -973,7 +977,7 @@ def your_tenpai_tile_dealt_in(flags: List[Flags], data: List[Dict[str, Any]], ky
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="declared riichi with" if Flags.YOU_DECLARED_RIICHI in flags else "reached tenpai by discarding",
-                        content=f"{pt(tile + 100 if tile in kyoku.doras else tile)}")),
+                        content=f"{pt(tile, doras=kyoku.doras)}")),
             Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you", verb="immediately dealt in"))]
 
@@ -988,7 +992,7 @@ def drew_tile_completing_past_wait(flags: List[Flags], data: List[Dict[str, Any]
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="drew",
-                        content=f"a tile {pt(tile + 100 if tile in kyoku.doras else tile)} that would have completed your past tenpai wait on {ph(wait, kyoku.doras)}"
+                        content=f"a tile {pt(tile, doras=kyoku.doras)} that would have completed your past tenpai wait on {ph(wait, kyoku.doras)}"
                                     f" if you didn't decide to {'switch to ' + shanten_name(shanten) if shanten[0] == 0 else 'fold'}"))]
 
 # Print if you dealt into ura 3 OR if someone else tsumoed and got ura 3
@@ -1149,7 +1153,7 @@ def dropped_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]],
         orig_placement = to_placement(prev_scores, kyoku.num_players)
         orig_points = score.to_points()
         score.add_dora("ura", -ura)
-        uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round, kyoku.honba, kyoku.rules.honba_value, [winner], player, kyoku.rules.kiriage_mangan))
+        uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round%4, kyoku.honba, kyoku.riichi_sticks, winner, player))
         uraless_points = score.to_points()
         score.add_dora("ura", ura)
         if orig_placement == uraless_placement:
