@@ -47,6 +47,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " CHII_GOT_OVERRIDDEN"
     " COULD_HAVE_RONNED"
     " COULD_HAVE_TSUMOED"
+    " DEAL_IN_TILE_WAS_LAST_DISCARD"
     " DREW_WORST_HAIPAI_SHANTEN"
     " EVERYONE_DISRESPECTED_YOUR_RIICHI"
     " EVERYONE_RESPECTED_YOUR_RIICHI"
@@ -412,6 +413,7 @@ class KyokuState:
         if event_type == "riichi":
             self.at[seat].riichi_index = len(self.at[seat].pond)
         prev_hand = self.at[seat].hand
+        prev_discard = self.at[seat].last_discard
         self.at[seat].hand = self.at[seat].hand.remove(tile)
         self.visible_tiles.append(tile)
         self.at[seat].pond.append(tile)
@@ -456,6 +458,10 @@ class KyokuState:
                      if any(tile in wait for tile in self.at[seat].hand.hidden_part)}
             if all(any(tile in wait for wait in waits.values()) for tile in self.at[seat].hand.hidden_part):
                 self.add_flag(seat, Flags.YOUR_TILES_ALL_DEAL_IN, {"hand": prev_hand, "waits": waits})
+            # check if the tile we discarded last turn was the same tile
+            # (i.e. the person calling ron on us _just_ started waiting on that tile)
+            if normalize_red_five(tile) == normalize_red_five(prev_discard):
+                self.add_flag(seat, Flags.DEAL_IN_TILE_WAS_LAST_DISCARD, {"prev_tile": prev_discard, "tile": tile})
         # flip kan dora, if needed
         if self.pending_kan is not None:
             self._process_new_dora(seat, self.pending_kan)

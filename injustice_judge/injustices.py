@@ -981,6 +981,16 @@ def your_tenpai_tile_dealt_in(flags: List[Flags], data: List[Dict[str, Any]], ky
             Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you", verb="immediately dealt in"))]
 
+# Print if the tile you dealt in with was the same as your last discard
+@injustice(require=[Flags.DEAL_IN_TILE_WAS_LAST_DISCARD])
+def deal_in_tile_was_last_discard(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    tile = data[flags.index(Flags.DEAL_IN_TILE_WAS_LAST_DISCARD)]["tile"]
+    prev_tile = data[flags.index(Flags.DEAL_IN_TILE_WAS_LAST_DISCARD)]["prev_tile"]
+    return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+            CheckClause(subject=f"your last discard {pt(prev_tile, doras=kyoku.doras)}",
+                        verb="passed",
+                        content=f"but the same tile {pt(tile, doras=kyoku.doras)} dealt in the very next turn"))]
+
 # Print if you drew a tile that would have completed a past wait
 @injustice(require=[Flags.YOU_DREW_PREVIOUSLY_WAITED_TILE],
             forbid=[Flags.YOU_GAINED_POINTS])

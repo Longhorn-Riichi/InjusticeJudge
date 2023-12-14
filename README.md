@@ -38,6 +38,7 @@ Analyzes your `Mahjong Soul` or `tenhou.net` game to find instances of mahjong i
 - At least half of your waits were in the dead wall
 - You would have drawn your tile had the game continued for five more draws
 - A riichi player would have dropped your tile had the game continued for five more draws
+- A previous discard passed but the very next turn you discarded the same tile and it dealt in
 
 __Note__: This program was explicitly written to
 
