@@ -655,6 +655,7 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
     uras: List[int] = []
     # we actually have to parse the ruleset to see if kiriage mangan is enabled...
     rules: Optional[GameRules] = None
+    num_players = 4
     def format_kyoku(kyoku, doras, uras):
         """Convert `kyoku` (a dict) into the correct output format (a json array)"""
         kyoku_obj = []
@@ -714,10 +715,11 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
             if "chip" in attrs:
                 kyoku["shuugi"] = [int(v) for v in attrs["chip"].split(",")]
             kyoku["oya"] = int(attrs["oya"])
+            num_players = 3 if len(attrs["hai3"]) == 0 else 4
             haipai0 = list(sorted_hand([ix_to_tile(int(v)) for v in attrs["hai0"].split(",")]))
             haipai1 = list(sorted_hand([ix_to_tile(int(v)) for v in attrs["hai1"].split(",")]))
             haipai2 = list(sorted_hand([ix_to_tile(int(v)) for v in attrs["hai2"].split(",")]))
-            haipai3 = list(sorted_hand([ix_to_tile(int(v)) for v in attrs["hai3"].split(",")]))
+            haipai3 = [] if num_players == 3 else list(sorted_hand([ix_to_tile(int(v)) for v in attrs["hai3"].split(",")]))
             kyoku["haipai"] = [haipai0, haipai1, haipai2, haipai3]
             kyoku["draws"] = [[],[],[],[]]
             kyoku["discards"] = [[],[],[],[]]
@@ -766,12 +768,12 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
                 rs = [0,1,2,3]
                 if call_type == "pon":
                     rs.remove((m>>5)&3)
-            else: # if none of those are set, it's ankan/daiminkan
-                call_type = "ankan" if just_drew else "minkan"
+            else: # if none of those are set, it's ankan/daiminkan/kita
+                call_type = "kita" if m & 0x20 else "ankan" if just_drew else "minkan"
                 tile_info = m>>8
                 rs = [0,1,2,3]
             # ankan/daiminkan specify 4 offsets, the others specify 3
-            num_tiles = 4 if call_type in {"minkan", "ankan"} else 3
+            num_tiles = 4 if call_type in {"kita", "minkan", "ankan"} else 3
             # parse the base tile from `tile_info` = `tile_info//num_tiles`
             # it is given as an index `ix`. 0 is 1m, 1 is 2m, etc
             ix = tile_info//num_tiles
@@ -801,6 +803,7 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
             #   "k17171717" in discards = kakan 17 where pon was from kamicha
             #   "17k171717" in discards = kakan 17 where pon was from toimen
             #   "1717k1717" in discards = kakan 17 where pon was from shimocha
+            #   "f44"       in discards = kita
             pos = 3 - call_dir
             if call_type in {"minkan", "ankan"} and pos == 2:
                 pos = 3
@@ -809,6 +812,8 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
             call_str = "".join(str(ix_to_tile(t) if type(t) != str else t) for t in called_tiles)
             if call_type in {"ankan", "kakan"}:
                 kyoku["discards"][caller].append(call_str)
+            elif call_type == "kita":
+                kyoku["discards"][caller].append("f44")
             else:
                 kyoku["draws"][caller].append(call_str)
             # for daiminkan, we also push 0 to the discards to represent the lack of a discard
@@ -869,9 +874,8 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
             else:
                 value_string = TENHOU_LIMITS[limit]
             if who == from_who: # tsumo
-                is_dealer = who == kyoku["seed"][0] // 4
+                is_dealer = who == kyoku["seed"][0] % 4
                 # reverse-calculate the ko and oya parts of the total points
-                num_players = 4
                 ko, oya = calc_ko_oya_points(points, num_players, is_dealer)
                 if is_dealer: # dealer tsumo
                     point_string = f"{oya}点∀"

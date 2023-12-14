@@ -315,8 +315,6 @@ class Score:
                 if "dora" in name:
                     dora_index = i # keep track of where "dora" is in the list
                     yaku_dora += han
-                elif name == "aka":
-                    yaku_dora += han
                 elif name == "kita":
                     yaku_kita = han
             # check if we expect kita but got none in the yaku list

@@ -92,9 +92,8 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Shanten, is_clos
             elif iipeikou_count == 1:
                 yaku_for_wait[wait].append(("iipeikou", 1))
 
-        # pinfu: has 22 tsumo fu and 30 ron fu, and not a shanpon wait
-        is_shanpon = pair is not None and len(taatsu) == 2 and taatsu[0] == taatsu[1]
-        if (tsumo_fu, ron_fu) == (22, 30) and not is_shanpon:
+        # pinfu: has 22 tsumo fu and 30 ron fu, and ryanmen wait
+        if (tsumo_fu, ron_fu) == (22, 30) and len(interpretation.get_waits()) == 2:
             for wait in waits:
                 yaku_for_wait[wait].append(("pinfu", 1))
 

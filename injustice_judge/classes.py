@@ -201,7 +201,7 @@ class Interpretation:
             if len(interpretation.hand) == 1:
                 # check pinfu conditions
                 no_calls = len(self.calls) == 0
-                all_sequences = len(interpretation.triplets) == 0
+                all_sequences = len(interpretation.sequences) == 4
                 no_yakuhai_pair = interpretation.hand[0] not in yakuhai
                 if no_calls and all_sequences and no_yakuhai_pair:
                     # interpret as aryanmen wait for pinfu
@@ -211,9 +211,9 @@ class Interpretation:
                     for i, (t1,t2,t3) in enumerate(interpretation.sequences):
                         remaining_seqs = (*interpretation.sequences[:i], *interpretation.sequences[i+1:])
                         if tanki == t1 and SUCC[t3] != 0:
-                            interpretations.add(Interpretation((t2,t3), 20, 20, remaining_seqs, interpretation.triplets, (tanki, tanki), calls=self.calls))
+                            interpretations.add(Interpretation((t2,t3), 30, 22, remaining_seqs, interpretation.triplets, (tanki, tanki), calls=self.calls))
                         elif tanki == t3 and PRED[t1] != 0:
-                            interpretations.add(Interpretation((t1,t2), 20, 20, remaining_seqs, interpretation.triplets, (tanki, tanki), calls=self.calls))
+                            interpretations.add(Interpretation((t1,t2), 30, 22, remaining_seqs, interpretation.triplets, (tanki, tanki), calls=self.calls))
             
         return interpretations if len(interpretations) > 0 else {self}
 
