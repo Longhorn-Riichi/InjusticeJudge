@@ -64,6 +64,7 @@ def get_waits(hand: Tuple[int, ...]) -> Set[int]:
         if len(hand) <= 1: # done
             waits |= set().union(*map(get_taatsu_wait, taatsus))
             continue
+        # try to find pairs, ryanmens, and kanchans, using every tile in the hand
         for i, tile in enumerate(hand):
             if tile in (*hand[:i], *hand[i+1:]): # pair, ignore
                 to_update.add((try_remove_all_tiles(hand, (tile, tile)), taatsus))
@@ -74,6 +75,13 @@ def get_waits(hand: Tuple[int, ...]) -> Set[int]:
                 taatsu = (tile, SUCC[SUCC[tile]])
                 to_update.add((try_remove_all_tiles(hand, taatsu), (*taatsus, taatsu)))
     return waits
+
+def calc_ko_oya_points(total_points: int, num_players: int, is_dealer: bool) -> Tuple[int, int]:
+    """Reverse-calculate the ko and oya parts of the total points"""
+    divisor = num_players-1 if is_dealer else num_players
+    ko_payment = int(round(total_points/divisor, -2))
+    oya_payment = total_points - (num_players-2) * ko_payment
+    return ko_payment, oya_payment
 
 _tiles = [*range(11,20), *range(21,30), *range(31,40), *range(41,48)]
 _reds = {_tiles.index(15): 51, _tiles.index(25): 52, _tiles.index(35): 53}

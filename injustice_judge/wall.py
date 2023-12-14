@@ -15,6 +15,11 @@ def bytes_to_ints(bytes: bytes) -> List[int]:
     return ints
 # assert bytes_to_ints(bytearray([0, 0, 0, 1, 0, 0, 0, 1])) == [1, 1]
 
+# The following is an implementation of the Mersenne Twister
+# Fixed a bug in the `init_by_array` function:
+#   `for ki in range(624):` should be `for ki in range(623):`
+#   otherwise one of the initial values gets twisted twice
+
 """
 
 Copyright (c) 2014-2016 Alex Forencich
@@ -135,9 +140,11 @@ class mt19937(object):
 
 mt = mt19937()
 def seed_wall(seed):
+    # the seed parsed from the log goes here
     mt.init_by_array(bytes_to_ints(bytearray(b64decode(seed))))
 sha512_ints = lambda x: bytes_to_ints(sha512(ints_to_bytes(x)).digest())
 def next_wall() -> List[int]:
+    # generate a list of 32*9=288 random values the way their wall algorithm does it
     r: List[int] = []
     for i in range(9):
         r += sha512_ints([mt.int32() for _ in range(32)])
@@ -146,6 +153,7 @@ def next_wall() -> List[int]:
     for i in range(135):
         j = i + (r[i] % (136-i))
         wall[i], wall[j] = wall[j], wall[i]
+    # the final item of `wall` is the first tile drawn, so reverse it
     return list(reversed([ix_to_tile(t) for t in wall]))
 
 def print_wall(wall: List[int]) -> None:

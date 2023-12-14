@@ -6,7 +6,7 @@ from typing import *
 from .classes import CallInfo, Dir, GameRules, Interpretation
 from .constants import Event, Shanten, MANZU, PINZU, SOUZU, PRED, SUCC, DORA_INDICATOR, DOUBLE_YAKUMAN, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
 from .display import ph, pt, shanten_name
-from .utils import get_score, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
+from .utils import calc_ko_oya_points, get_score, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
 from .shanten import calculate_shanten
 
 # These classes depend on shanten.py, which depends on classes.py, so we can't
@@ -44,22 +44,28 @@ class Hand:
     
     def __post_init__(self) -> None:
         """You only need to provide `tiles` (and `calls`, if any), this calculates the rest"""
+        # sort the passed-in hand
         super().__setattr__("tiles", sorted_hand(self.tiles))
+        # store all tiles visible on the table as calls (kans are stored as triplets)
         super().__setattr__("open_part", tuple(tile for call in self.calls if call.type != "kita" for tile in call.tiles[:3]))
+        # store the hidden part (complement of open_part)
         super().__setattr__("hidden_part", _hidden_part(self.tiles, self.open_part))
+        # store the passed-in hand, but don't represent kans as triplets
         super().__setattr__("tiles_with_kans", (*self.hidden_part, *(tile for call in self.calls for tile in call.tiles)))
-        # for closed part, add any ankan back in as triplets
+        # store the closed part, which is the hidden part plus ankans
         closed_part = self.hidden_part
         for call in self.calls:
             if call.type == "ankan":
                 closed_part = (*closed_part, call.tile, call.tile, call.tile)
         super().__setattr__("closed_part", closed_part)
+        # if we just discarded, calculate shanten of the resulting hand
         if len(self.tiles) in {1, 4, 7, 10, 13}:
             super().__setattr__("shanten", calculate_shanten(self.hidden_part))
+        # if we just drew, set shanten to previous hand's shanten
         elif len(self.tiles) in {2, 5, 8, 11, 14}: # this disables the below
             super().__setattr__("shanten", self.prev_shanten)
+        # (disabled because expensive) calculate the best shanten obtainable from this 14-tile hand
         elif len(self.tiles) in {2, 5, 8, 11, 14}:
-            # calculate the best shanten obtainable from this 14-tile hand"""
             best_shanten: Shanten = self.prev_shanten
             best_discards: List[int] = []
             for i, tile in enumerate(self.hidden_part):
@@ -99,8 +105,10 @@ class Hand:
         return Hand((*self.tiles[:i], *self.tiles[i+1:]), [*self.calls], [*self.ordered_calls], prev_shanten=self.shanten, kita_count=self.kita_count)
     def kakan(self, called_tile: int) -> Tuple[int, "Hand"]:
         """Immutable update for adding a tile to an existing pon call (kakan)"""
+        # find the index of the existing pon
         pon_index = next((i for i, calls in enumerate(self.calls) if calls.type == "pon" and normalize_red_five(calls.tile) == normalize_red_five(called_tile)), None)
         assert pon_index is not None, f"unable to find previous pon of {called_tile} in calls: {self.calls}"
+        # clone the calls array, replacing the existing pon with a kakan call
         calls_copy = [*self.calls]
         pon_call = self.calls[pon_index]
         calls_copy[pon_index] = CallInfo("kakan", pon_call.tile, pon_call.dir, (*pon_call.tiles, called_tile))
@@ -197,6 +205,7 @@ class Score:
             ret += f" ({self.interpretation!s})"
         return ret
     def add_dora(self, dora_type: str, amount: int) -> None:
+        """Increment (or decrement) the dora of a given type in the yaku list"""
         # get the current amount
         i = self.get_dora_index(dora_type)
         if i is None:
@@ -215,7 +224,7 @@ class Score:
     def count_yakuman(self) -> int:
         # check for 13 han yaku and that it isn't like "dora 13" or something
         # (because dora shouldn't turn it into double yakuman)
-        # plus one for each yaku that is double yakuman
+        # this adds 1 for each yakuman plus 1 for each that are also double yakuman
         return sum(1 for name, value in self.yaku if value == 13 and "13" not in name) \
              + sum(1 for name, _ in self.yaku if name in DOUBLE_YAKUMAN)
     def to_points(self) -> int:
@@ -231,6 +240,8 @@ class Score:
         if pao_seat is not None:
             direct_hit = True
             if not self.tsumo:
+                # the deal-in player is not responsible for honba payments,
+                # so we take care of their share of payment right here
                 basic_score //= 2
                 assert payer is not None
                 score_deltas[payer] -= basic_score
@@ -242,11 +253,12 @@ class Score:
             score_deltas[payer] -= basic_score + honba_payment
             score_deltas[winner] += basic_score + honba_payment + riichi_payment
         else:
-            divisor = self.num_players-1 if self.is_dealer else self.num_players
-            ko_payment = int(round(basic_score/divisor, -2))
-            oya_payment = basic_score - (self.num_players-2) * ko_payment
+            # reverse-calculate the ko and oya parts of the total points
+            ko_payment, oya_payment = calc_ko_oya_points(basic_score, self.num_players, self.is_dealer)
+            # have each payer pay their allotted share
             for payer in set(range(self.num_players)) - {winner}:
                 score_deltas[payer] -= (oya_payment if payer == dealer_seat else ko_payment) + honba_payment
+            # the winner gets gets all points paid plus riichi sticks
             score_deltas[winner] = riichi_payment - sum(score_deltas)
         return score_deltas
     def has_riichi(self) -> bool:
@@ -307,16 +319,18 @@ class Score:
                     yaku_dora += han
                 elif name == "kita":
                     yaku_kita = han
+            # check if we expect kita but got none in the yaku list
+            # this is because tenhou counts kita as regular dora
             if kita > 0 and yaku_kita == 0:
-                # must be a Tenhou sanma hand with kita because
-                # it counts kita as regular dora (not "抜きドラ")
                 assert dora_index is not None, f"somehow we know there's {kita} kita, but tenhou didn't count it as dora?"
+                # fix dora by subtracting kita
                 non_kita_dora_count = yaku_dora - kita
                 assert non_kita_dora_count >= 0
                 if non_kita_dora_count == 0:
                     del yaku_strs[dora_index]
                 else:
                     yaku_strs[dora_index] = f"ドラ({non_kita_dora_count}飜)"
+                # add kita manually
                 yaku_strs.append(f"抜きドラ({kita}飜)")
 
         # convert yaku_strs=["立直(1飜)", "一発(1飜)"] into yaku=[("riichi", 1), ("ippatsu", 1)]
@@ -416,6 +430,7 @@ class Kyoku:
     def get_starting_score(self) -> int:
         return (sum(self.start_scores) + self.rules.riichi_value*self.riichi_sticks) // self.num_players
     def get_visible_tiles(self) -> List[int]:
+        """Get all the currently visible tiles, used for ukeire calculations"""
         pond_tiles = [tile for seat in range(self.num_players) for tile in self.pond[seat]]
         dora_indicators = [DORA_INDICATOR[dora] for dora in self.doras if dora not in {51,52,53}][:self.num_dora_indicators_visible]
         def get_invisible_part(call):
@@ -424,10 +439,13 @@ class Kyoku:
             if call.type not in {"ankan", "kita"}:
                 ret.remove(call.tile)
             return ret
+
         visible_calls = [tile for hand in self.hands for call in hand.calls for tile in get_invisible_part(call)]
+        # visible tiles = all of the above combined
         visible_tiles = pond_tiles + dora_indicators + visible_calls
-        if self.result and self.result[0] != "tsumo" and not (self.result[0] == "draw" and self.result[1].name == "9 terminals draw"):
-            # then the last action was a discard, and that discard should not count towards ukeire calculations
+        # the result might contain the final deal-in tile
+        # this tile should be excluded from the ukeire calculation, so we remove it here
+        if self.result and self.result[0] != "tsumo":
             visible_tiles.remove(self.final_discard)
         return visible_tiles
     def get_ukeire(self, seat) -> int:

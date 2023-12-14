@@ -135,17 +135,17 @@ class Interpretation:
             waits = self.get_waits()
             if is_shanpon or len(waits) > 0:
                 single_wait_fu = 2 if (len(waits) == 1 and not is_shanpon) else 0
-                # print(f"add {single_wait_fu} for single wait {ph(self.hand)}")
                 self.ron_fu += single_wait_fu
                 self.tsumo_fu += single_wait_fu
+                # print(f"add {single_wait_fu} for single wait {ph(self.hand)}")
                 return True
         elif len(self.hand) == 1:
             # tanki wait -- is a single wait, and might be yakuhai
-            # print(f"add 2 for single wait {pt(self.hand[0])}")
-            # print(f"add 2 for yakuhai pair {pt(self.hand[0])}")
             yakuhai_fu = 2 * yakuhai.count(self.hand[0])
             self.ron_fu += yakuhai_fu + 2
             self.tsumo_fu += yakuhai_fu + 2
+            # print(f"add 2 for single wait {pt(self.hand[0])}")
+            # print(f"add {yakuhai_fu} for yakuhai pair {pt(self.hand[0])}")
             return True
         return False
     def generate_all_interpretations(self, yakuhai: Tuple[int, ...] = (), is_closed_hand: bool = False) -> Set["Interpretation"]:
@@ -178,23 +178,33 @@ class Interpretation:
         interpretations: Set[Interpretation] = set()
         to_update: Set[Interpretation] = {base_interpretation}
         already_processed: Set[Tuple[int, ...]] = set()
+
         while len(to_update) > 0:
             interpretation = to_update.pop()
-            interpretation.hand = interpretation.hand
+            # skip if we've already seen this one
             if interpretation.hand in already_processed:
                 continue
             else:
                 already_processed.add(interpretation.hand)
+            # either output the interpretation, or recurse with smaller hands
             if len(interpretation.hand) <= 2:
                 if interpretation.add_wait_fu(yakuhai):
                     interpretations.add(interpretation)
-                tanki_wait = len(interpretation.hand) == 1
+            else:
+                for tile in set(interpretation.hand):
+                    nodes = [interpretation.add_triplet((tile, tile, tile)),
+                             interpretation.add_sequence((SUCC[SUCC[tile]], SUCC[tile], tile)),
+                             interpretation.add_pair((tile, tile), yakuhai=yakuhai)]
+                    to_update |= {n for n in nodes if n is not None}
+
+            # special case: aryanmen pinfu requires a single sequence remain unprocessed
+            if len(interpretation.hand) == 1:
                 # check pinfu conditions
                 no_calls = len(self.calls) == 0
                 all_sequences = len(interpretation.triplets) == 0
                 no_yakuhai_pair = interpretation.hand[0] not in yakuhai
-                if tanki_wait and no_calls and all_sequences and no_yakuhai_pair:
-                    # could also be interpreted as aryanmen wait for pinfu
+                if no_calls and all_sequences and no_yakuhai_pair:
+                    # interpret as aryanmen wait for pinfu
                     tanki = interpretation.hand[0]
                     # look for sequences that form aryanmen with the tanki,
                     # where the ryanmen part is not penchan
@@ -204,18 +214,12 @@ class Interpretation:
                             interpretations.add(Interpretation((t2,t3), 20, 20, remaining_seqs, interpretation.triplets, (tanki, tanki), calls=self.calls))
                         elif tanki == t3 and PRED[t1] != 0:
                             interpretations.add(Interpretation((t1,t2), 20, 20, remaining_seqs, interpretation.triplets, (tanki, tanki), calls=self.calls))
-            else:
-                for tile in set(interpretation.hand):
-                    nodes = [interpretation.add_triplet((tile, tile, tile)),
-                             interpretation.add_sequence((SUCC[SUCC[tile]], SUCC[tile], tile)),
-                             interpretation.add_pair((tile, tile), yakuhai=yakuhai)]
-                    to_update |= {n for n in nodes if n is not None}
-
+            
         return interpretations if len(interpretations) > 0 else {self}
 
 @dataclass
 class GameRules:
-    """Details all the rules that InjusticeJudge cares about."""
+    """Stores all the rules that InjusticeJudge cares about."""
     use_red_fives: bool = True        # whether the game uses red fives
     immediate_kan_dora: bool = False  # whether kan immediately reveals a dora
     head_bump: bool = False           # whether head bump is enabled
@@ -230,6 +234,8 @@ class GameRules:
     noten_payment: Tuple[int, int, int] = (1000, 1500, 3000) # noten payment paid for 1/2/3 players tenpai
     @classmethod
     def from_majsoul_detail_rule(cls, rules: Dict[str, Any]) -> "GameRules":
+        # see GameDetailRule in liqi_combined.proto to find all the valid field names
+        # note: the python protobuf library converts every name to camelCase
         return cls(use_red_fives = rules.get("doraCount", 3) > 0,
                    immediate_kan_dora = rules.get("mingDoraImmediatelyOpen", False),
                    head_bump = rules.get("haveToutiao", False),
@@ -245,6 +251,7 @@ class GameRules:
                    )
     @classmethod
     def from_tenhou_rules(cls, rule: List[str], csrule: List[str]) -> "GameRules":
+        # see example_arml_game.json for info on how this is parsed
         if isinstance(rule, dict):
             # normal game
             return cls(use_red_fives = "aka51" in rule and rule["aka51"])
