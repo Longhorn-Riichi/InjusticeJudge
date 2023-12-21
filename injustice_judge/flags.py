@@ -949,7 +949,7 @@ class KyokuState:
             assert haitei_type != "", f"unknown haitei type for yaku {result.score.yaku}"
             self.add_global_flag(Flags.WINNER_GOT_HAITEI, {"seat": result.winner, "yaku": haitei_type})
         # check for dama
-        if len(self.at[result.winner].hand.open_part) > 0 and not self.at[result.winner].in_riichi:
+        if len(self.at[result.winner].hand.open_part) == 0 and not self.at[result.winner].in_riichi:
             self.add_global_flag(Flags.WINNER_WAS_DAMA, {"seat": result.winner, "score": result.score.to_points()})
         # check for naked tanki
         if len(self.at[result.winner].hand.hidden_part) == 1:
