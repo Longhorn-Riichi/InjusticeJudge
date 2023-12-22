@@ -615,7 +615,13 @@ def fetch_tenhou(link: str, use_xml: bool = True) -> Tuple[TenhouLog, Dict[str, 
         try:
             r.raise_for_status()
             game_data = r.json()
-        except (requests.exceptions.HTTPError, requests.exceptions.JSONDecodeError):
+        except (requests.exceptions.HTTPError,
+                requests.exceptions.ConnectionError,
+                requests.exceptions.ProxyError,
+                requests.exceptions.SSLError,
+                requests.exceptions.Timeout,
+                requests.exceptions.ConnectTimeout,
+                requests.exceptions.ReadTimeout):
             use_xml = True
             url = f"https://tenhou.net/0/log/?{identifier}"
             r = requests.get(url=url, headers={"User-Agent": USER_AGENT})
