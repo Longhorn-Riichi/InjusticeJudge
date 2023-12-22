@@ -555,7 +555,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                                    name = nicknames,
                                    game_score = [result_data[i][1] for i in range(num_players)],
                                    final_score = [result_data[i][2] for i in range(num_players)],
-                                   rules = GameRules.from_majsoul_detail_rule(metadata["config"]["mode"]["detailRule"]))
+                                   rules = GameRules.from_majsoul_detail_rule(metadata["config"]["mode"]["detailRule"], metadata["config"]["mode"]["mode"]))
 
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)
     return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata

@@ -544,10 +544,11 @@ def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
                                     verb=f"started with",
                                     content=f"{shanten_name(shanten)}, while everyone else started with {SHANTEN_NAMES[second_worst_shanten]} or better"))]
     if shanten[0] >= 5:
+        all_last_str = " in all last" if Flags.ALL_LAST in flags else ""
         return [Injustice(kyoku.round, kyoku.honba, "Injustice",
                 CheckClause(subject="you",
                                 verb="started with",
-                                object=shanten_name(shanten)))]
+                                object=f"{shanten_name(shanten)}{all_last_str}"))]
     return []
 
 # Print if you started with 7-8 types of terminals and couldn't gain points as a result
@@ -578,11 +579,12 @@ def seven_terminal_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: 
             forbid=[Flags.YOU_GAINED_POINTS])
 def four_shanten_after_first_row(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     shanten = data[flags.index(Flags.FOUR_SHANTEN_AFTER_FIRST_ROW)]["shanten"]
+    all_last_str = " in all last" if Flags.ALL_LAST in flags else ""
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="were still",
                         object=shanten_name(shanten),
-                        content="after the first row of discards"))]
+                        content=f"after the first row of discards{all_last_str}"))]
 
 ###
 ### mid game injustices
@@ -861,13 +863,13 @@ def all_tenpai_discards_deal_in(flags: List[Flags], data: List[Dict[str, Any]], 
         return [Injustice(kyoku.round, kyoku.honba, "Injustice",
                 CheckClause(subject="your hand",
                             subject_description=hand.to_str(doras=kyoku.doras),
-                            verb="could reach",
+                            verb="could only reach",
                             content=f"{'(furiten) ' if furiten else ''}tenpai by discarding {ph(discards, doras=kyoku.doras)}, but it would deal in, and you dealt in"))]
     else:
         return [Injustice(kyoku.round, kyoku.honba, "Injustice",
                 CheckClause(subject="your hand",
                             subject_description=hand.to_str(doras=kyoku.doras),
-                            verb="could reach",
+                            verb="could only reach",
                             content=f"{'(furiten) ' if furiten else ''}tenpai by discarding any of {ph(discards, doras=kyoku.doras)}, but they would all deal in, and you dealt in"))]
 
 ###
@@ -917,7 +919,7 @@ def lost_points_to_first_row_win(flags: List[Flags], data: List[Dict[str, Any]],
 @injustice(require=[Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT], forbid=[Flags.YOU_HAD_LIMIT_TENPAI, Flags.WINNER_WAS_DAMA, Flags.WINNER_GOT_IPPATSU, Flags.WINNER_GOT_HAITEI, Flags.MULTIPLE_RON])
 def dealt_into_something_dumb(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     winner = data[flags.index(Flags.WINNER)]["seat"]
-    score = data[flags.index(Flags.WINNER)]["score_object"].to_points()
+    score = data[flags.index(Flags.WINNER)]["score_object"]
     is_ippatsu = Flags.WINNER_GOT_IPPATSU in flags
     is_haitei = Flags.WINNER_GOT_HAITEI in flags
     num_rons = 1 if Flags.MULTIPLE_RON not in flags else data[flags.index(Flags.MULTIPLE_RON)]["number"]
@@ -928,7 +930,9 @@ def dealt_into_something_dumb(flags: List[Flags], data: List[Dict[str, Any]], ky
     if num_rons > 1:
         content += "double" if num_rons == 2 else "triple"
     else:
-        content += f"{relative_seat_name(player, winner)}'s {score} point"
+        content += f"{relative_seat_name(player, winner)}'s {score.to_points()} point"
+    if score.han >= 11 or score.count_yakuman() > 0:
+        content += f" ({score.get_limit_hand_name()}!)"
     if is_dama:
         content += " dama"
     if is_ippatsu:

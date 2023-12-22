@@ -37,6 +37,7 @@ from pprint import pprint
 
 Flags = Enum("Flags", "_SENTINEL"
     " AGAINST_TRIPLE_RIICHI"
+    " ALL_LAST"
     " ALL_TENPAI_DISCARDS_DEAL_IN"
     " ANKAN_ERASED_TENPAI_WAIT"
     " BAD_HONITSU_DRAWS"
@@ -655,6 +656,12 @@ class KyokuState:
         placement_flags = [Flags.YOU_WERE_FIRST, Flags.YOU_WERE_SECOND, Flags.YOU_WERE_THIRD, Flags.YOU_WERE_FOURTH][:self.num_players]
         for seat, placement in enumerate(to_placement(self.kyoku.start_scores, self.num_players)):
             self.add_flag(seat, placement_flags[placement])
+        # add all last flag
+        hanchan = self.kyoku.rules.is_hanchan
+        sanma = self.kyoku.rules.is_sanma
+        all_last_round = (6 if sanma else 7) if hanchan else (2 if sanma else 3)
+        if round >= all_last_round:
+            self.add_global_flag(Flags.ALL_LAST)
         # add final round flag (NOT all last)
         if self.kyoku.is_final_round:
             self.add_global_flag(Flags.FINAL_ROUND)

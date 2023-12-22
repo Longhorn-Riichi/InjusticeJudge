@@ -232,8 +232,10 @@ class GameRules:
     riichi_value: int = 1000          # value of riichi bet
     honba_value: int = 100            # value of each honba (continuation stick) per player
     noten_payment: Tuple[int, int, int] = (1000, 1500, 3000) # noten payment paid for 1/2/3 players tenpai
+    is_hanchan: bool = True           # if the game is a hanchan
+    is_sanma: bool = True             # if the game is 3 player
     @classmethod
-    def from_majsoul_detail_rule(cls, rules: Dict[str, Any]) -> "GameRules":
+    def from_majsoul_detail_rule(cls, rules: Dict[str, Any], mode: int) -> "GameRules":
         # see GameDetailRule in liqi_combined.proto to find all the valid field names
         # note: the python protobuf library converts every name to camelCase
         return cls(use_red_fives = rules.get("doraCount", 3) > 0,
@@ -248,6 +250,9 @@ class GameRules:
                    riichi_value = rules.get("liqibang_value", 1000),
                    honba_value = rules.get("changbang_value", 100),
                    noten_payment = (rules.get("noting_fafu_1", 1000), rules.get("noting_fafu_2", 1500), rules.get("noting_fafu_3", 3000)),
+                   # mode: 1,2,11,12 = 4p east, 4p south, 3p east, 3p south
+                   is_hanchan = mode % 10 == 2,
+                   is_sanma = mode > 10,
                    )
     @classmethod
     def from_tenhou_rules(cls, rule: List[str], csrule: List[str]) -> "GameRules":
@@ -271,6 +276,8 @@ class GameRules:
                    riichi_value = int(csrule[10] or 1000),
                    honba_value = int(csrule[10] or 100),
                    noten_payment = (int(csrule[16] or 1000), int(csrule[17] or 1500), int(csrule[18] or 3000)),
+                   is_hanchan = 0x0008 & rule1 != 0,
+                   is_sanma = 0x0010 & rule1 != 0,
                    )
 @dataclass
 class GameMetadata:
