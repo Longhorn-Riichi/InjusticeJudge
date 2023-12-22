@@ -621,7 +621,8 @@ def fetch_tenhou(link: str, use_xml: bool = True) -> Tuple[TenhouLog, Dict[str, 
                 requests.exceptions.SSLError,
                 requests.exceptions.Timeout,
                 requests.exceptions.ConnectTimeout,
-                requests.exceptions.ReadTimeout):
+                requests.exceptions.ReadTimeout,
+                json.decoder.JSONDecodeError):
             use_xml = True
             url = f"https://tenhou.net/0/log/?{identifier}"
             r = requests.get(url=url, headers={"User-Agent": USER_AGENT})
