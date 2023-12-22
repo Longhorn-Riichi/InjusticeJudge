@@ -227,11 +227,19 @@ class Score:
         # this adds 1 for each yakuman plus 1 for each that are also double yakuman
         return sum(1 for name, value in self.yaku if value == 13 and "13" not in name) \
              + sum(1 for name, _ in self.yaku if name in DOUBLE_YAKUMAN)
+    def get_limit_hand_name(self) -> str:
+        if self.han >= 13:
+            tuples = ["", "", "double ", "triple ", "quadruple ", "quintuple ", "sextuple "]
+            return tuples[self.count_yakuman()] + "yakuman"
+        elif self.han >= 6 or is_mangan(self.han, self.fu):
+            return TRANSLATE[LIMIT_HANDS[self.han]]
+        return ""
     def to_points(self) -> int:
         yakuman_factor = self.count_yakuman() or 1
         han = 5 if self.rules.kiriage_mangan and (self.han, self.fu) in ((4,30), (3,60)) else self.han
         return yakuman_factor * get_score(han, self.fu, self.is_dealer, self.tsumo, self.num_players)
     def to_score_deltas(self, dealer_seat: int, honba: int, riichi_sticks: int, winner: int, payer: Optional[int] = None, pao_seat: Optional[int] = None) -> List[int]:
+        """Given seating information, return a delta scores list like [0, 1000, -1000, 0]"""
         score_deltas = [0]*self.num_players
         basic_score = self.to_points()
         riichi_payment = self.rules.riichi_value * riichi_sticks
@@ -283,17 +291,11 @@ class Score:
         ura = self.yaku[ura_index][1] if ura_index is not None else 0
         return ura
     def is_yakuless(self) -> bool:
+        """Return True if this score cannot actually be won (no yaku)"""
         for y, _ in self.yaku:
             if not y.startswith(("dora", "ura", "aka", "kita")):
                 return False
         return True
-    def get_limit_hand_name(self) -> str:
-        if self.han >= 13:
-            tuples = ["", "", "double ", "triple ", "quadruple ", "quintuple ", "sextuple "]
-            return tuples[self.count_yakuman()] + "yakuman"
-        elif self.han >= 6 or is_mangan(self.han, self.fu):
-            return TRANSLATE[LIMIT_HANDS[self.han]]
-        return ""
     @classmethod
     def from_tenhou_list(cls, tenhou_result_list: List[Any],
                               round: int,

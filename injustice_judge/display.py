@@ -36,16 +36,11 @@ def pt_unicode(tile: int, doras: List[int] = [], is_sideways: bool = False) -> s
     return ret
 
 def pt_discord(tile: int, doras: List[int] = [], is_sideways: bool = False) -> str:
+    """Decides which discord emote to display for the given tile"""
     if tile in doras:
-        if is_sideways:
-            return DISCORD_CALLED_DORA_TILES[tile]
-        else: 
-            return DISCORD_DORA_TILES[tile]
+        return DISCORD_CALLED_DORA_TILES[tile] if is_sideways else DISCORD_DORA_TILES[tile]
     else:
-        if is_sideways:
-            return DISCORD_CALLED_TILES[tile]
-        else: 
-            return DISCORD_TILES[tile]
+        return DISCORD_CALLED_TILES[tile] if is_sideways else DISCORD_TILES[tile]
 
 # print tile, print hand
 pt = lambda tile, doras=[], is_sideways=False: pt_discord(tile, doras, is_sideways) if os.getenv("use_discord_tile_emoji") == "True" else pt_unicode(tile, doras, is_sideways)

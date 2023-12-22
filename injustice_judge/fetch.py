@@ -753,8 +753,7 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
                 just_drew = False
         elif name == "N": # call
             # every call is completely specified by a 16 bit integer `m`
-            # the format is detailed here:
-            #   https://raw.githubusercontent.com/EndlessCheng/mahjong-helper/master/tenhou.go
+            # the format is detailed here: https://github.com/MahjongRepository/tenhou-log
             caller = int(attrs["who"])
             m = int(attrs["m"])
             # rightmost two bits specifies the call direction

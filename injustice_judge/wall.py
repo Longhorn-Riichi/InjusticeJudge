@@ -4,16 +4,19 @@ import struct
 from typing import *
 from .utils import ix_to_tile, sorted_hand
 
+
 def ints_to_bytes(ints: List[int]) -> bytearray:
+    # serialize a list of int32 as little-endian bytes
+    # ints_to_bytes([1, 1]) == bytearray([0, 0, 0, 1, 0, 0, 0, 1])
     return bytearray(b for i in ints for b in struct.pack("<I", i))
-# assert ints_to_bytes([1, 1]) == bytearray([0, 0, 0, 1, 0, 0, 0, 1])
 
 def bytes_to_ints(bytes: bytes) -> List[int]:
+    # interprets a bytes object as a list of little-endian int32
+    # bytes_to_ints(bytearray([0, 0, 0, 1, 0, 0, 0, 1])) == [1, 1]
     ints = []
     for i in range(0, len(bytes), 4):
         ints.append(struct.unpack("<I", bytes[i:i+4])[0])
     return ints
-# assert bytes_to_ints(bytearray([0, 0, 0, 1, 0, 0, 0, 1])) == [1, 1]
 
 # The following is an implementation of the Mersenne Twister
 # Fixed a bug in the `init_by_array` function:
@@ -107,37 +110,6 @@ class mt19937(object):
 
         return y
 
-    def int32b(self):
-        print("mt2:", mt)
-        if self.mti == 625:
-            self.seed(5489)
-
-        k = self.mti
-
-        if k == 624:
-            k = 0
-            self.mti = 0
-
-        if k == 623:
-            y = (self.mt[623] & 0x80000000) | (self.mt[0] & 0x7fffffff)
-            self.mt[623] = self.mt[396] ^ (y >> 1) ^ (0x9908b0df if y & 1 else 0)
-        else:
-            y = (self.mt[k] & 0x80000000) | (self.mt[k+1] & 0x7fffffff)
-            if k < 624 - 397:
-                self.mt[k] = self.mt[k+397] ^ (y >> 1) ^ (0x9908b0df if y & 1 else 0)
-            else:
-                self.mt[k] = self.mt[k+397-624] ^ (y >> 1) ^ (0x9908b0df if y & 1 else 0)
-
-        y = self.mt[self.mti]
-        self.mti += 1
-
-        y ^= (y >> 11)
-        y ^= (y << 7) & 0x9d2c5680
-        y ^= (y << 15) & 0xefc60000
-        y ^= (y >> 18)
-
-        return y
-
 mt = mt19937()
 def seed_wall(seed):
     # the seed parsed from the log goes here
@@ -179,7 +151,7 @@ def print_wall(wall: List[int]) -> None:
     print(f"Potential ura indicators: {ura_indicators}")
 
 def get_hidden_dead_wall(wall: List[int], num_kans: int, sanma: bool, num_kitas: int = 0) -> List[int]:
-    # Get the hidden part of the dead wall (i.e. not the visible dora indicators)
+    """Get the hidden part of the dead wall (i.e. not the visible dora indicators)"""
     kan_kita_tiles = wall[-(8 if sanma else 4):]
     # kan/kita replacement tiles are drawn kind of weird: [6 7 4 5 2 3 0 1]
     ixs = [6,7,4,5,2,3,0,1] if sanma else [2,3,0,1]
@@ -191,8 +163,10 @@ def get_hidden_dead_wall(wall: List[int], num_kans: int, sanma: bool, num_kitas:
     return kan_kita_tiles + [0] + dora_indicators[1+num_kans:] + [0] + ura_indicators + [0] + later_tiles
 
 def get_remaining_wall(wall: List[int], tiles_in_wall: int, sanma: bool, num_kans_kitas: int = 0) -> List[int]:
+    """Get all remaining drawable wall tiles in order"""
     offset = (55 if sanma else 70) - tiles_in_wall
     return wall[52+offset:-14-num_kans_kitas]
 
 def get_remaining_draws(wall: List[int], tiles_in_wall: int, sanma: bool, num_kans_kitas: int = 0) -> List[int]:
+    """Get all remaining draws for the next player that draws"""
     return get_remaining_wall(wall, tiles_in_wall, sanma, num_kans_kitas)[::(3 if sanma else 4)]

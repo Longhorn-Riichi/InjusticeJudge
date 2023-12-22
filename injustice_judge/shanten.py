@@ -34,15 +34,20 @@ timers = {
 ### ukeire and shanten calculations
 ###
 
-Suits = Tuple[Set[Tuple[int, ...]], ...]
+# represents a collection of hands. example: {(26,26,38,38),(26,27,38,38)}
 Hands = Iterable[Tuple[int, ...]]
+# also represents a collection of hands, but each suit is separate
+# suit datatype. example: ({},{(6,6),(6,7)},{(8,8)},{}) is equivalent to the above
+# always a 4-tuple (manzu, pinzu, souzu, jihai)
+# each item is a set of possibilities for that suit
+Suits = Tuple[Set[Tuple[int, ...]], ...]
 
+# conversions between the two representations
 def to_suits(hand: Tuple[int, ...]) -> Suits:
     suits: Dict[int, List[int]] = {1:[],2:[],3:[],4:[]}
     for tile in sorted(hand):
         suits[tile//10].append(tile%10)
     return tuple({tuple(s)} for s in suits.values())
-
 def from_suits(suits: Suits) -> Iterator[Tuple[int, ...]]:
     return ((*(10+v for v in a), *(20+v for v in b), *(30+v for v in c), *(40+v for v in d))
         for a in suits[0] for b in suits[1] for c in suits[2] for d in suits[3])
@@ -50,6 +55,16 @@ def from_suits(suits: Suits) -> Iterator[Tuple[int, ...]]:
 def eliminate_from_suits(suits: Suits, keep_some: bool,
                          sequences_to_check: Callable[[int], Tuple[Tuple[int, ...], ...]],
                          multiples_to_check: int = 0) -> Suits:
+    """
+    Very general function, removes all combinations of a given pattern from a hand
+    The pattern is specified in either sequences_to_check or multiples_to_check
+    (sequences_to_check: given a base tile, like 5, return tiles that form the pattern, like 567)
+    (multiples_to_check: given 2, check for all pairs. given 3, check for all triplets.
+    If keep_some is False, the returned hands will contain all possibilities of removing
+      as many instances of the pattern as possible from the hand
+    If keep_some is True, the returned hands will contain all possibilities of removing
+      one or more instances of the pattern from the hand
+    """
     def remove(hand: Tuple[int, ...], do_sequences: bool = True) -> Set[Tuple[int, ...]]:
         max_length = len(hand)
         def rec(hand: Tuple[int, ...]) -> Set[Tuple[int, ...]]:
@@ -86,6 +101,7 @@ eliminate_all_groups   = lambda suits: eliminate_from_suits(suits, False, to_seq
 eliminate_all_taatsus  = lambda suits: eliminate_from_suits(suits, False, to_taatsus)
 
 def get_tenpai_waits(hand: Tuple[int, ...]) -> Set[int]:
+    """Given a tenpai hand, get all its waits"""
     return {wait for i in Interpretation(hand).generate_all_interpretations() for wait in i.get_waits()}
 
 def get_hand_shanten(suits: Suits, groups_needed: int) -> float:
@@ -147,6 +163,7 @@ pair_shapes: Dict[Tuple[int, ...], Set[Tuple[Tuple[int, ...], Tuple[int, ...]]]]
 complex_shapes: Dict[Tuple[int, ...], Set[Tuple[Tuple[int, ...], Tuple[int, ...]]]] = {}
 
 def add_pair_shape(hand: Tuple[int, ...], recursed: bool = False) -> None:
+    """Used to add an entry to pair_shapes"""
     global pair_shapes
     pair_shapes.setdefault(hand, set())
     for tile in hand:
@@ -160,6 +177,7 @@ def add_pair_shape(hand: Tuple[int, ...], recursed: bool = False) -> None:
                 add_pair_shape(remaining_hand, recursed=True)
 
 def add_complex_shape(hand: Tuple[int, ...], recursed: bool = False) -> None:
+    """Used to add an entry to complex_shapes"""
     global complex_shapes
     complex_shapes.setdefault(hand, set())
     for tile in hand[:-2]:
@@ -175,15 +193,15 @@ def add_complex_shape(hand: Tuple[int, ...], recursed: bool = False) -> None:
 def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, groups_needed: int) -> Tuple[float, Set[int]]:
     # given an iishanten hand, calculate the iishanten type and its waits
     # we'll always return 1.XXX shanten, where XXX represents the type of iishanten
-    # - 1.300 tanki iishanten
+    # - 1.300 tanki iishanten (tanki tenpai, but you have all 4 tiles in hand)
     # - 1.200 kokushi musou iishanten
     # - 1.100 chiitoitsu iishanten
-    # - 1.010 headless iishanten
-    # - 1.020 kuttsuki iishanten
-    # - 1.030 kuttsuki headless iishanten
-    # - 1.001 floating iishanten
-    # - 1.002 imperfect (complete) iishanten
-    # - 1.003 perfect iishanten
+    # - 1.010 headless iishanten (you have three groups and two taatsus, no pair)
+    # - 1.020 kuttsuki iishanten (you have three groups and a pair and two floating tiles)
+    # - 1.030 kuttsuki headless iishanten (your hand can be interpreted as both of the above)
+    # - 1.001 floating iishanten (you have two groups and a pair and two taatsus)
+    # - 1.002 imperfect (complete) iishanten (same, but one taatsu has a second pair like 334)
+    # - 1.003 perfect iishanten (same, but both taatsus are ryanmen)
     # One hand could have multiple iishanten types contributing to the overall wait.
     # Combining the above is how we describe those kinds of hands:
     # - 1.120 chiitoi kuttsuki iishanten
@@ -213,11 +231,14 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
             has_non_pair = False
             for hand in suit:
                 ctr = Counter(hand)
-                if 2 in ctr.values():
+                if 2 in ctr.values(): # there's a pair in this suit
+                    # grab the non-pair tiles in this suit
                     kuttsuki_iishanten_tiles |= {(10*(i+1))+tile for tile, cnt in ctr.items() if cnt == 1}
+                    # grab every tile in every other suit
                     kuttsuki_iishanten_tiles |= {(10*(j+1))+tile for j, s in enumerate(tatsuuless_hands) if i != j for hand in s for tile in hand}
                     has_pair = True
                 else:
+                    # grab every tile in this suit
                     headless_iishanten_tiles |= {(10*(i+1))+tile for tile in hand}
                     has_non_pair = True
             if has_pair and not has_non_pair:
@@ -280,6 +301,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
     complete_waits = set()
     is_perfect_iishanten = False
     def add_complex_hand(complex_shape: Tuple[int, ...], pair_shape: Tuple[int, ...], other_tiles: Tuple[int, ...]) -> None:
+        # populate complete_waits with all possible complex waits arising from this breakdown of the hand
         nonlocal complete_waits
         nonlocal is_perfect_iishanten
         is_pair = lambda h: len(h) == 2 and h[0] == h[1]
@@ -301,6 +323,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
 
     floating_waits = set()
     def add_floating_hand(pair_shape: Tuple[int, ...], other_tiles: Tuple[int, ...]) -> None:
+        # populate floating_waits with all possible floating waits arising from this breakdown of the hand
         nonlocal floating_waits
         h = (*pair_shape, *other_tiles)
         assert len(other_tiles) == 5
@@ -367,7 +390,7 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
 @functools.lru_cache(maxsize=65536)
 def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Shanten:
     """
-    Return the shanten of the hand plus its waits (if tenpai or iishanten).
+    Return the shanten of the hand, plus its waits (if tenpai or iishanten).
     If the shanten is 2+, the waits returned are an empty list.
     If iishanten, the returned shanten is 1.XXX, based on the type of iishanten.
     (See get_iishanten_type for details.)
