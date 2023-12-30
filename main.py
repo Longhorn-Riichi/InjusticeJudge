@@ -8,10 +8,10 @@ import dotenv
 dotenv.load_dotenv("config.env")
 
 if __name__ == "__main__":
-    assert len(sys.argv) >= 2, "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
+    assert len(sys.argv) >= 2, "expected one or two arguments, the tenhou/majsoul/riichicity url, and then seat [0-3] (optional)"
     link = sys.argv[1]
     players: Set[int] = {int(i) for i in sys.argv[2:]}
-    assert link != "", "expected one or two arguments, the tenhou/majsoul url, and then seat [0-3] (optional)"
+    assert link != "", "expected one or two arguments, the tenhou/majsoul/riichicity url, and then seat [0-3] (optional)"
     assert all(player in {0,1,2,3} for player in players), "expected second argument to be 0,1,2,3"
     print("\n".join(asyncio.run(analyze_game(link, players, look_for={"injustice"}))))
     # print("\n".join(asyncio.run(analyze_game(link, players, look_for={"skill"}))))

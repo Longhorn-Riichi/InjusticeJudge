@@ -226,7 +226,7 @@ class GameRules:
     renhou: bool = False              # whether renhou is enabled
     kiriage_mangan: bool = False      # whether kiriage mangan is enabled
     nagashi_mangan: bool = True       # whether nagashi mangan is enabled
-    double_round_wind: bool = True    # whether double round wind is enabled (E = E+W; S = S+N)
+    double_round_wind: bool = False   # whether double round wind is enabled (E = E+W; S = S+N)
     double_wind_4_fu: bool = True     # whether a round+seat wind pair is worth 4 fu
     starting_doras: int = 1           # number of doras started with
     riichi_value: int = 1000          # value of riichi bet
@@ -279,6 +279,10 @@ class GameRules:
                    is_hanchan = 0x0008 & rule1 != 0,
                    is_sanma = 0x0010 & rule1 != 0,
                    )
+    @classmethod
+    def from_riichicity_metadata(cls, metadata: Dict[str, Any]) -> "GameRules":
+        return cls() # TODO
+
 @dataclass
 class GameMetadata:
     """Facts that apply across every kyoku"""

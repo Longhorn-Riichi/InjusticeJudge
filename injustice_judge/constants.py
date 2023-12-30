@@ -10,6 +10,7 @@ from typing import *
 #   TENHOU_LIMITS: maps tenhou's limit field ID to limit hand name (5 -> "役満")
 #    MAJSOUL_YAKU: maps mahjong soul yaku IDs to tenhou yaku names
 #     TENHOU_YAKU: maps tenhou yaku IDs to tenhou yaku names
+# RIICHICITY_YAKU: maps riichi city yaku IDs to tenhou yaku names
 #         YAKUMAN: set of yakuman names. there's also DOUBLE_YAKUMAN
 #       TRANSLATE: a big map from all Japanese terms to English terms
 #       PRED/SUCC: get the predecessor/successor of a number tile, 0 if nonexistent
@@ -207,6 +208,63 @@ TENHOU_YAKU = {
     52: "ドラ",              # Dora/Kita
     53: "裏ドラ",            # Uradora
     54: "赤ドラ",            # Red Five
+}
+RIICHICITY_YAKU = {
+    0: "立直",               # Riichi
+    1: "門前清自摸和",        # Fully Concealed Hand
+    2: "一発",               # Ippatsu
+    7: "役牌 中",            # Red Dragon (Chun)
+    8: "役牌 發",            # Green Dragon (Hatsu)
+    9: "役牌 白",            # White Dragon (Haku)
+    11: "役牌:自風牌",        # Seat Wind
+    12: "一盃口",            # Pure Double Sequence
+    13: "平和",              # Pinfu
+    14: "断幺九",            # All Simples
+    17: "七対子",            # Seven Pairs
+    23: "三色同順",           # Mixed Triple Sequence
+    49: "赤ドラ",            # Red Five
+    50: "ドラ",              # Dora
+    51: "裏ドラ",            # Uradora
+    # 10: prevalent wind?
+    # 16: honitsu (or toitoi?)
+    # 27: toitoi (or honitsu?)
+    10: "役牌:場風牌",        # Prevalent Wind
+    16: "混一色",            # Half Flush
+    27: "対々和",            # All Triplets
+
+    # below are unknowns
+    900: "抜きドラ",          # Kita
+    901: "槍槓",               # Robbing a Kan
+    902: "嶺上開花",            # After a Kan
+    903: "海底摸月",            # Under the Sea
+    904: "河底撈魚",            # Under the River
+    905: "ダブル立直",         # Double Riichi
+    906: "混全帯幺九",        # Half Outside Hand
+    907: "一気通貫",          # Pure Straight
+    908: "三色同刻",           # Triple Triplets
+    909: "三槓子",            # Three Quads
+    910: "三暗刻",            # Three Concealed Triplets
+    911: "小三元",            # Little Three Dragons
+    912: "混老頭",            # All Terminals and Honours
+    913: "二盃口",            # Twice Pure Double Sequence
+    914: "純全帯幺九",        # Fully Outside Hand
+    915: "清一色",            # Full Flush
+    916: "人和",              # Hand of Man
+    917: "天和",              # Blessing of Heaven
+    918: "地和",              # Blessing of Earth
+    919: "大三元",            # Big Three Dragons
+    920: "四暗刻",            # Four Concealed Triplets
+    921: "四暗刻単騎",         # Single-wait Four Concealed Triplets
+    922: "字一色",            # All Honors
+    923: "緑一色",            # All Green
+    924: "清老頭",            # All Terminals
+    925: "九蓮宝燈",          # Nine Gates
+    926: "純正九蓮宝燈",       # True Nine Gates
+    927: "国士無双十三面待ち",  # Thirteen-wait Thirteen Orphans
+    928: "国士無双",          # Thirteen Orphans
+    929: "大四喜",            # Four Big Winds
+    930: "小四喜",            # Four Little Winds
+    931: "四槓子",            # Four Quads
 }
 YAKUMAN = {
     'tenhou',

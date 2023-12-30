@@ -8,7 +8,7 @@ from google.protobuf.json_format import MessageToDict
 from typing import *
 from .classes import CallInfo, GameRules, GameMetadata, Dir
 from .classes2 import Draw, Hand, Kyoku, Ron, Score, Tsumo
-from .constants import Event, Shanten, DORA, LIMIT_HANDS, MAJSOUL_YAKU, TENHOU_LIMITS, TENHOU_YAKU, TRANSLATE, YAKUMAN, YAOCHUUHAI
+from .constants import Event, Shanten, DORA, LIMIT_HANDS, MAJSOUL_YAKU, RIICHICITY_YAKU, TENHOU_LIMITS, TENHOU_YAKU, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, round_name
 from .utils import apply_delta_scores, calc_ko_oya_points, is_mangan, ix_to_tile, normalize_red_five, sorted_hand, to_placement
 from .wall import seed_wall, next_wall
@@ -51,6 +51,7 @@ def save_cache(filename: str, data: bytes) -> None:
 
 TenhouLog = List[List[List[Any]]]
 MajsoulLog = List[Tuple[str, proto.Wrapper]]
+RiichiCityLog = List[Any]
 
 ###
 ### postprocess events obtained from parsing
@@ -411,7 +412,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
     # constants obtained in the main loop below
     num_players: int = -1
     
-    def end_round(result: Tuple[Any, ...]) -> None:
+    def end_round(result: List[Any]) -> None:
         nonlocal events
         nonlocal all_events
         nonlocal dora_indicators
@@ -1126,17 +1127,251 @@ async def parse_game_link(link: str, specified_players: Set[int] = set()) -> Tup
         if metadata["name"][3] == "":
             assert player < 3 or all(p < 3 for p in specified_players), "Can't specify North player in a sanma game"
         kyokus, parsed_metadata = parse_tenhou(tenhou_log, metadata)
-    elif "mahjongsoul" in link or "maj-soul" or "majsoul" in link:
+    elif "mahjongsoul" in link or "maj-soul" in link or "majsoul" in link:
         # EN: `mahjongsoul.game.yo-star.com`; CN: `maj-soul.com`; JP: `mahjongsoul.com`
         # Old CN (?): http://majsoul.union-game.com/0/?paipu=190303-335e8b25-7f5c-4bd1-9ac0-249a68529e8d_a93025901
         majsoul_log, metadata, player = await fetch_majsoul(link)
         if len(metadata["accounts"]) == 3:
             assert player < 3 or all(p < 3 for p in specified_players), "Can't specify North player in a sanma game"
         kyokus, parsed_metadata = parse_majsoul(majsoul_log, metadata)
+    elif len(link) == 20: # riichi city log id
+        riichicity_log, metadata = fetch_riichicity(link)
+        kyokus, parsed_metadata = parse_riichicity(riichicity_log, metadata)
+        player = 0
     else:
         raise Exception("expected tenhou link similar to `tenhou.net/0/?log=`"
-                        " or mahjong soul link similar to `mahjongsoul.game.yo-star.com/?paipu=`")
+                        " or mahjong soul link similar to `mahjongsoul.game.yo-star.com/?paipu=`"
+                        " or 20-character riichi city log id like `cjc3unuai08d9qvmstjg`")
     kyokus[-1].is_final_round = True
     if len(specified_players) == 0:
         specified_players = {player}
     return kyokus, parsed_metadata, specified_players
+
+def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, Any]]:
+    """
+    Fetch a raw riichi city log given the log identifier.
+    Example identifier: cm775fuai08d9bndf24g
+    """
+    import json
+    try:
+        f = open(f"cached_games/game-{identifier}.json", 'rb')
+        game_data = json.load(f)
+    except Exception:
+        import os
+        import dotenv
+        import requests
+        import urllib3
+        dotenv.load_dotenv("config.env")
+        SID = os.getenv("rc_sid")
+        if SID is not None:
+            game_data = requests.post(
+                url="http://13.112.183.79/record/getRoomData",
+                headers={
+                    "Cookies": "{\"sid\":\"" + SID + "\"}",
+                    "User-Agent": urllib3.util.SKIP_HEADER,
+                    "Accept-Encoding": urllib3.util.SKIP_HEADER,
+                    "Connection": "close",
+                },
+                data="{\"keyValue\":\"" + identifier + "\"}").json()
+            if game_data["code"] != 0:
+                raise Exception(f"Error {game_data['code']}: {game_data['message']}")
+        else:
+            raise Exception("Need to set rc_sid in config.env!")
+        save_cache(filename=f"game-{identifier}.json", data=json.dumps(game_data, ensure_ascii=False).encode("utf-8"))
+
+    return game_data["data"]["handRecord"], game_data["data"]
+
+def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
+    import json
+    num_players = metadata["playerCount"]
+    player_ids = [p["userId"] for p in metadata["handRecord"][0]["players"]]
+    player_names = [p["nickname"] for p in metadata["handRecord"][0]["players"]]
+
+    all_dora_indicators: List[List[int]] = []
+    all_ura_indicators: List[List[int]] = []
+    all_events: List[List[Event]] = []
+    all_walls: List[List[int]] = []
+    starting_dealer_pos = -1
+    game_score: List[int] = []
+    final_score: List[int] = []
+
+    RC_TO_TENHOU_TILE = {
+        # pinzu = 1-9
+        1: 21, 2: 22, 3: 23, 4: 24, 5: 25, 6: 26, 7: 27, 8: 28, 9: 29,
+        # souzu = 17-25
+        17: 31, 18: 32, 19: 33, 20: 34, 21: 35, 22: 36, 23: 37, 24: 38, 25: 39,
+        # manzu = 33-41
+        33: 11, 34: 12, 35: 13, 36: 14, 37: 15, 38: 16, 39: 17, 40: 18, 41: 19,
+        # jihai = 16n+1
+        49: 41, 65: 42, 81: 43, 97: 44, 113: 45, 129: 46, 145: 47,
+        # red fives = 256 + {5, 21, 37}
+        261: 52, 277: 53, 293: 51
+    }
+    rc_to_tenhou_tiles = lambda tiles: tuple(RC_TO_TENHOU_TILE[tile] for tile in tiles)
+
+    def end_round(events: List[Event], result: List[Any]) -> None:
+        nonlocal all_events
+        all_events.append(events)
+        # TODO dora
+        # all_dora_indicators.append(dora_indicators)
+        # all_ura_indicators.append(ura_indicators)
+
+    for hand_record in log:
+        tiles_in_wall = 70
+        events: List[Event] = []
+        starting_dora = -1
+        last_seat = -1
+        last_discard_index = -1
+        round, honba = -1, -1
+        haipai: List[Tuple[int, ...]] = [()] * 4
+        dora_indicators: List[int] = []
+        ura_indicators: List[int] = []
+        get_seat = lambda userid: (4 + player_ids.index(userid) - starting_dealer_pos) % 4
+        for ev in hand_record["handEventRecord"]:
+            data = json.loads(ev["data"])
+            ev["data"] = data
+            seat = get_seat(ev["userId"]) if ev["userId"] != 0 else 0
+            if ev["eventType"] == 1: # haipai
+                if starting_dealer_pos == -1:
+                    starting_dealer_pos = data["dealer_pos"]
+                    seat = get_seat(ev["userId"])
+                haipai[seat] = rc_to_tenhou_tiles(data["hand_cards"])
+                round, honba, riichi_sticks = data["chang_ci"] - 1, data["ben_chang_num"], data["li_zhi_bang_num"]
+                scores = tuple(p["hand_points"] for p in data["user_info_list"])
+                dora_indicators = [RC_TO_TENHOU_TILE[data["bao_pai_card"]]]
+                if hand_record["quanFeng"] == 65: # south round wind
+                    round += 4
+                elif hand_record["quanFeng"] == 81: # west round wind
+                    round += 8
+            elif ev["eventType"] == 2: # start game or tenpai opportunity or draw
+                if data["in_card"] == 0:
+                    if data["is_first_xun_in"]: # start game
+                        print("\n", round_name(round, honba))
+                        starting_draw = haipai[round%4][-1]
+                        haipai[round%4] = haipai[round%4][:-1]
+                        for i, hand in enumerate(haipai):
+                            events.append((i, "haipai", sorted_hand(hand)))
+                        events.append((seat, "start_game", round, honba, riichi_sticks, tuple(scores)))
+                        events.append((seat, "draw", starting_draw))
+                    else: # tenpai opportunity
+                        pass
+                        # from pprint import pprint
+                        # pprint(data)
+                else: # draw
+                    tile = RC_TO_TENHOU_TILE[data["in_card"]]
+                    tiles_in_wall -= 1
+                    events.append((seat, "draw", tile))
+                    last_seat = seat
+            elif ev["eventType"] == 3: # call opportunity
+                tile = RC_TO_TENHOU_TILE[data["out_card"]]
+            elif ev["eventType"] == 4: # discard or call
+                tile = RC_TO_TENHOU_TILE[data["card"]] if data["card"] != 0 else 0
+
+                if data["action"] == 11: # discard
+                    last_discard_index = len(events)
+                    events.append((seat, "discard", tile))
+                    last_seat = seat
+                elif data["action"] in {2,3,4,5,8}: # chii/pon/kan
+                    # 2,3,4 are left/mid/right chii, 5 is pon
+                    call_type = {2: "chii", 3: "chii", 4: "chii", 5: "pon", 8: "ankan"}[data["action"]]
+                    call_tiles = (*rc_to_tenhou_tiles(data["group_cards"]), tile)
+                    call_dir = Dir((4 + last_seat - seat) % 4)
+                    events.append((seat, call_type, tile, call_tiles, call_dir))
+                    last_seat = seat
+                elif data["action"] == 7: # ron
+                    pass
+                elif data["action"] == 10: # tsumo
+                    pass
+                elif data["action"] == 12: # kyuushu kyuuhai
+                    pass
+                else:
+                    import os
+                    if os.getenv("debug"):
+                        raise Exception("unknown action " + str(data["action"]) + ", in " + round_name(round, honba) + " with " + str(tiles_in_wall) + " tiles left in wall")
+            elif ev["eventType"] == 5: # ron, tsumo, ryuukyoku
+                # game ended to ron or tsumo: construct a tenhou game result array
+                result: List[Any] = ["和了"]
+                if data["end_type"] in {0, 1}: # ron or tsumo
+                    for win in data["win_info"]:
+                        win_type = "tsumo" if data["end_type"] == 1 else "ron"
+                        seat = get_seat(win["user_id"])
+                        han = win["all_fang_num"]
+                        fu = win["all_fu"]
+                        score_string = f"{fu}符{han}飜"
+
+                        # temporary stopgap since we don't know all yaku yet
+                        for yaku in win["fang_info"]:
+                            if yaku["fang_type"] not in RIICHICITY_YAKU:
+                                RIICHICITY_YAKU[yaku["fang_type"]] = "yaku#" + str(yaku["fang_type"])
+
+                        if any(TRANSLATE[RIICHICITY_YAKU[yaku["fang_type"]]] in YAKUMAN for yaku in win["fang_info"]):
+                            score_string = "役満"
+                        elif han >= 6 or is_mangan(han, fu):
+                            score_string = LIMIT_HANDS[han]
+                        points = win["all_point"]
+                        point_string = f"{points}点"
+                        pao_seat = seat # TODO: pao
+                        if data["end_type"] == "1": # 
+                            ko, oya = calc_ko_oya_points(points, num_players, is_dealer=(seat-round)%4==0)
+                            if oya > 0:
+                                point_string = f"{ko}-{oya}点"
+                            else:
+                                point_string = f"{ko}点∀"
+                        fan_str = lambda yaku: f"{RIICHICITY_YAKU[yaku['fang_type']]}({'役満' if TRANSLATE[RIICHICITY_YAKU[yaku['fang_type']]] in YAKUMAN else str(yaku['fang_num'])+'飜'})"
+                        yakus = [name for _, name in sorted((yaku['fang_type'], fan_str(yaku)) for yaku in win["fang_info"])]
+                        delta_scores = [p["point_profit"] for p in data["user_profit"]]
+                        delta_scores = delta_scores[starting_dealer_pos:] + delta_scores[:starting_dealer_pos]
+                        # print("delta scores: ", delta_scores)
+                        result.append(delta_scores)
+                        result.append([seat, last_seat, pao_seat, score_string+point_string, *yakus])
+                    if data["win_info"][0]["li_bao_card"] is not None:
+                        ura_indicators = list(rc_to_tenhou_tiles(data["win_info"][0]["li_bao_card"]))
+                    print("result: " + win_type)
+                    print("yaku:", data["win_info"][0]["fang_info"])
+                elif data["end_type"] == 6: # kyuushu kyuuhai
+                    result = ["九種九牌"]
+                    print("result: kyuushu kyuuhai")
+                elif data["end_type"] == 7: # ryuukyoku
+                    result = ["流局"]
+                    delta_scores = [p["point_profit"] for p in data["user_profit"]]
+                    delta_scores = delta_scores[starting_dealer_pos:] + delta_scores[:starting_dealer_pos]
+                    # print("delta scores: ", delta_scores)
+                    result.append(delta_scores)
+                    print("result: ryuukyoku")
+                else:
+                    import os
+                    if os.getenv("debug"):
+                        raise Exception("unknown end_type " + str(data["end_type"]) + ", in " + round_name(round, honba) + " with " + str(tiles_in_wall) + " tiles left in wall")
+                events.append((0, "end_game", result))
+            elif ev["eventType"] == 6: # end game
+                game_score = [p["point_num"] for p in data["user_data"]]
+                final_score = [p["score"] * 100 for p in data["user_data"]]
+                pass
+            elif ev["eventType"] == 7: # new dora
+                dora_indicators.extend(rc_to_tenhou_tiles(data["cards"]))
+            elif ev["eventType"] == 8: # riichi
+                # modify the previous discard
+                assert events[last_discard_index][1] == "discard", events[last_discard_index]
+                events[last_discard_index] = (events[last_discard_index][0], "riichi", *events[last_discard_index][2:])
+            elif ev["eventType"] == 9: # ???
+                pass
+            elif ev["eventType"] == 11: # riichi tenpai info
+                pass
+            else:
+                import os
+                if os.getenv("debug"):
+                    raise Exception("unknown eventType " + str(ev["eventType"]) + ", in " + round_name(round, honba) + " with " + str(tiles_in_wall) + " tiles left in wall")
+        all_events.append(events)
+        all_dora_indicators.append(dora_indicators)
+        all_ura_indicators.append(ura_indicators)
+
+    # parse metadata
+    parsed_metadata = GameMetadata(num_players = num_players,
+                                   name = player_names,
+                                   game_score = game_score,
+                                   final_score = final_score,
+                                   rules = GameRules.from_riichicity_metadata(metadata))
+
+    all_walls = [[] for _ in all_events] # dummy
+    assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)
+    return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata

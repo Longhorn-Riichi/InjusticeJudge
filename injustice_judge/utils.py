@@ -80,7 +80,8 @@ def calc_ko_oya_points(total_points: int, num_players: int, is_dealer: bool) -> 
     """Reverse-calculate the ko and oya parts of the total points"""
     divisor = num_players-1 if is_dealer else num_players
     ko_payment = int(round(total_points/divisor, -2))
-    oya_payment = total_points - (num_players-2) * ko_payment
+    num_ko_payers = num_players-1 if is_dealer else num_players-2
+    oya_payment = total_points - num_ko_payers * ko_payment
     return ko_payment, oya_payment
 
 _tiles = [*range(11,20), *range(21,30), *range(31,40), *range(41,48)]
