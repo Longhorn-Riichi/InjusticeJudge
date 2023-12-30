@@ -1184,8 +1184,8 @@ def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, Any]]:
 def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
     import json
     num_players = metadata["playerCount"]
-    player_ids = [p["userId"] for p in metadata["handRecord"][0]["players"]]
-    player_names = [p["nickname"] for p in metadata["handRecord"][0]["players"]]
+    player_ids: List[int] = []
+    player_names: List[str] = []
 
     all_dora_indicators: List[List[int]] = []
     all_ura_indicators: List[List[int]] = []
@@ -1208,6 +1208,7 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any]) -> Tuple[List
         261: 52, 277: 53, 293: 51
     }
     rc_to_tenhou_tiles = lambda tiles: tuple(RC_TO_TENHOU_TILE[tile] for tile in tiles)
+    with_starting_dealer_0 = lambda lst: lst[starting_dealer_pos:] + lst[:starting_dealer_pos]
 
     def end_round(events: List[Event], result: List[Any]) -> None:
         nonlocal all_events
@@ -1226,18 +1227,20 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any]) -> Tuple[List
         haipai: List[Tuple[int, ...]] = [()] * 4
         dora_indicators: List[int] = []
         ura_indicators: List[int] = []
-        get_seat = lambda userid: (4 + player_ids.index(userid) - starting_dealer_pos) % 4
         for ev in hand_record["handEventRecord"]:
             data = json.loads(ev["data"])
             ev["data"] = data
-            seat = get_seat(ev["userId"]) if ev["userId"] != 0 else 0
+            seat = player_ids.index(ev["userId"]) if ev["userId"] in player_ids else 0
             if ev["eventType"] == 1: # haipai
                 if starting_dealer_pos == -1:
                     starting_dealer_pos = data["dealer_pos"]
-                    seat = get_seat(ev["userId"])
+                    player_ids = with_starting_dealer_0([p["userId"] for p in hand_record["players"]])
+                    player_names = with_starting_dealer_0([p["nickname"] for p in hand_record["players"]])
+                    seat = player_ids.index(ev["userId"])
+
                 haipai[seat] = rc_to_tenhou_tiles(data["hand_cards"])
                 round, honba, riichi_sticks = data["chang_ci"] - 1, data["ben_chang_num"], data["li_zhi_bang_num"]
-                scores = tuple(p["hand_points"] for p in data["user_info_list"])
+                scores = with_starting_dealer_0([p["hand_points"] for p in data["user_info_list"]])
                 dora_indicators = [RC_TO_TENHOU_TILE[data["bao_pai_card"]]]
                 if hand_record["quanFeng"] == 65: # south round wind
                     round += 4
@@ -1294,7 +1297,7 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any]) -> Tuple[List
                 if data["end_type"] in {0, 1}: # ron or tsumo
                     for win in data["win_info"]:
                         win_type = "tsumo" if data["end_type"] == 1 else "ron"
-                        seat = get_seat(win["user_id"])
+                        seat = player_ids.index(win["user_id"])
                         han = win["all_fang_num"]
                         fu = win["all_fu"]
                         score_string = f"{fu}符{han}飜"
@@ -1319,8 +1322,7 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any]) -> Tuple[List
                                 point_string = f"{ko}点∀"
                         fan_str = lambda yaku: f"{RIICHICITY_YAKU[yaku['fang_type']]}({'役満' if TRANSLATE[RIICHICITY_YAKU[yaku['fang_type']]] in YAKUMAN else str(yaku['fang_num'])+'飜'})"
                         yakus = [name for _, name in sorted((yaku['fang_type'], fan_str(yaku)) for yaku in win["fang_info"])]
-                        delta_scores = [p["point_profit"] for p in data["user_profit"]]
-                        delta_scores = delta_scores[starting_dealer_pos:] + delta_scores[:starting_dealer_pos]
+                        delta_scores = with_starting_dealer_0([p["point_profit"] for p in data["user_profit"]])
                         # print("delta scores: ", delta_scores)
                         result.append(delta_scores)
                         result.append([seat, last_seat, pao_seat, score_string+point_string, *yakus])
@@ -1333,8 +1335,7 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any]) -> Tuple[List
                     print("result: kyuushu kyuuhai")
                 elif data["end_type"] == 7: # ryuukyoku
                     result = ["流局"]
-                    delta_scores = [p["point_profit"] for p in data["user_profit"]]
-                    delta_scores = delta_scores[starting_dealer_pos:] + delta_scores[:starting_dealer_pos]
+                    delta_scores = with_starting_dealer_0([p["point_profit"] for p in data["user_profit"]])
                     # print("delta scores: ", delta_scores)
                     result.append(delta_scores)
                     print("result: ryuukyoku")
@@ -1344,8 +1345,10 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any]) -> Tuple[List
                         raise Exception("unknown end_type " + str(data["end_type"]) + ", in " + round_name(round, honba) + " with " + str(tiles_in_wall) + " tiles left in wall")
                 events.append((0, "end_game", result))
             elif ev["eventType"] == 6: # end game
-                game_score = [p["point_num"] for p in data["user_data"]]
-                final_score = [p["score"] * 100 for p in data["user_data"]]
+                # these are unsorted, so we need to sort them
+                user_data = sorted(data["user_data"], key=lambda p: player_ids.index(p["user_id"]))
+                game_score = [p["point_num"] for p in user_data]
+                final_score = [p["score"] * 100 for p in user_data]
                 pass
             elif ev["eventType"] == 7: # new dora
                 dora_indicators.extend(rc_to_tenhou_tiles(data["cards"]))
