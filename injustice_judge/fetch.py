@@ -341,7 +341,8 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
             # login to the Chinese server with USERNAME and PASSWORD
             MS_VERSION = requests.get(url="https://game.maj-soul.com/1/version.json").json()["version"][:-2]
 
-            async with MahjongSoulAPI("wss://gateway-hw.maj-soul.com:443/gateway") as api:
+            # url is the __MJ_GAME_INFO_API__ key of https://www.maj-soul.com/dhs/js/config.js
+            async with MahjongSoulAPI("wss://common-v2.maj-soul.com:443/gateway") as api:
                 client_version_string = f"web-{MS_VERSION}"
                 client_device_info = {"is_browser": True}
                 print("Calling login...")
