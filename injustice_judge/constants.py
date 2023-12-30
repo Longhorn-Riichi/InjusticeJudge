@@ -216,28 +216,25 @@ RIICHICITY_YAKU = {
     7: "役牌 中",            # Red Dragon (Chun)
     8: "役牌 發",            # Green Dragon (Hatsu)
     9: "役牌 白",            # White Dragon (Haku)
+    10: "役牌:場風牌",        # Prevalent Wind
     11: "役牌:自風牌",        # Seat Wind
     12: "一盃口",            # Pure Double Sequence
     13: "平和",              # Pinfu
     14: "断幺九",            # All Simples
+    16: "対々和",            # All Triplets
     17: "七対子",            # Seven Pairs
     23: "三色同順",           # Mixed Triple Sequence
+    27: "混一色",            # Half Flush
     49: "赤ドラ",            # Red Five
     50: "ドラ",              # Dora
     51: "裏ドラ",            # Uradora
-    # 10: prevalent wind?
-    # 16: honitsu (or toitoi?)
-    # 27: toitoi (or honitsu?)
-    10: "役牌:場風牌",        # Prevalent Wind
-    16: "混一色",            # Half Flush
-    27: "対々和",            # All Triplets
 
     # below are unknowns
     900: "抜きドラ",          # Kita
-    901: "槍槓",               # Robbing a Kan
-    902: "嶺上開花",            # After a Kan
-    903: "海底摸月",            # Under the Sea
-    904: "河底撈魚",            # Under the River
+    901: "槍槓",             # Robbing a Kan
+    902: "嶺上開花",          # After a Kan
+    903: "海底摸月",          # Under the Sea
+    904: "河底撈魚",          # Under the River
     905: "ダブル立直",         # Double Riichi
     906: "混全帯幺九",        # Half Outside Hand
     907: "一気通貫",          # Pure Straight

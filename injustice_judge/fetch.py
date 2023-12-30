@@ -1274,10 +1274,13 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any]) -> Tuple[List
                     last_discard_index = len(events)
                     events.append((seat, "discard", tile))
                     last_seat = seat
-                elif data["action"] in {2,3,4,5,8}: # chii/pon/kan
+                elif data["action"] in {2,3,4,5,6,8,9}: # chii/chii/chii/pon/daiminkan/ankan/kakan
                     # 2,3,4 are left/mid/right chii, 5 is pon
-                    call_type = {2: "chii", 3: "chii", 4: "chii", 5: "pon", 8: "ankan"}[data["action"]]
-                    call_tiles = (*rc_to_tenhou_tiles(data["group_cards"]), tile)
+                    call_type = {2: "chii", 3: "chii", 4: "chii", 5: "pon", 6: "minkan", 8: "ankan", 9: "kakan"}[data["action"]]
+                    if call_type == "kakan":
+                        call_tiles: Tuple[int, ...] = ()
+                    else:
+                        call_tiles = (*rc_to_tenhou_tiles(data["group_cards"]), tile)
                     call_dir = Dir((4 + last_seat - seat) % 4)
                     events.append((seat, call_type, tile, call_tiles, call_dir))
                     last_seat = seat
