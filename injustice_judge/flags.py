@@ -141,6 +141,7 @@ Flags = Enum("Flags", "_SENTINEL"
     # " YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN"
     " YOUR_LAST_DISCARD_ENDED_NAGASHI"
     " YOUR_LAST_NAGASHI_TILE_CALLED"
+    " YOUR_RIICHI_TILE_DEALT_IN"
     " YOUR_TENPAI_TILE_DEALT_IN"
     " YOUR_TILES_ALL_DEAL_IN"
     )
@@ -431,16 +432,19 @@ class KyokuState:
             if self.kyoku.result[0] == "ryuukyoku" and i > self.kyoku.final_draw_event_index[seat]:
                 self.add_flag(seat, Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI, {"tile": tile})
         # add riichi flag
-        if event_type == "riichi" and self.num_players == 4:
+        if event_type == "riichi":
             self.at[seat].in_riichi = True
             self.add_flag(seat, Flags.YOU_DECLARED_RIICHI)
             # if there's a triple riichi, give Flags.AGAINST_TRIPLE_RIICHI to the non-riichi person
-            if sum(1 for at in self.at if at.in_riichi) == 3:
+            if self.num_players == 4 and sum(1 for at in self.at if at.in_riichi) == 3:
                 non_riichi_seat = next(i for i, b in enumerate(self.at) if b.in_riichi == False)
                 self.add_flag(non_riichi_seat, Flags.AGAINST_TRIPLE_RIICHI)
         # check if this is the deal-in tile
         is_last_discard_of_the_game = i == max(self.kyoku.final_discard_event_index)
         if is_last_discard_of_the_game and self.kyoku.result[0] == "ron":
+            # check if this was a riichi discard
+            if event_type == "riichi":
+                self.add_flag(seat, Flags.YOUR_RIICHI_TILE_DEALT_IN, {"tile": tile})
             # check if we just reached tenpai
             already_tenpai = Flags.YOU_REACHED_TENPAI in self.flags[seat]
             if not already_tenpai and any(e[0] == seat and e[1] == "tenpai" for e in self.kyoku.events[i:]):
