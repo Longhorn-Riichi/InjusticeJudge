@@ -1140,7 +1140,7 @@ def your_mangan_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]],
     else:
         return []
 
-# Print if you were fourth started with 3 dora but someone else won
+# Print if you were fourth and started with 3 dora but someone else won
 @injustice(require=[Flags.STARTED_WITH_3_DORA, Flags.YOU_WERE_FOURTH, Flags.WINNER],
             forbid=[Flags.YOU_GAINED_POINTS])
 def couldnt_avoid_last_with_3_dora(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
@@ -1149,7 +1149,7 @@ def couldnt_avoid_last_with_3_dora(flags: List[Flags], data: List[Dict[str, Any]
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="were",
-                        content=f"in fourth place and had a chance to come back with three dora,"
+                        content=f"in fourth place and had a chance to come back with your {num_dora} dora,"
                                 f" but you couldn't since {relative_seat_name(player, winner)} won"))]
 
 # Print if someone took your points and you dropped placement only because of ura
