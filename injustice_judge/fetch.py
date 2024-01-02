@@ -1355,7 +1355,7 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any]) -> Tuple[List
                 final_score = [p["score"] * 100 for p in user_data]
                 pass
             elif ev["eventType"] == 7: # new dora
-                dora_indicators.extend(rc_to_tenhou_tiles(data["cards"]))
+                dora_indicators.append(RC_TO_TENHOU_TILE[data["cards"][-1]])
             elif ev["eventType"] == 8: # riichi
                 # modify the previous discard
                 assert events[last_discard_index][1] == "discard", events[last_discard_index]

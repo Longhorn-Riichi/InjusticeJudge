@@ -904,14 +904,14 @@ class KyokuState:
         winning_hand = self.at[result.winner].hand
         import os
         if os.getenv("debug"):
-            assert score.han == expected_han, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong han ({score.han}) for a {expected_han} han hand {winning_hand.to_str(doras=self.kyoku.doras, uras=self.kyoku.uras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {score}"
+            assert score.han == expected_han, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong han ({score.han}) for a {expected_han} han hand {winning_hand.to_str(doras=self.kyoku.doras, uras=self.kyoku.uras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {score}\n\nall waits (winning tile is {pt(winning_tile)}): {str({pt(k): str(v) for k, v in calculated_yaku.items()})}"
         # compare the resulting score to make sure we calculated it right
         is_dealer = result.winner == self.kyoku.round % 4
         calculated_score = score.to_points()
         if os.getenv("debug"):
             tsumo_string = "tsumo" if is_tsumo else "ron"
             stored_score = result.score.to_points()
-            assert calculated_score == stored_score, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong {tsumo_string} score ({calculated_score}) for a {stored_score} point hand {winning_hand.to_str(doras=self.kyoku.doras, uras=self.kyoku.uras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {score}"
+            assert calculated_score == stored_score, f"in {round_name(self.kyoku.round, self.kyoku.honba)}, calculated the wrong {tsumo_string} score ({calculated_score}) for a {stored_score} point hand {winning_hand.to_str(doras=self.kyoku.doras, uras=self.kyoku.uras)}\nactual yaku: {expected_yaku}\ncalculated yaku: {score}\n\nall waits (winning tile is {pt(winning_tile)}): {str({pt(k): str(v) for k, v in calculated_yaku.items()})}"
 
         # Add potentially several WINNER flags depending on the limit hand
         # e.g. haneman wins will get WINNER_GOT_HANEMAN plus all the flags before that

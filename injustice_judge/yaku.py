@@ -191,7 +191,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Shanten, is_clos
     # chinitsu: check that all of the hand is the suit
     # then every wait of that suit gives chinitsu
     # honitsu: same, but add honor tiles to the suit
-    for chinitsu_suit in [set(range(11,20)), set(range(21,30)), set(range(31,40))]:
+    for chinitsu_suit in [set(range(11,20)) | {51}, set(range(21,30)) | {52}, set(range(31,40)) | {53}]:
         honitsu_suit = chinitsu_suit.union(range(41,48))
         if set(full_hand).issubset(honitsu_suit):
             if set(full_hand).issubset(chinitsu_suit):

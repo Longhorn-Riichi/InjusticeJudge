@@ -192,9 +192,10 @@ class Interpretation:
                     interpretations.add(interpretation)
             else:
                 for tile in set(interpretation.hand):
-                    nodes = [interpretation.add_triplet((tile, tile, tile)),
+                    tile2 = normalize_red_five(tile) # non red version
+                    nodes = [interpretation.add_triplet((tile, tile2, tile2)),
                              interpretation.add_sequence((SUCC[SUCC[tile]], SUCC[tile], tile)),
-                             interpretation.add_pair((tile, tile), yakuhai=yakuhai)]
+                             interpretation.add_pair((tile, tile2), yakuhai=yakuhai)]
                     to_update |= {n for n in nodes if n is not None}
 
             # special case: aryanmen pinfu requires a single sequence remain unprocessed
