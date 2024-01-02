@@ -314,7 +314,7 @@ def parse_majsoul_link(link: str) -> Tuple[str, Optional[int], Optional[int]]:
         player_seat = int(player_seat)
     return identifier, ms_account_id, player_seat
 
-async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
+async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], Optional[int]]:
     """
     Fetch a raw majsoul log from a given link, returning a parsed log and the seat of the player specified through `_a...` or `_a..._[0-3]`
     Example link: https://mahjongsoul.game.yo-star.com/?paipu=230814-90607dc4-3bfd-4241-a1dc-2c639b630db3_a878761203
@@ -385,7 +385,7 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
     else:
         actions = [cast(Tuple[str, proto.Wrapper], parse_wrapped_bytes(record)) for record in parsed.records]
     
-    player = 0
+    player = None
     if player_seat is not None:
         player = player_seat
     elif ms_account_id is not None:
@@ -395,7 +395,7 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], int]:
                 break
     return actions, MessageToDict(record.head), player
 
-def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
+def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any], nickname: Optional[str]) -> Tuple[List[Kyoku], GameMetadata, Optional[int]]:
     """
     Parse a Mahjong Soul log fetched with `fetch_majsoul`.
     """
@@ -560,7 +560,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any]) -> Tuple[List[K
                                    rules = GameRules.from_majsoul_detail_rule(metadata["config"]["mode"]["detailRule"], metadata["config"]["mode"]["mode"]))
 
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)
-    return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata
+    player_seat = nicknames.index(nickname) if nickname in nicknames else None
+    return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata, player_seat
 
 ###
 ### loading and parsing tenhou games
@@ -594,7 +595,7 @@ def parse_tenhou_link(link: str) -> Tuple[str, Optional[int]]:
 
     return identifier, player_seat
 
-def fetch_tenhou(link: str, use_xml: bool = True) -> Tuple[TenhouLog, Dict[str, Any], int]:
+def fetch_tenhou(link: str, use_xml: bool = True) -> Tuple[TenhouLog, Dict[str, Any], Optional[int]]:
     """
     Fetch a raw tenhou log from a given link, returning a parsed log and the specified player's seat
     Example link: https://tenhou.net/0/?log=2023072712gm-0089-0000-eff781e1&tw=1&ts=4
@@ -635,7 +636,7 @@ def fetch_tenhou(link: str, use_xml: bool = True) -> Tuple[TenhouLog, Dict[str, 
         save_cache(filename=f"game-{identifier}.json", data=json.dumps(game_data, ensure_ascii=False).encode("utf-8"))
     log = game_data["log"]
     del game_data["log"]
-    return log, game_data, (player_seat or 0)
+    return log, game_data, (player_seat or None)
 
 def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, Any]]:
     """
@@ -930,7 +931,7 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
     #  then `game_data` should be exactly the right format, plus a "wall_seed" key
     return log, game_data
 
-def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
+def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any], nickname: Optional[str]) -> Tuple[List[Kyoku], GameMetadata, Optional[int]]:
     all_events: List[List[Event]] = []
     all_dora_indicators: List[List[int]] = []
     all_ura_indicators: List[List[int]] = []
@@ -1119,33 +1120,37 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any]) -> Tuple[List[
     else:
         all_walls = [[] for _ in all_events] # dummy
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)
-    return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata
+    player_seat = metadata["name"].index(nickname) if nickname in metadata["name"] else None
+    return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata, player_seat
 
-async def parse_game_link(link: str, specified_players: Set[int] = set()) -> Tuple[List[Kyoku], GameMetadata, Set[int]]:
+async def parse_game_link(link: str, specified_players: Set[int] = set(), nickname: Optional[str]=None) -> Tuple[List[Kyoku], GameMetadata, Set[int]]:
     """Given a game link, fetch and parse the game into kyokus"""
     if "tenhou.net/" in link:
         tenhou_log, metadata, player = fetch_tenhou(link)
         if metadata["name"][3] == "":
-            assert player < 3 or all(p < 3 for p in specified_players), "Can't specify North player in a sanma game"
-        kyokus, parsed_metadata = parse_tenhou(tenhou_log, metadata)
+            assert player != 3 or all(p != 3 for p in specified_players), "Can't specify North player in a sanma game"
+        kyokus, parsed_metadata, parsed_player_seat = parse_tenhou(tenhou_log, metadata, nickname)
     elif "mahjongsoul" in link or "maj-soul" in link or "majsoul" in link:
         # EN: `mahjongsoul.game.yo-star.com`; CN: `maj-soul.com`; JP: `mahjongsoul.com`
         # Old CN (?): http://majsoul.union-game.com/0/?paipu=190303-335e8b25-7f5c-4bd1-9ac0-249a68529e8d_a93025901
         majsoul_log, metadata, player = await fetch_majsoul(link)
         if len(metadata["accounts"]) == 3:
-            assert player < 3 or all(p < 3 for p in specified_players), "Can't specify North player in a sanma game"
-        kyokus, parsed_metadata = parse_majsoul(majsoul_log, metadata)
+            assert player != 3 or all(p != 3 for p in specified_players), "Can't specify North player in a sanma game"
+        kyokus, parsed_metadata, parsed_player_seat = parse_majsoul(majsoul_log, metadata, nickname)
     elif len(link) == 20: # riichi city log id
         riichicity_log, metadata = fetch_riichicity(link)
-        kyokus, parsed_metadata = parse_riichicity(riichicity_log, metadata)
-        player = 0
+        player = None
+        kyokus, parsed_metadata, parsed_player_seat = parse_riichicity(riichicity_log, metadata, nickname)
     else:
         raise Exception("expected tenhou link similar to `tenhou.net/0/?log=`"
                         " or mahjong soul link similar to `mahjongsoul.game.yo-star.com/?paipu=`"
                         " or 20-character riichi city log id like `cjc3unuai08d9qvmstjg`")
     kyokus[-1].is_final_round = True
     if len(specified_players) == 0:
-        specified_players = {player}
+        if parsed_player_seat is not None:
+            specified_players = {parsed_player_seat}
+        elif player is not None:
+            specified_players = {player}
     return kyokus, parsed_metadata, specified_players
 
 def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, Any]]:
@@ -1169,8 +1174,8 @@ def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, Any]]:
                 url="http://13.112.183.79/record/getRoomData",
                 headers={
                     "Cookies": "{\"sid\":\"" + SID + "\"}",
-                    "User-Agent": urllib3.util.SKIP_HEADER,
-                    "Accept-Encoding": urllib3.util.SKIP_HEADER,
+                    "User-Agent": urllib3.util.SKIP_HEADER,  # type: ignore[attr-defined]
+                    "Accept-Encoding": urllib3.util.SKIP_HEADER,  # type: ignore[attr-defined]
                     "Connection": "close",
                 },
                 data="{\"keyValue\":\"" + identifier + "\"}").json()
@@ -1182,7 +1187,7 @@ def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, Any]]:
 
     return game_data["data"]["handRecord"], game_data["data"]
 
-def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any]) -> Tuple[List[Kyoku], GameMetadata]:
+def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Optional[str]) -> Tuple[List[Kyoku], GameMetadata, Optional[int]]:
     import json
     num_players = metadata["playerCount"]
     player_ids: List[int] = []
@@ -1379,6 +1384,8 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any]) -> Tuple[List
                                    final_score = final_score,
                                    rules = GameRules.from_riichicity_metadata(metadata))
 
+
     all_walls = [[] for _ in all_events] # dummy
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)
-    return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata
+    player_seat = player_names.index(nickname) if nickname in player_names else None
+    return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata, player_seat
