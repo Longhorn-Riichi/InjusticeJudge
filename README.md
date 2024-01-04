@@ -1,6 +1,6 @@
 # InjusticeJudge
 
-Analyzes your `Mahjong Soul` or `tenhou.net` game to find instances of mahjong injustice. Currently, it checks for:
+Analyzes your Mahjong Soul, `tenhou.net`, or Riichi City game to find instances of mahjong injustice. Currently, it checks for:
 
 - Your tenpai was chased with a worse wait and you deal into it
 - You experience iishanten hell (9+ draws)
@@ -125,5 +125,25 @@ To do this:
 - Once you see a request that says POST, click it.
 - Check the request field, which should contain your UID and token: `{"uid":"<your uid>","token":"<your token>","deviceId":"..."}`
 
-## High level TODOs
+## Setup for riichi city links
 
+    rc_sid = "<your sid>"
+
+The `sid` can be found by capturing the cookies of any logged-in request.
+To do this:
+
+- Download the desktop app for Riichi City and also [Wireshark](https://www.wireshark.org/) and [`mitmproxy`](https://mitmproxy.org/).
+- Setup `mitmproxy`:
+  + Run `SSLKEYLOGFILE=~/.mitmproxy/sslkeylogfile.txt mitmweb` on command line
+  + In your computer's network settings, set it to use `127.0.0.1:8080` as an HTTPS proxy
+  + Visit <http://mitm.it> and install the certificate as instructed
+- Setup Wireshark:
+  + Launch Wireshark and go into the preferences
+  + Under `Protocols > TLS > (Pre)-Master-Secret log filename`, enter the absolute path of `$HOME/.mitmproxy/sslkeylogfile.txt` (e.g. `/Users/dani/.mitmproxy/sslkeylogfile.txt`), then hit OK
+  + In the main wireshark window, start capturing your network (it should be the first network in the list)
+  + Apply the display filter `_ws.col.protocol == "HTTP" && http.request.line matches "Cookies"`
+- Launch Riichi City and log in
+- If all goes well, in Wireshark, you should see requests highlighted in green. Click any one of them, then on the bottom-left panel right-click the line that starts with `Cookies` (under Hypertext Transfer Protocol) and Copy > Value.
+- This value should contain your `sid`.
+
+Remember to close out of `mitmweb` and undo your proxy setting!
