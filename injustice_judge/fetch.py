@@ -8,9 +8,9 @@ from google.protobuf.json_format import MessageToDict
 from typing import *
 from .classes import CallInfo, GameRules, GameMetadata, Dir
 from .classes2 import Draw, Hand, Kyoku, Ron, Score, Tsumo
-from .constants import Event, Shanten, DORA, LIMIT_HANDS, MAJSOUL_YAKU, RIICHICITY_YAKU, TENHOU_LIMITS, TENHOU_YAKU, TRANSLATE, YAKUMAN, YAOCHUUHAI
+from .constants import Event, Shanten, LIMIT_HANDS, MAJSOUL_YAKU, RIICHICITY_YAKU, TENHOU_LIMITS, TENHOU_YAKU, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, round_name
-from .utils import apply_delta_scores, calc_ko_oya_points, is_mangan, ix_to_tile, normalize_red_five, sorted_hand, to_placement
+from .utils import apply_delta_scores, calc_ko_oya_points, is_mangan, ix_to_tile, normalize_red_five, sorted_hand, to_dora, to_placement
 from .wall import seed_wall, next_wall
 from .yaku import debug_yaku
 from pprint import pprint
@@ -90,8 +90,8 @@ def postprocess_events(all_events: List[List[Event]],
                 kyoku.round, kyoku.honba, kyoku.riichi_sticks, kyoku.start_scores = event_data
                 kyoku.num_players = metadata.num_players
                 kyoku.tiles_in_wall = 70 if kyoku.num_players == 4 else 55
-                kyoku.doras = ([51, 52, 53] if metadata.rules.use_red_fives else []) + [DORA[d] for d in dora_indicators]
-                kyoku.uras = [DORA[d] for d in ura_indicators]
+                kyoku.doras = ([51, 52, 53] if metadata.rules.use_red_fives else []) + [to_dora(d, metadata.num_players) for d in dora_indicators]
+                kyoku.uras = [to_dora(d, metadata.num_players) for d in ura_indicators]
             elif event_type == "haipai":
                 # initialize every variable for this seat to its starting value
                 hand = Hand(event_data[0])
@@ -1230,7 +1230,7 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
         last_seat = -1
         last_discard_index = -1
         round, honba = -1, -1
-        haipai: List[Tuple[int, ...]] = [()] * 4
+        haipai: List[Tuple[int, ...]] = [()] * num_players
         dora_indicators: List[int] = []
         ura_indicators: List[int] = []
         for ev in hand_record["handEventRecord"]:
@@ -1275,15 +1275,15 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
                 tile = RC_TO_TENHOU_TILE[data["out_card"]]
             elif ev["eventType"] == 4: # discard or call
                 tile = RC_TO_TENHOU_TILE[data["card"]] if data["card"] != 0 else 0
-
+                # 2,3,4 are left/mid/right chii
+                call_names = {2: "chii", 3: "chii", 4: "chii", 5: "pon", 6: "minkan", 8: "ankan", 9: "kakan", 13: "kita"}
                 if data["action"] == 11: # discard
                     last_discard_index = len(events)
                     events.append((seat, "discard", tile))
                     last_seat = seat
-                elif data["action"] in {2,3,4,5,6,8,9}: # chii/chii/chii/pon/daiminkan/ankan/kakan
-                    # 2,3,4 are left/mid/right chii, 5 is pon
-                    call_type = {2: "chii", 3: "chii", 4: "chii", 5: "pon", 6: "minkan", 8: "ankan", 9: "kakan"}[data["action"]]
-                    if call_type == "kakan":
+                elif data["action"] in call_names.keys(): # chii/chii/chii/pon/daiminkan/ankan/kakan/kita
+                    call_type = call_names[data["action"]]
+                    if call_type in {"kakan", "kita"}:
                         call_tiles: Tuple[int, ...] = ()
                     else:
                         call_tiles = (*rc_to_tenhou_tiles(data["group_cards"]), tile)
@@ -1312,9 +1312,13 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
                         score_string = f"{fu}符{han}飜"
 
                         # temporary stopgap since we don't know all yaku yet
+                        import os
                         for yaku in win["fang_info"]:
                             if yaku["fang_type"] not in RIICHICITY_YAKU:
-                                RIICHICITY_YAKU[yaku["fang_type"]] = "yaku#" + str(yaku["fang_type"])
+                                if not os.getenv("debug"):
+                                    RIICHICITY_YAKU[yaku["fang_type"]] = "yaku#" + str(yaku["fang_type"])
+                                else:
+                                    raise Exception("unknown yaku " + str(yaku["fang_type"]) + ", in " + round_name(round, honba) + " with " + str(tiles_in_wall) + " tiles left in wall")
 
                         if any(TRANSLATE[RIICHICITY_YAKU[yaku["fang_type"]]] in YAKUMAN for yaku in win["fang_info"]):
                             score_string = "役満"

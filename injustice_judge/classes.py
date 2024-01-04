@@ -201,10 +201,10 @@ class Interpretation:
             # special case: aryanmen pinfu requires a single sequence remain unprocessed
             if len(interpretation.hand) == 1:
                 # check pinfu conditions
-                no_calls = len(self.calls) == 0
+                no_calls_except_kita = all(call.type == "kita" for call in self.calls)
                 all_sequences = len(interpretation.sequences) == 4
                 no_yakuhai_pair = interpretation.hand[0] not in yakuhai
-                if no_calls and all_sequences and no_yakuhai_pair:
+                if no_calls_except_kita and all_sequences and no_yakuhai_pair:
                     # interpret as aryanmen wait for pinfu
                     tanki = interpretation.hand[0]
                     # look for sequences that form aryanmen with the tanki,

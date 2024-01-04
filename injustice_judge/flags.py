@@ -1,10 +1,10 @@
 from .classes import CallInfo, Dir
 from .classes2 import Draw, Hand, Kyoku, Ron, Score, Tsumo, Win
 from dataclasses import dataclass, field
-from .constants import Event, Shanten, DORA, DORA_INDICATOR, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
+from .constants import Event, Shanten, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, print_pond, round_name
 from enum import Enum
-from .utils import apply_delta_scores, get_score, is_mangan, normalize_red_five, normalize_red_fives, to_placement
+from .utils import apply_delta_scores, get_score, is_mangan, normalize_red_five, normalize_red_fives, to_dora_indicator, to_placement
 from .wall import print_wall, get_hidden_dead_wall, get_remaining_draws
 from .wwyd import is_safe
 from .yaku import get_final_yaku, get_yaku, get_yakuman_tenpais, get_yakuman_waits
@@ -198,7 +198,7 @@ class KyokuState:
     global_data: List[Any]          = field(default_factory=list)
     def get_visible_tiles(self) -> List[int]:
         return self.visible_tiles \
-             + [DORA_INDICATOR[dora] for dora in self.current_doras if dora not in {51,52,53}]
+             + [to_dora_indicator(dora, self.num_players) for dora in self.current_doras if dora not in {51,52,53}]
     def add_flag(self, seat: int, flag: Flags, data: Optional[Dict[str, Any]] = None) -> None:
         self.flags[seat].append(flag)
         self.data[seat].append(data)

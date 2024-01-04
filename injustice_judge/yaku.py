@@ -46,9 +46,9 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Shanten, is_clos
 
     # remove all red fives from the interpretation
     taatsu, ron_fu, tsumo_fu, sequences, triplets, pair = interpretation.unpack()
-    taatsu = sorted_hand(normalize_red_fives(taatsu))
-    sequences = tuple(tuple(normalize_red_fives(seq)) for seq in sequences)
-    triplets = tuple(tuple(normalize_red_fives(tri)) for tri in triplets)
+    taatsu = tuple(sorted_hand(normalize_red_fives(taatsu)))
+    sequences = tuple(tuple(sorted_hand(normalize_red_fives(seq))) for seq in sequences)
+    triplets = tuple(tuple(sorted_hand(normalize_red_fives(tri))) for tri in triplets)
     pair_tile = None if pair is None else normalize_red_five(pair[0])
 
     # filter for only waits that satisfy this interpretation
@@ -268,12 +268,13 @@ def add_stateful_yaku(yaku_for_wait: YakuForWait,
             is_rinshan = False
         elif is_closed_hand and event_seat == seat and event_type == "riichi": # self riichi
             is_ippatsu = True
+            is_rinshan = False
             for wait in waits:
                 if double_riichi_eligible:
                     yaku_for_wait[wait].append(("double riichi", 2))
                 else:
                     yaku_for_wait[wait].append(("riichi", 1))
-        elif event_seat != seat and event_type in {"kakan", "kita"}: # someone kakans or calls kita
+        elif event_seat != seat and event_type == "kakan": # someone kakans
             # ippatsu isn't cancelled yet; wait for a draw
             is_chankan = True
         elif event_seat != seat and event_type in {"chii", "pon", "minkan", "ankan", "kita"}: # any non-kakan call
@@ -364,7 +365,7 @@ def add_tsumo_yaku(yaku_for_wait: YakuForWait, interpretation: Interpretation, i
     is_pair = lambda hand: len(hand) == 2 and normalize_red_five(hand[0]) == normalize_red_five(hand[1])
     if len(triplets) >= 2 and is_pair(taatsu) and pair is not None:
         # check they are all closed
-        called_triplets = {tuple(normalize_red_fives(call.tiles[:3])) for call in interpretation.calls}
+        called_triplets = {tuple(normalize_red_fives(call.tiles[:3])) for call in interpretation.calls if call.type in {"pon", "kakan", "minkan"}}
         our_triplets = {tuple(normalize_red_fives(tri)) for tri in triplets}
         num_open_triplets = len(our_triplets & called_triplets)
         if len(triplets) - num_open_triplets >= 2:

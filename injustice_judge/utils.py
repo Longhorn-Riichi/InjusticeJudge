@@ -1,6 +1,6 @@
 import functools
 import itertools
-from .constants import MANZU, PINZU, SOUZU, PRED, SUCC, TOGGLE_RED_FIVE, TRANSLATE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, OYA_RON_SCORE, KO_RON_SCORE
+from .constants import MANZU, PINZU, SOUZU, PRED, SUCC, DORA, DORA_INDICATOR, TOGGLE_RED_FIVE, TRANSLATE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, OYA_RON_SCORE, KO_RON_SCORE
 from typing import *
 
 # This file contains a bunch of utility functions that don't really belong anywhere else.
@@ -87,3 +87,9 @@ def calc_ko_oya_points(total_points: int, num_players: int, is_dealer: bool) -> 
 _tiles = [*range(11,20), *range(21,30), *range(31,40), *range(41,48)]
 _reds = {_tiles.index(15): 51, _tiles.index(25): 52, _tiles.index(35): 53}
 ix_to_tile = lambda ix: _reds[ix//4] if ix//4 in _reds and ix%4==0 else _tiles[ix//4]
+
+def to_dora(dora_indicator: int, num_players: int) -> int:
+    return 19 if num_players == 3 and dora_indicator == 11 else DORA[dora_indicator]
+def to_dora_indicator(dora: int, num_players: int) -> int:
+    return 11 if num_players == 3 and dora == 19 else DORA_INDICATOR[dora]
+    

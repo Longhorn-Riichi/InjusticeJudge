@@ -1,5 +1,5 @@
 from .classes2 import Kyoku, Ron, Score, Tsumo
-from .constants import Shanten, DORA_INDICATOR, PLACEMENTS, SHANTEN_NAMES
+from .constants import Shanten, PLACEMENTS, SHANTEN_NAMES
 from dataclasses import dataclass
 from enum import Enum
 from typing import *
