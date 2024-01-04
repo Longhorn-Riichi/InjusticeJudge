@@ -213,6 +213,7 @@ RIICHICITY_YAKU = {
     0: "立直",               # Riichi
     1: "門前清自摸和",        # Fully Concealed Hand
     2: "一発",               # Ippatsu
+    3: "嶺上開花",           # After a Kan
     7: "役牌 中",            # Red Dragon (Chun)
     8: "役牌 發",            # Green Dragon (Hatsu)
     9: "役牌 白",            # White Dragon (Haku)
@@ -223,29 +224,28 @@ RIICHICITY_YAKU = {
     14: "断幺九",            # All Simples
     16: "対々和",            # All Triplets
     17: "七対子",            # Seven Pairs
+    18: "三暗刻",            # Three Concealed Triplets
+    21: "混全帯幺九",        # Half Outside Hand
+    22: "一気通貫",          # Pure Straight
     23: "三色同順",           # Mixed Triple Sequence
+    26: "純全帯幺九",        # Fully Outside Hand
     27: "混一色",            # Half Flush
+    28: "二盃口",            # Twice Pure Double Sequence
+    29: "清一色",            # Full Flush
     49: "赤ドラ",            # Red Five
     50: "ドラ",              # Dora
     51: "裏ドラ",            # Uradora
+    55: "抜きドラ",          # Kita/Nukidora
 
     # below are unknowns
-    900: "抜きドラ",          # Kita
     901: "槍槓",             # Robbing a Kan
-    902: "嶺上開花",          # After a Kan
     903: "海底摸月",          # Under the Sea
     904: "河底撈魚",          # Under the River
     905: "ダブル立直",         # Double Riichi
-    906: "混全帯幺九",        # Half Outside Hand
-    907: "一気通貫",          # Pure Straight
     908: "三色同刻",           # Triple Triplets
     909: "三槓子",            # Three Quads
-    910: "三暗刻",            # Three Concealed Triplets
     911: "小三元",            # Little Three Dragons
     912: "混老頭",            # All Terminals and Honours
-    913: "二盃口",            # Twice Pure Double Sequence
-    914: "純全帯幺九",        # Fully Outside Hand
-    915: "清一色",            # Full Flush
     916: "人和",              # Hand of Man
     917: "天和",              # Blessing of Heaven
     918: "地和",              # Blessing of Earth
