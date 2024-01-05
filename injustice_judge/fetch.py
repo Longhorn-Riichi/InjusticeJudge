@@ -557,7 +557,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any], nickname: Optio
                                    name = nicknames,
                                    game_score = [result_data[i][1] for i in range(num_players)],
                                    final_score = [result_data[i][2] for i in range(num_players)],
-                                   rules = GameRules.from_majsoul_detail_rule(metadata["config"]["mode"]["detailRule"], metadata["config"]["mode"]["mode"]))
+                                   rules = GameRules.from_majsoul_detail_rule(num_players, metadata["config"]["mode"]["detailRule"], metadata["config"]["mode"]["mode"]))
 
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)
     player_seat = nicknames.index(nickname) if nickname in nicknames else None
@@ -694,7 +694,7 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
             game_data["lobby"] = int(attrs["lobby"])
             game_data["rule"] = attrs["rule"].split(",") if "rule" in attrs else [""] * 7
             game_data["csrule"] = attrs["csrule"].split(",") if "csrule" in attrs else [""] * 40
-            rules = GameRules.from_tenhou_rules(game_data["rule"], game_data["csrule"])
+            rules = GameRules.from_tenhou_rules(num_players, game_data["rule"], game_data["csrule"])
         elif name == "UN":
             # usernames (plus some other info)
             if "name" in game_data:
@@ -726,6 +726,8 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
                 kyoku["shuugi"] = [int(v) for v in attrs["chip"].split(",")]
             kyoku["oya"] = int(attrs["oya"])
             num_players = 3 if len(attrs["hai3"]) == 0 else 4
+            assert rules is not None
+            rules.num_players = num_players
             haipai0 = list(sorted_hand([ix_to_tile(int(v)) for v in attrs["hai0"].split(",")]))
             haipai1 = list(sorted_hand([ix_to_tile(int(v)) for v in attrs["hai1"].split(",")]))
             haipai2 = list(sorted_hand([ix_to_tile(int(v)) for v in attrs["hai2"].split(",")]))
@@ -935,9 +937,9 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any], nickname: Opti
     all_events: List[List[Event]] = []
     all_dora_indicators: List[List[int]] = []
     all_ura_indicators: List[List[int]] = []
-    rules = GameRules.from_tenhou_rules(metadata["rule"], metadata.get("csrule", ["0"]*3 + [""]*37))
     # check to see if the name of the fourth player is empty; Sanma if empty, Yonma if not empty.
     num_players: int = 3 if metadata["name"][3] == "" else 4
+    rules = GameRules.from_tenhou_rules(num_players, metadata["rule"], metadata.get("csrule", ["0"]*3 + [""]*37))
     def get_call_dir(call: str) -> Dir:
         """
         Returns the number of seats "away" from the current
@@ -1386,7 +1388,7 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
                                    name = player_names,
                                    game_score = game_score,
                                    final_score = final_score,
-                                   rules = GameRules.from_riichicity_metadata(metadata))
+                                   rules = GameRules.from_riichicity_metadata(num_players, metadata))
 
 
     all_walls = [[] for _ in all_events] # dummy

@@ -38,7 +38,7 @@ def get_score(han: int, fu: int, is_dealer: bool, is_tsumo: bool, num_players: i
         return cast(int, (OYA_RON_SCORE if is_dealer else KO_RON_SCORE)[han][fu])  # type: ignore[index]
 
 # Add a score delta array [0,1000,-1000,0] to an existing score array [25000,25000,25000,25000]
-apply_delta_scores = lambda scores, delta_score: [score + delta for score, delta in zip(scores, delta_score)]
+apply_delta_scores = lambda scores, delta_score: [round(score + delta, 1) for score, delta in zip(scores, delta_score)]
 # Given a score array, calculate the placement: [10000,30000,20000,40000] -> [3, 1, 2, 0]
 to_placement = lambda scores, num_players: (ixs := sorted(range(num_players), key=lambda x: -scores[x]), [ixs.index(p) for p in range(num_players)])[1]
 

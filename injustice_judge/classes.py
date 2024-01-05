@@ -5,7 +5,7 @@ from typing import *
 
 from .constants import PRED, SUCC, TOGGLE_RED_FIVE, YAOCHUUHAI
 from .display import ph, pt, shanten_name
-from .utils import get_waits, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
+from .utils import apply_delta_scores, get_waits, normalize_red_five, normalize_red_fives, sorted_hand, to_placement, try_remove_all_tiles
 
 # This file and classes2.py contain most of the classes used in InjusticeJudge.
 # In this file, we have:
@@ -221,6 +221,7 @@ class Interpretation:
 @dataclass
 class GameRules:
     """Stores all the rules that InjusticeJudge cares about."""
+    num_players: int = 4              # number of players
     use_red_fives: bool = True        # whether the game uses red fives
     immediate_kan_dora: bool = False  # whether kan immediately reveals a dora
     head_bump: bool = False           # whether head bump is enabled
@@ -235,11 +236,16 @@ class GameRules:
     noten_payment: Tuple[int, int, int] = (1000, 1500, 3000) # noten payment paid for 1/2/3 players tenpai
     is_hanchan: bool = True           # if the game is a hanchan
     is_sanma: bool = True             # if the game is 3 player
+    starting_points: int = 25000      # starting points
+    total_points: int = 25000         # total points (difference is given to 1st place for placement bonus)
+    placement_bonus: List[List[float]] = field(default_factory=list)
     @classmethod
-    def from_majsoul_detail_rule(cls, rules: Dict[str, Any], mode: int) -> "GameRules":
+    def from_majsoul_detail_rule(cls, num_players: int, rules: Dict[str, Any], mode: int) -> "GameRules":
         # see GameDetailRule in liqi_combined.proto to find all the valid field names
         # note: the python protobuf library converts every name to camelCase
-        return cls(use_red_fives = rules.get("doraCount", 3) > 0,
+        print(rules)
+        return cls(num_players = num_players,
+                   use_red_fives = rules.get("doraCount", 3) > 0,
                    immediate_kan_dora = rules.get("mingDoraImmediatelyOpen", False),
                    head_bump = rules.get("haveToutiao", False),
                    renhou = rules.get("enableRenhe", False),
@@ -254,9 +260,12 @@ class GameRules:
                    # mode: 1,2,11,12 = 4p east, 4p south, 3p east, 3p south
                    is_hanchan = mode % 10 == 2,
                    is_sanma = mode > 10,
+                   starting_points = rules.get("init_point", 25000),
+                   total_points = rules.get("jingsuanyuandian", 25000),
+                   placement_bonus = 5*[[rules.get("shunweima2", 0), rules.get("shunweima3", 0), rules.get("shunweima4", 0)]]
                    )
     @classmethod
-    def from_tenhou_rules(cls, rule: List[str], csrule: List[str]) -> "GameRules":
+    def from_tenhou_rules(cls, num_players: int, rule: List[str], csrule: List[str]) -> "GameRules":
         # see example_arml_game.json for info on how this is parsed
         if isinstance(rule, dict):
             # normal game
@@ -265,7 +274,9 @@ class GameRules:
         rule1 = int(rule[2] or "0", 16)
         rule2 = int(csrule[0] or "0", 16)
         rule3 = int(csrule[1] or "0", 16)
-        return cls(use_red_fives = 0x0002 & rule1 == 0,
+        f0 = lambda s: float(s) or 0
+        return cls(num_players = num_players,
+                   use_red_fives = 0x0002 & rule1 == 0,
                    immediate_kan_dora = 0x00000008 & rule2 != 0,
                    head_bump = 0x00002000 & rule2 != 0,
                    renhou = 0x01000000 & rule2 != 0,
@@ -279,10 +290,29 @@ class GameRules:
                    noten_payment = (int(csrule[16] or 1000), int(csrule[17] or 1500), int(csrule[18] or 3000)),
                    is_hanchan = 0x0008 & rule1 != 0,
                    is_sanma = 0x0010 & rule1 != 0,
-                   )
+                   starting_points = int(csrule[4]),
+                   total_points = int(csrule[6]),
+                   placement_bonus =
+                       [[f0(csrule[21]), f0(csrule[22]), f0(csrule[23])],
+                        [f0(csrule[24]), f0(csrule[25]), f0(csrule[26])],
+                        [f0(csrule[27]), f0(csrule[28]), f0(csrule[29])],
+                        [f0(csrule[30]), f0(csrule[31]), f0(csrule[32])],
+                        [f0(csrule[33]), f0(csrule[34]), f0(csrule[35])]])
     @classmethod
-    def from_riichicity_metadata(cls, metadata: Dict[str, Any]) -> "GameRules":
-        return cls() # TODO
+    def from_riichicity_metadata(cls, num_players: int, metadata: Dict[str, Any]) -> "GameRules":
+        return cls(num_players = num_players) # TODO
+    
+    def apply_placement_bonus(self, score: Iterable[int]):
+        num_below_starting_score = sum(1 for s in score if s < self.starting_points)
+        placement_bonus = self.placement_bonus[num_below_starting_score]
+        uma: float = (self.num_players-1)*(self.total_points-self.starting_points)/1000
+        placement_bonus = [uma-sum(placement_bonus)] + placement_bonus
+        base_scores = [(s-self.total_points)/1000 for s in score]
+        placements = to_placement(base_scores, self.num_players)
+        print(self.placement_bonus, placement_bonus, num_below_starting_score, placements)
+        bonuses = [placement_bonus[i] for i in placements]
+        return apply_delta_scores(base_scores, bonuses)
+                                  
 
 @dataclass
 class GameMetadata:
