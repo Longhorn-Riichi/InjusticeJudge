@@ -1164,7 +1164,7 @@ def dropped_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]],
     ura = score.count_ura()
     if ura > 0:
         # check if placement would have stayed constant had there been no ura
-        orig_placement = to_placement(prev_scores, kyoku.num_players)
+        orig_placement = to_placement(prev_scores, kyoku.num_players, kyoku.round%4)
         orig_points = score.to_points()
         score.add_dora("ura", -ura)
         uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round%4, kyoku.honba, kyoku.riichi_sticks, winner, player))
