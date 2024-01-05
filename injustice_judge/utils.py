@@ -39,8 +39,13 @@ def get_score(han: int, fu: int, is_dealer: bool, is_tsumo: bool, num_players: i
 
 # Add a score delta array [0,1000,-1000,0] to an existing score array [25000,25000,25000,25000]
 apply_delta_scores = lambda scores, delta_score: [round(score + delta, 1) for score, delta in zip(scores, delta_score)]
-# Given a score array, calculate the placement: [10000,30000,20000,40000] -> [3, 1, 2, 0]
-to_placement = lambda scores, num_players: (ixs := sorted(range(num_players), key=lambda x: -scores[x]), [ixs.index(p) for p in range(num_players)])[1]
+def to_placement(scores: Sequence[float], num_players: int, dealer_seat: int) -> List[int]:
+    # Given a score array, calculate the placement: [10000,30000,20000,40000] -> [3, 1, 2, 0]
+    scores_east_first = (*scores[dealer_seat:], *scores[:dealer_seat])
+    ixs = sorted(range(num_players), key=lambda x: -scores_east_first[x])
+    placements_east_first = [ixs.index(p) for p in range(num_players)]
+    dealer_position = (num_players-dealer_seat)%4
+    return placements_east_first[dealer_position:] + placements_east_first[:dealer_position]
 
 def get_taatsu_wait(taatsu: Tuple[int, ...]) -> Set[int]:
     """

@@ -10,7 +10,7 @@ from .classes import CallInfo, GameRules, GameMetadata, Dir
 from .classes2 import Draw, Hand, Kyoku, Ron, Score, Tsumo
 from .constants import Event, Shanten, LIMIT_HANDS, MAJSOUL_YAKU, RIICHICITY_YAKU, TENHOU_LIMITS, TENHOU_YAKU, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, round_name
-from .utils import apply_delta_scores, calc_ko_oya_points, is_mangan, ix_to_tile, normalize_red_five, sorted_hand, to_dora, to_placement
+from .utils import apply_delta_scores, calc_ko_oya_points, is_mangan, ix_to_tile, normalize_red_five, sorted_hand, to_dora
 from .wall import seed_wall, next_wall
 from .yaku import debug_yaku
 from pprint import pprint

@@ -658,7 +658,7 @@ class KyokuState:
         self.add_flag(round % 4, Flags.YOU_ARE_DEALER)
         # give everyone a flag for their placement
         placement_flags = [Flags.YOU_WERE_FIRST, Flags.YOU_WERE_SECOND, Flags.YOU_WERE_THIRD, Flags.YOU_WERE_FOURTH][:self.num_players]
-        for seat, placement in enumerate(to_placement(self.kyoku.start_scores, self.num_players)):
+        for seat, placement in enumerate(to_placement(self.kyoku.start_scores, num_players=self.num_players, dealer_seat=round%4)):
             self.add_flag(seat, placement_flags[placement])
         # add all last flag
         hanchan = self.kyoku.rules.is_hanchan

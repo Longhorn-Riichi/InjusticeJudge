@@ -243,7 +243,11 @@ class GameRules:
     def from_majsoul_detail_rule(cls, num_players: int, rules: Dict[str, Any], mode: int) -> "GameRules":
         # see GameDetailRule in liqi_combined.proto to find all the valid field names
         # note: the python protobuf library converts every name to camelCase
-        print(rules)
+        print("Rules:", rules)
+        if "shunweima2" not in rules and "shunweima3" not in rules and "shunweima4" not in rules:
+            placement_bonus = 5*[[0.0,-15.0] if num_players == 3 else [5.0,-5.0,-15.0]]
+        else:
+            placement_bonus = 5*[[rules.get("shunweima2", 0), rules.get("shunweima3", 0), rules.get("shunweima4", 0)]][:num_players]
         return cls(num_players = num_players,
                    use_red_fives = rules.get("doraCount", 3) > 0,
                    immediate_kan_dora = rules.get("mingDoraImmediatelyOpen", False),
@@ -260,9 +264,9 @@ class GameRules:
                    # mode: 1,2,11,12 = 4p east, 4p south, 3p east, 3p south
                    is_hanchan = mode % 10 == 2,
                    is_sanma = mode > 10,
-                   starting_points = rules.get("init_point", 25000),
-                   total_points = rules.get("jingsuanyuandian", 25000),
-                   placement_bonus = 5*[[rules.get("shunweima2", 0), rules.get("shunweima3", 0), rules.get("shunweima4", 0)]]
+                   starting_points = rules.get("init_point", 35000 if num_players == 3 else 25000),
+                   total_points = rules.get("jingsuanyuandian", 35000 if num_players == 3 else 25000),
+                   placement_bonus = placement_bonus
                    )
     @classmethod
     def from_tenhou_rules(cls, num_players: int, rule: List[str], csrule: List[str]) -> "GameRules":
@@ -302,14 +306,18 @@ class GameRules:
     def from_riichicity_metadata(cls, num_players: int, metadata: Dict[str, Any]) -> "GameRules":
         return cls(num_players = num_players) # TODO
     
-    def apply_placement_bonus(self, score: Iterable[int]):
+    def apply_placement_bonus(self, round: int, score: Iterable[int]):
+        # get the correct uma table
         num_below_starting_score = sum(1 for s in score if s < self.starting_points)
-        placement_bonus = self.placement_bonus[num_below_starting_score]
-        uma: float = (self.num_players-1)*(self.total_points-self.starting_points)/1000
-        placement_bonus = [uma-sum(placement_bonus)] + placement_bonus
+        uma = self.placement_bonus[num_below_starting_score]
+
+        # calculate first place bonus
+        oka: float = (self.num_players-1)*(self.total_points-self.starting_points)/1000
+        placement_bonus = [oka-sum(uma)] + uma
+
+        # apply placement bonus
         base_scores = [(s-self.total_points)/1000 for s in score]
-        placements = to_placement(base_scores, self.num_players)
-        print(self.placement_bonus, placement_bonus, num_below_starting_score, placements)
+        placements = to_placement(base_scores, num_players=self.num_players, dealer_seat=round%4)
         bonuses = [placement_bonus[i] for i in placements]
         return apply_delta_scores(base_scores, bonuses)
                                   
