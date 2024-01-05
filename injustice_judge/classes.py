@@ -278,7 +278,7 @@ class GameRules:
         rule1 = int(rule[2] or "0", 16)
         rule2 = int(csrule[0] or "0", 16)
         rule3 = int(csrule[1] or "0", 16)
-        f0 = lambda s: float(s) or 0
+        f0 = lambda s: float(s or 0)
         return cls(num_players = num_players,
                    use_red_fives = 0x0002 & rule1 == 0,
                    immediate_kan_dora = 0x00000008 & rule2 != 0,
@@ -294,8 +294,8 @@ class GameRules:
                    noten_payment = (int(csrule[16] or 1000), int(csrule[17] or 1500), int(csrule[18] or 3000)),
                    is_hanchan = 0x0008 & rule1 != 0,
                    is_sanma = 0x0010 & rule1 != 0,
-                   starting_points = int(csrule[4]),
-                   total_points = int(csrule[6]),
+                   starting_points = int(csrule[4] or 35000 if num_players == 3 else 25000),
+                   total_points = int(csrule[6] or 35000 if num_players == 3 else 25000),
                    placement_bonus =
                        [[f0(csrule[21]), f0(csrule[22]), f0(csrule[23])],
                         [f0(csrule[24]), f0(csrule[25]), f0(csrule[26])],
