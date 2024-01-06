@@ -1,7 +1,7 @@
 from typing import *
 from .classes import CallInfo, GameRules, Interpretation
 from .classes2 import Kyoku, Hand, Score
-from .constants import Event, Shanten, YakuForWait, LIMIT_HANDS, YAOCHUUHAI
+from .constants import Event, Shanten, YakuForWait, DOUBLE_YAKUMAN, LIMIT_HANDS, YAOCHUUHAI
 from .display import ph, pt, round_name, shanten_name
 from .utils import get_score, get_taatsu_wait, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand
 from pprint import pprint
@@ -596,7 +596,7 @@ def add_yakuman(yaku_for_wait: YakuForWait,
 
             # finally, add all remaining yakuman to our wait
             if len(actual_yakumans) > 0:
-                yaku_for_wait[wait] = [(y, 13) for y in actual_yakumans]
+                yaku_for_wait[wait] = [(y, 26 if y in DOUBLE_YAKUMAN else 13) for y in actual_yakumans]
 
     return yaku_for_wait
 

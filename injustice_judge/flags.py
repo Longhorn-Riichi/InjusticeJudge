@@ -122,6 +122,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOUR_FURITEN_HAND_COULD_HAVE_WON"
     " YOUR_YAKULESS_HAND_COULD_HAVE_WON"
     " YOU_GOT_CHASED"
+    " YOU_GOT_NON_COUNTED_YAKUMAN"
     " YOU_HAD_LIMIT_TENPAI"
     " YOU_LOST_POINTS"
     " YOU_REACHED_TENPAI"
@@ -936,6 +937,8 @@ class KyokuState:
         for flag in limit_hand_flags:
             self.add_global_flag(flag, winner_data)
         self.add_flag(result.winner, Flags.YOU_WON, winner_data)
+        if any(v in {13, 26} for k, v in score.yaku):
+            self.add_flag(result.winner, Flags.YOU_GOT_NON_COUNTED_YAKUMAN, winner_data)
         if self.kyoku.get_ukeire(result.winner) <= 4:
             self.add_global_flag(Flags.WINNER_HAD_BAD_WAIT, winner_data)
         # check for 3+ han from hidden dora

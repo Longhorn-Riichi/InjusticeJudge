@@ -244,7 +244,8 @@ def won_with_five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], 
                         content=f"despite starting at {shanten_name(hand.shanten)} ({hand.to_str(doras=kyoku.doras)})"))]
 
 # Print if you started with 3 dora and won with 3 dora
-@skill(require=[Flags.STARTED_WITH_3_DORA, Flags.YOU_WON])
+@skill(require=[Flags.STARTED_WITH_3_DORA, Flags.YOU_WON],
+        forbid=[Flags.YOU_GOT_NON_COUNTED_YAKUMAN])
 def won_with_3_starting_dora(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     num_dora = data[flags.index(Flags.YOU_WON)]["score_object"].count_dora()
     haipai = data[flags.index(Flags.YOU_WON)]["haipai"]
