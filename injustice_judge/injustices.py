@@ -207,7 +207,6 @@ skill = make_check_decorator("skill")
 def started_with_double_wind(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     hand = data[flags.index(Flags.YOU_WON)]["hand"]
     haipai = data[flags.index(Flags.YOU_WON)]["haipai"]
-    starting_doras = data[flags.index(Flags.YOU_WON)]["starting_doras"]
     wind = [41,42,43,44][player]
     starting_winds = haipai.tiles.count(wind)
     if starting_winds == 2:
