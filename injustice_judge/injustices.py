@@ -902,8 +902,8 @@ def all_tenpai_discards_deal_in(flags: List[Flags], data: List[Dict[str, Any]], 
 ###
 
 TENPAI_STATUS_STRINGS = [
-    ", while you were in riichi (bye-bye riichi stick)"
-    ", while you were tenpai"
+    ", while you were in riichi (bye-bye riichi stick)",
+    ", while you were tenpai",
     " and about to get noten payments"
 ]
 def tenpai_status_string(flags: List[Flags]) -> str:
