@@ -1318,16 +1318,6 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
                         han = win["all_fang_num"]
                         fu = win["all_fu"]
                         score_string = f"{fu}符{han}飜"
-
-                        # temporary stopgap since we don't know all yaku yet
-                        import os
-                        for yaku in win["fang_info"]:
-                            if yaku["fang_type"] not in RIICHICITY_YAKU:
-                                if not os.getenv("debug"):
-                                    RIICHICITY_YAKU[yaku["fang_type"]] = "yaku#" + str(yaku["fang_type"])
-                                else:
-                                    raise Exception("unknown yaku " + str(yaku["fang_type"]) + ", in " + round_name(round, honba) + " with " + str(tiles_in_wall) + " tiles left in wall")
-
                         if any(TRANSLATE[RIICHICITY_YAKU[yaku["fang_type"]]] in YAKUMAN for yaku in win["fang_info"]):
                             score_string = "役満"
                         elif han >= 6 or is_mangan(han, fu):

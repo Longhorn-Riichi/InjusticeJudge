@@ -3,16 +3,13 @@ from pprint import pprint
 from injustice_judge import analyze_game
 from typing import *
 import sys
-import dotenv
-
-dotenv.load_dotenv("config.env")
 
 if __name__ == "__main__":
-    assert len(sys.argv) >= 2, "expected one or two arguments, the tenhou/majsoul/riichicity url, and then seat [0-3] (optional)"
+    assert len(sys.argv) >= 2, "expected one or two arguments, the tenhou url/majsoul link/riichicity id, and then seat [0-3] (optional)"
     link = sys.argv[1]
     players: Set[int] = {int(i) for i in sys.argv[2:]}
-    assert link != "", "expected one or two arguments, the tenhou/majsoul/riichicity url, and then seat [0-3] (optional)"
-    assert all(player in {0,1,2,3} for player in players), "expected second argument to be 0,1,2,3"
+    assert link != "", "expected one or two arguments, the tenhou url/majsoul link/riichicity id, and then seat [0-3] (optional)"
+    assert all(player in {0,1,2,3} for player in players), "expected remaining arguments to include 0 1 2 3"
     print("\n".join(asyncio.run(analyze_game(link, players, look_for={"injustice"}))))
     # print("\n".join(asyncio.run(analyze_game(link, players, look_for={"skill"}))))
     # print("\n".join(asyncio.run(analyze_game(link, players))))
@@ -43,6 +40,7 @@ if __name__ == "__main__":
     # assert calculate_shanten([11,11,11,12,13,21,22,23,25,26,27,37,37])[0] == 0   # 11123m123567p77s  tenpai
     # test_shanten((16,17,18,24,25,26,32,32,33,34,34,53,36), (0, (32,35)))
     # test_shanten((16,18,23,24,25,31,32,33,37,38,39,39,39), (0, (17,)))
+    # test_shanten((12,12,13,13,14,14,15,15,34,34,34,35,36), (0, (12,15,34,37)))
     # print("kuttsuki iishanten:")
     # test_shanten((11,11,11,12,13,21,22,23,25,26,27,28,38), (1.030, (11,14,23,24,25,26,27,28,29,36,37,38,39))) # 11123m1235678p8s  kuttsuki headless iishanten
     # test_shanten((24,24,52,27,28,29,33,34,35,53,37,38,39), (1.032, (23,24,25,26,27,32,33,34,35,36,37))) # 440789p3450789s kuttsuki headless iishanten
