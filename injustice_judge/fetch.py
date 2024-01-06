@@ -1207,15 +1207,19 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
 
     RC_TO_TENHOU_TILE = {
         # pinzu = 1-9
-        1: 21, 2: 22, 3: 23, 4: 24, 5: 25, 6: 26, 7: 27, 8: 28, 9: 29,
+        0x01: 21, 0x02: 22, 0x03: 23, 0x04: 24, 0x05: 25,
+        0x06: 26, 0x07: 27, 0x08: 28, 0x09: 29,
         # souzu = 17-25
-        17: 31, 18: 32, 19: 33, 20: 34, 21: 35, 22: 36, 23: 37, 24: 38, 25: 39,
+        0x11: 31, 0x12: 32, 0x13: 33, 0x14: 34, 0x15: 35,
+        0x16: 36, 0x17: 37, 0x18: 38, 0x19: 39,
         # manzu = 33-41
-        33: 11, 34: 12, 35: 13, 36: 14, 37: 15, 38: 16, 39: 17, 40: 18, 41: 19,
+        0x21: 11, 0x22: 12, 0x23: 13, 0x24: 14, 0x25: 15,
+        0x26: 16, 0x27: 17, 0x28: 18, 0x29: 19,
         # jihai = 16n+1
-        49: 41, 65: 42, 81: 43, 97: 44, 113: 45, 129: 46, 145: 47,
+        0x31: 41, 0x41: 42, 0x51: 43, 0x61: 44, 0x71: 45,
+        0x81: 46, 0x91: 47,
         # red fives = 256 + {5, 21, 37}
-        261: 52, 277: 53, 293: 51
+        0x105: 52, 0x115: 53, 0x125: 51
     }
     rc_to_tenhou_tiles = lambda tiles: tuple(RC_TO_TENHOU_TILE[tile] for tile in tiles)
     with_starting_dealer_0 = lambda lst: lst[starting_dealer_pos:] + lst[:starting_dealer_pos]
@@ -1342,7 +1346,7 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
                         delta_scores = with_starting_dealer_0([p["point_profit"] for p in data["user_profit"]])
                         # print("delta scores: ", delta_scores)
                         result.append(delta_scores)
-                        result.append([seat, last_seat, pao_seat, score_string+point_string, *yakus])
+                        result.append([seat, last_seat if win_type == "ron" else seat, pao_seat, score_string+point_string, *yakus])
                     if data["win_info"][0]["li_bao_card"] is not None:
                         ura_indicators = list(rc_to_tenhou_tiles(data["win_info"][0]["li_bao_card"]))
                     print("result: " + win_type)

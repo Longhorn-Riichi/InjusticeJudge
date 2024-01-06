@@ -214,6 +214,9 @@ RIICHICITY_YAKU = {
     1: "門前清自摸和",        # Fully Concealed Hand
     2: "一発",               # Ippatsu
     3: "嶺上開花",           # After a Kan
+    4: "海底摸月",           # Under the Sea
+    5: "河底撈魚",           # Under the River
+    6: "槍槓",              # Robbing a Kan
     7: "役牌 中",            # Red Dragon (Chun)
     8: "役牌 發",            # Green Dragon (Hatsu)
     9: "役牌 白",            # White Dragon (Haku)
@@ -222,46 +225,41 @@ RIICHICITY_YAKU = {
     12: "一盃口",            # Pure Double Sequence
     13: "平和",              # Pinfu
     14: "断幺九",            # All Simples
+    15: "ダブル立直",         # Double Riichi
     16: "対々和",            # All Triplets
     17: "七対子",            # Seven Pairs
     18: "三暗刻",            # Three Concealed Triplets
+    19: "三槓子",            # Three Quads
+    20: "混老頭",            # All Terminals and Honours
     21: "混全帯幺九",        # Half Outside Hand
     22: "一気通貫",          # Pure Straight
     23: "三色同順",           # Mixed Triple Sequence
+    24: "小三元",           # Little Three Dragons
+    25: "三色同刻",          # Triple Triplets
     26: "純全帯幺九",        # Fully Outside Hand
     27: "混一色",            # Half Flush
     28: "二盃口",            # Twice Pure Double Sequence
     29: "清一色",            # Full Flush
+    31: "天和",              # Blessing of Heaven
+    32: "地和",              # Blessing of Earth
+    33: "人和",              # Hand of Man
+    34: "国士無双",          # Thirteen Orphans
+    35: "国士無双十三面待ち",  # Thirteen-wait Thirteen Orphans
+    36: "九蓮宝燈",          # Nine Gates
+    37: "純正九蓮宝燈",       # True Nine Gates
+    38: "四暗刻",            # Four Concealed Triplets
+    39: "四暗刻単騎",         # Single-wait Four Concealed Triplets
+    40: "四槓子",            # Four Quads
+    41: "清老頭",            # All Terminals
+    42: "字一色",            # All Honors
+    43: "大四喜",            # Four Big Winds
+    44: "小四喜",            # Four Little Winds
+    45: "大三元",            # Big Three Dragons
+    46: "緑一色",            # All Green
     49: "赤ドラ",            # Red Five
     50: "ドラ",              # Dora
     51: "裏ドラ",            # Uradora
     55: "抜きドラ",          # Kita/Nukidora
-
-    # below are unknowns
-    901: "槍槓",             # Robbing a Kan
-    903: "海底摸月",          # Under the Sea
-    904: "河底撈魚",          # Under the River
-    905: "ダブル立直",         # Double Riichi
-    908: "三色同刻",           # Triple Triplets
-    909: "三槓子",            # Three Quads
-    911: "小三元",            # Little Three Dragons
-    912: "混老頭",            # All Terminals and Honours
-    916: "人和",              # Hand of Man
-    917: "天和",              # Blessing of Heaven
-    918: "地和",              # Blessing of Earth
-    919: "大三元",            # Big Three Dragons
-    920: "四暗刻",            # Four Concealed Triplets
-    921: "四暗刻単騎",         # Single-wait Four Concealed Triplets
-    922: "字一色",            # All Honors
-    923: "緑一色",            # All Green
-    924: "清老頭",            # All Terminals
-    925: "九蓮宝燈",          # Nine Gates
-    926: "純正九蓮宝燈",       # True Nine Gates
-    927: "国士無双十三面待ち",  # Thirteen-wait Thirteen Orphans
-    928: "国士無双",          # Thirteen Orphans
-    929: "大四喜",            # Four Big Winds
-    930: "小四喜",            # Four Little Winds
-    931: "四槓子",            # Four Quads
 }
 YAKUMAN = {
     'tenhou',
@@ -291,6 +289,7 @@ DOUBLE_YAKUMAN = {
     'junsei chuurenpoutou',
     'suuankou tanki',
     'koushi musou 13-sided',
+    'daisuushi',
     'daichisei',
 }
 TRANSLATE = {
