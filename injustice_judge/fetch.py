@@ -556,8 +556,9 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any], nickname: Optio
     parsed_metadata = GameMetadata(num_players = num_players,
                                    name = nicknames,
                                    game_score = [result_data[i][1] for i in range(num_players)],
-                                   final_score = [result_data[i][2] for i in range(num_players)],
+                                   final_score = [result_data[i][2]/1000.0 for i in range(num_players)],
                                    rules = GameRules.from_majsoul_detail_rule(num_players, metadata["config"]["mode"]["detailRule"], metadata["config"]["mode"]["mode"]))
+    parsed_metadata.rules.calculate_placement_bonus(parsed_metadata.game_score, parsed_metadata.final_score)
 
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)
     player_seat = nicknames.index(nickname) if nickname in nicknames else None
@@ -1113,8 +1114,9 @@ def parse_tenhou(raw_kyokus: TenhouLog, metadata: Dict[str, Any], nickname: Opti
     parsed_metadata = GameMetadata(num_players = num_players,
                                    name = metadata["name"],
                                    game_score = metadata["sc"][::2],
-                                   final_score = list(map(lambda s: int(1000*s), metadata["sc"][1::2])),
+                                   final_score = metadata["sc"][1::2],
                                    rules = rules)
+    parsed_metadata.rules.calculate_placement_bonus(parsed_metadata.game_score, parsed_metadata.final_score)
 
     if "wall_seed" in metadata:
         seed_wall(metadata["wall_seed"][29:])
@@ -1201,7 +1203,7 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
     all_walls: List[List[int]] = []
     starting_dealer_pos = -1
     game_score: List[int] = []
-    final_score: List[int] = []
+    final_score: List[float] = []
 
     RC_TO_TENHOU_TILE = {
         # pinzu = 1-9
@@ -1363,7 +1365,7 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
                 # these are unsorted, so we need to sort them
                 user_data = sorted(data["user_data"], key=lambda p: player_ids.index(p["user_id"]))
                 game_score = [p["point_num"] for p in user_data]
-                final_score = [p["score"] * 100 for p in user_data]
+                final_score = [p["score"] / 10.0 for p in user_data]
                 pass
             elif ev["eventType"] == 7: # new dora
                 dora_indicators.append(RC_TO_TENHOU_TILE[data["cards"][-1]])
@@ -1389,7 +1391,7 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
                                    game_score = game_score,
                                    final_score = final_score,
                                    rules = GameRules.from_riichicity_metadata(num_players, metadata))
-
+    parsed_metadata.rules.calculate_placement_bonus(game_score, final_score)
 
     all_walls = [[] for _ in all_events] # dummy
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)

@@ -115,6 +115,7 @@ def evaluate_game(kyoku: Kyoku, players: Set[int], player_names: List[str], look
             last_clause = None
             seen_results: Set[Tuple[str, str, str]] = set() # (subject, content)
             current_subject = ""
+            already_said_tenpai_status = False
             for result in result_list:
                 clause = result.clause
                 # skip things we've already said
@@ -139,14 +140,34 @@ def evaluate_game(kyoku: Kyoku, players: Set[int], player_names: List[str], look
 
                 # print verb if verb changed or if subject changed
                 if clause.verb != last_clause.verb or clause.subject != current_subject:
-                    ret += " " + clause.verb
+                    # ad-hoc check to avoid "you dealt in, and you dealt into"
+                    if clause.subject == current_subject and clause.verb == "dealt into" and last_clause.verb == "dealt in":
+                        ret = ret[:-6] # remove ", and"
+                        ret += ", into"
+                    else:
+                        ret += " " + clause.verb
+                else:
+                    # ad-hoc check to avoid "you dealt into X, and Y"
+                    if clause.subject == current_subject and "dealt in" in clause.verb and "dealt in" in last_clause.verb:
+                        ret += " said hand was also"
 
-                # print object always (if any)
+                # print object and content always (if any)
+                content = ""
                 if clause.object is not None:
-                    ret += " " + clause.object
-                # print content always (if any)
+                    content = clause.object
                 if clause.content is not None:
-                    ret += " " + clause.content
+                    if clause.object is not None:
+                        content += " " + clause.content
+                    else:
+                        content = clause.content
+                # ad-hoc check to avoid saying tenpai status string multiple times
+                for s in TENPAI_STATUS_STRINGS:
+                    if s in content:
+                        if already_said_tenpai_status:
+                            content = content.replace(s, "")
+                        already_said_tenpai_status = True
+                        break
+                ret += " " + content
 
                 # if the clause ends on another subject, change current subject to that
                 current_subject = clause.subject
@@ -457,7 +478,7 @@ def gained_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]], 
     ura = score.count_ura()
     if ura > 0:
         # check if placement would have stayed constant had there been no ura
-        orig_placement = to_placement(prev_scores, kyoku.num_players)
+        orig_placement = to_placement(prev_scores, kyoku.num_players, kyoku.round%4)
         orig_points = score.to_points()
         score.add_dora("ura", -ura)
         uraless_placement = apply_delta_scores(prev_scores, score.to_score_deltas(kyoku.round%4, kyoku.honba, kyoku.riichi_sticks, player, won_from))
@@ -821,7 +842,8 @@ def iishanten_with_zero_tiles(flags: List[Flags], data: List[Dict[str, Any]], ky
                         content="zero outs at some point"))]
 
 # Print if everyone immediately threw a dangerous tile after your riichi
-@injustice(require=[Flags.EVERYONE_DISRESPECTED_YOUR_RIICHI])
+@injustice(require=[Flags.EVERYONE_DISRESPECTED_YOUR_RIICHI],
+            forbid=[Flags.YOU_WON])
 def everyone_disrespected_your_riichi(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="your riichi",
@@ -864,7 +886,10 @@ def all_tenpai_discards_deal_in(flags: List[Flags], data: List[Dict[str, Any]], 
                 CheckClause(subject="your hand",
                             subject_description=hand.to_str(doras=kyoku.doras),
                             verb="could only reach",
-                            content=f"{'(furiten) ' if furiten else ''}tenpai by discarding {ph(discards, doras=kyoku.doras)}, but it would deal in, and you dealt in"))]
+                            content=f"{'(furiten) ' if furiten else ''}tenpai by discarding {ph(discards, doras=kyoku.doras)}, but it would deal in")),
+                Injustice(kyoku.round, kyoku.honba, "Injustice",
+                CheckClause(subject="you",
+                            verb="dealt in"))]
     else:
         return [Injustice(kyoku.round, kyoku.honba, "Injustice",
                 CheckClause(subject="your hand",
@@ -876,14 +901,19 @@ def all_tenpai_discards_deal_in(flags: List[Flags], data: List[Dict[str, Any]], 
 ### end game injustices
 ###
 
+TENPAI_STATUS_STRINGS = [
+    ", while you were in riichi (bye-bye riichi stick)"
+    ", while you were tenpai"
+    " and about to get noten payments"
+]
 def tenpai_status_string(flags: List[Flags]) -> str:
     status = ""
     if Flags.YOU_DECLARED_RIICHI in flags and not Flags.YOUR_TENPAI_TILE_DEALT_IN in flags:
-        status = ", while you were in riichi (bye-bye riichi stick)"
+        status = TENPAI_STATUS_STRINGS[0]
     elif Flags.YOU_REACHED_TENPAI in flags:
-        status = ", while you were tenpai"
+        status = TENPAI_STATUS_STRINGS[1]
     if Flags.YOU_REACHED_TENPAI in flags and Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT in flags:
-        status += " and about to get noten payments"
+        status += TENPAI_STATUS_STRINGS[2]
     return status
 
 # Print if your riichi discard passed, but someone stole your riichi stick before your next draw
@@ -1238,7 +1268,7 @@ def could_have_tsumoed(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
     yakuman_str = f" for {' '.join(yakuman_tenpais)} tenpai" if len(yakuman_tenpais) > 0 else ""
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
-                        verb="were waiting on",
+                        verb="ended up waiting on",
                         content=f"{ph(wait, kyoku.doras)}{yakuman_str}, but had the game not ended, you would have drawn {ph(draws, kyoku.doras)}"))]
 
 # Print if, had the game not ended, you would have ronned a riichi player within 5 turns
@@ -1252,5 +1282,5 @@ def could_have_ronned(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyo
     yakuman_str = f" for {' '.join(yakuman_tenpais)} tenpai" if len(yakuman_tenpais) > 0 else ""
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
-                        verb="were waiting on",
+                        verb="ended up waiting on",
                         content=f"{ph(wait, kyoku.doras)}{yakuman_str}, but had the game not ended, {relative_seat_name(player, riichi_player)} who was in riichi would have dropped {ph(draws, kyoku.doras)}"))]

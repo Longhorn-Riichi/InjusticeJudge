@@ -243,9 +243,8 @@ class GameRules:
     def from_majsoul_detail_rule(cls, num_players: int, rules: Dict[str, Any], mode: int) -> "GameRules":
         # see GameDetailRule in liqi_combined.proto to find all the valid field names
         # note: the python protobuf library converts every name to camelCase
-        print("Rules:", rules)
         if "shunweima2" not in rules and "shunweima3" not in rules and "shunweima4" not in rules:
-            placement_bonus = 5*[[0.0,-15.0] if num_players == 3 else [5.0,-5.0,-15.0]]
+            placement_bonus = []
         else:
             placement_bonus = 5*[[rules.get("shunweima2", 0), rules.get("shunweima3", 0), rules.get("shunweima4", 0)]][:num_players]
         return cls(num_players = num_players,
@@ -279,6 +278,14 @@ class GameRules:
         rule2 = int(csrule[0] or "0", 16)
         rule3 = int(csrule[1] or "0", 16)
         f0 = lambda s: float(s or 0)
+        if all(v == "" for v in csrule[21:35]):
+            placement_bonus = []
+        else:
+            placement_bonus = [[f0(csrule[21]), f0(csrule[22]), f0(csrule[23])],
+                               [f0(csrule[24]), f0(csrule[25]), f0(csrule[26])],
+                               [f0(csrule[27]), f0(csrule[28]), f0(csrule[29])],
+                               [f0(csrule[30]), f0(csrule[31]), f0(csrule[32])],
+                               [f0(csrule[33]), f0(csrule[34]), f0(csrule[35])]]
         return cls(num_players = num_players,
                    use_red_fives = 0x0002 & rule1 == 0,
                    immediate_kan_dora = 0x00000008 & rule2 != 0,
@@ -296,27 +303,28 @@ class GameRules:
                    is_sanma = 0x0010 & rule1 != 0,
                    starting_points = int(csrule[4] or 35000 if num_players == 3 else 25000),
                    total_points = int(csrule[6] or 35000 if num_players == 3 else 25000),
-                   placement_bonus =
-                       [[f0(csrule[21]), f0(csrule[22]), f0(csrule[23])],
-                        [f0(csrule[24]), f0(csrule[25]), f0(csrule[26])],
-                        [f0(csrule[27]), f0(csrule[28]), f0(csrule[29])],
-                        [f0(csrule[30]), f0(csrule[31]), f0(csrule[32])],
-                        [f0(csrule[33]), f0(csrule[34]), f0(csrule[35])]])
+                   placement_bonus = placement_bonus)
     @classmethod
     def from_riichicity_metadata(cls, num_players: int, metadata: Dict[str, Any]) -> "GameRules":
         return cls(num_players = num_players) # TODO
     
+    def calculate_placement_bonus(self, final_points: List[int], final_scores: List[float]):
+        if len(self.placement_bonus) == 0:
+            to_bonus = lambda p, s: round(s-float((p-self.starting_points)/1000))
+            bonuses = [to_bonus(p, s) for p, s in zip(final_points, final_scores)]
+            self.placement_bonus = 5*[list(reversed(list(sorted(bonuses))))[1:]]
+
     def apply_placement_bonus(self, round: int, score: Iterable[int]):
         # get the correct uma table
         num_below_starting_score = sum(1 for s in score if s < self.starting_points)
         uma = self.placement_bonus[num_below_starting_score]
 
         # calculate first place bonus
-        oka: float = (self.num_players-1)*(self.total_points-self.starting_points)/1000
+        oka: float = (self.num_players-1)*(self.total_points-self.starting_points)/1000.0
         placement_bonus = [oka-sum(uma)] + uma
 
         # apply placement bonus
-        base_scores = [(s-self.total_points)/1000 for s in score]
+        base_scores = [(s-self.total_points)/1000.0 for s in score]
         placements = to_placement(base_scores, num_players=self.num_players, dealer_seat=round%4)
         bonuses = [placement_bonus[i] for i in placements]
         return apply_delta_scores(base_scores, bonuses)
@@ -328,5 +336,5 @@ class GameMetadata:
     num_players: int
     name: List[str]                  # name of each player indexed by seat
     game_score: List[int]            # final scores (points) indexed by seat
-    final_score: List[int]           # final scores (points plus uma) indexed by seat
+    final_score: List[float]         # final scores (points plus uma) indexed by seat
     rules: GameRules                 # game rules
