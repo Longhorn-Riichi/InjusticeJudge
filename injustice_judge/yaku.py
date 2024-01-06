@@ -42,7 +42,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Shanten, is_clos
     if shanten[0] != 0:
         return {}
     waits = interpretation.get_waits()
-    assert len(waits) > 0, "hand is tenpai, but has no waits?"
+    assert len(waits) > 0, f"hand {ph(interpretation.hand)} is tenpai, but has no waits?"
 
     # remove all red fives from the interpretation
     taatsu, ron_fu, tsumo_fu, sequences, triplets, pair = interpretation.unpack()
@@ -369,7 +369,7 @@ def add_tsumo_yaku(yaku_for_wait: YakuForWait, interpretation: Interpretation, i
         our_triplets = {tuple(normalize_red_fives(tri)) for tri in triplets}
         num_open_triplets = len(our_triplets & called_triplets)
         if len(triplets) - num_open_triplets >= 2:
-            for wait in waits & {taatsu[0], pair[0]}:
+            for wait in waits & {*taatsu, *pair}:
                 if ("sanankou", 2) not in yaku_for_wait[wait]:
                     yaku_for_wait[wait].append(("sanankou", 2))
 
@@ -398,7 +398,7 @@ is_kokushi: CheckYakumanFunc = lambda hand: len(YAOCHUUHAI.intersection(hand.til
 
 # suuankou tenpai if hand is closed and we have 4 triplets, or 3 triplets and two pairs
 # which is to say, 3+ triplets + at most one unpaired tile
-is_suuankou: CheckYakumanFunc = lambda hand: hand.closed_part == hand.tiles and (mults := list(Counter(hand.tiles).values()), mults.count(3) >= 3 and mults.count(1) <= 1)[1]
+is_suuankou: CheckYakumanFunc = lambda hand: all(call.type == "ankan" for call in hand.calls) and (mults := list(Counter(hand.tiles).values()), mults.count(3) >= 3 and mults.count(1) <= 1)[1]
 
 # shousuushi if we have exactly 10 winds (counting each wind at most 3 times)
 # OR 11 tiles of winds + no pair (i.e. only 6 kinds of tiles in hand)
@@ -541,6 +541,7 @@ def add_yakuman(yaku_for_wait: YakuForWait,
         if is_tsumo: # tenhou/chiihou
             if is_dealer:
                 yakumans.add("tenhou")
+                waits = set(normalize_red_fives(hand.tiles))
             elif not is_dealer:
                 yakumans.add("chiihou")
             UPGRADES = {
@@ -552,7 +553,7 @@ def add_yakuman(yaku_for_wait: YakuForWait,
                 if k in yakumans:
                     yakumans.remove(k)
                     yakumans.add(v)
-        elif use_renhou: # renhou
+        elif len(yakumans) == 0 and use_renhou: # renhou
             # compare our current yaku to renhou
             # if renhou is equal or better, then we replace it with renhou
             for wait in waits:
@@ -562,16 +563,17 @@ def add_yakuman(yaku_for_wait: YakuForWait,
     if len(yakumans) > 0:
         for wait in waits:
             actual_yakumans = yakumans.copy()
+            tiles = tuple(normalize_red_fives(hand.tiles))
 
             # handle yasume possibilities
 
             # daisangen with 2 dragon triplets, you shanpon wait on the third but get the non-dragon wait
-            num_dragons = sum(min(3, hand.tiles.count(tile)) for tile in {45,46,47})
+            num_dragons = sum(min(3, tiles.count(tile)) for tile in {45,46,47})
             if "daisangen" in actual_yakumans and num_dragons == 8 and wait not in {45,46,47}:
                 actual_yakumans.remove("daisangen")
 
             # daisuushi with 11 winds, you shanpon wait on the final wind but get the non-wind wait
-            num_winds = sum(min(3, hand.tiles.count(tile)) for tile in {41,42,43,44})
+            num_winds = sum(min(3, tiles.count(tile)) for tile in {41,42,43,44})
             if "daisuushi" in actual_yakumans and num_winds == 11 and wait not in {41,42,43,44}:
                 actual_yakumans.remove("daisuushi")
                 actual_yakumans.add("shousuushi")
@@ -581,13 +583,13 @@ def add_yakuman(yaku_for_wait: YakuForWait,
                 actual_yakumans.remove("ryuuisou")
 
             # suuankou with 3 triplets, you shanpon wait on the fourth but did not tsumo
-            if "suuankou" in actual_yakumans and not is_tsumo and list(Counter(hand.tiles).values()).count(3) == 3:
+            if "suuankou" in actual_yakumans and not is_tsumo and list(Counter(tiles).values()).count(3) == 3:
                 actual_yakumans.remove("suuankou")
 
             # chuuren poutou but your final wait doesn't complete the set:
             if "chuurenpoutou" in actual_yakumans:
                 CHUUREN_TILES = Counter([1,1,1,2,3,4,5,6,7,8,9,9,9])
-                chuuren_repr = Counter([t % 10 for t in normalize_red_fives(hand.tiles)])
+                chuuren_repr = Counter([t % 10 for t in normalize_red_fives(tiles)])
                 [expected_wait] = (CHUUREN_TILES - (CHUUREN_TILES & chuuren_repr)).keys()
                 if wait != expected_wait:
                     actual_yakumans.remove("chuurenpoutou")
@@ -638,11 +640,11 @@ def get_yaku(hand: Hand,
     if not rules.double_wind_4_fu:
         yakuhai = tuple(set(yakuhai)) # remove duplicates
     is_closed_hand = len(hand.closed_part) == 13
-    for interpretation in Interpretation(hand.hidden_part, calls=tuple(hand.calls)) \
-            .generate_all_interpretations(yakuhai=yakuhai, is_closed_hand=is_closed_hand):
+
+    def process_interpretation(interpretation: Interpretation):
         # print("========")
         # for k, v in best_score.items():
-        #     print(f"{pt(k)}, {v.hand!s}")
+        #     print(f"{pt(k)}, {v.hand!s}, {v.yaku}")
         yaku_for_wait: YakuForWait = get_stateless_yaku(interpretation, hand.shanten, is_closed_hand)
         # pprint(yaku_for_wait)
         yaku_for_wait = add_stateful_yaku(yaku_for_wait, hand, events, doras, uras, round, seat, yakuhai, is_last_tile)
@@ -651,8 +653,8 @@ def get_yaku(hand: Hand,
         if check_tsumos:
             tsumo_yaku = add_tsumo_yaku(yaku_for_wait.copy(), interpretation, is_closed_hand)
             tsumo_yaku = add_yakuman(yaku_for_wait, hand, events, round, seat, is_tsumo=True, use_renhou=rules.renhou)
+            # pprint(tsumo_yaku)
         yaku_for_wait = add_yakuman(yaku_for_wait, hand, events, round, seat, is_tsumo=False, use_renhou=rules.renhou)
-        # pprint(yaku_for_wait)
 
         # if `interpretations.hand` is a pair, it's a shanpon wait
         # if it's a terminal pair then it's +4 fu for ron and +8 for tsumo
@@ -685,6 +687,19 @@ def get_yaku(hand: Hand,
         # for k, v in best_score.items():
         #     print(f"{pt(k)}, {v!s}")
         # print("========")
+
+    is_tenhou = not any(event_type == "discard" for _, event_type, *_ in events)
+    if is_tenhou: # for tenhou we'll try every possible wait
+        tenhou_draw = next(event_data[0] for _, event_type, *event_data in events if event_type == "draw")
+        tiles = tuple(sorted_hand((*hand.tiles, tenhou_draw)))
+        for i in range(len(tiles)):
+            for interpretation in Interpretation((*tiles[:i], *tiles[i+1:]), calls=()) \
+                    .generate_all_interpretations(yakuhai=yakuhai, is_closed_hand=True):
+                process_interpretation(interpretation)
+    else:
+        for interpretation in Interpretation(hand.hidden_part, calls=tuple(hand.calls)) \
+                .generate_all_interpretations(yakuhai=yakuhai, is_closed_hand=is_closed_hand):
+            process_interpretation(interpretation)
     return best_score
 
 def get_final_yaku(kyoku: Kyoku,
