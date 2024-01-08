@@ -240,6 +240,7 @@ RIICHICITY_YAKU = {
     27: "混一色",            # Half Flush
     28: "二盃口",            # Twice Pure Double Sequence
     29: "清一色",            # Full Flush
+    30: "流し満貫",          # Nagashi Mangan
     31: "天和",              # Blessing of Heaven
     32: "地和",              # Blessing of Earth
     33: "人和",              # Hand of Man
@@ -256,10 +257,16 @@ RIICHICITY_YAKU = {
     44: "小四喜",            # Four Little Winds
     45: "大三元",            # Big Three Dragons
     46: "緑一色",            # All Green
+    47: "無發綠一色",         # Chinryuusou
+    48: "八連荘",            # Paarenchan
     49: "赤ドラ",            # Red Five
     50: "ドラ",              # Dora
     51: "裏ドラ",            # Uradora
+    52: "開立直",            # Open Riichi
+    53: "開ダブル立直",       # Open Double Riichi
+    54: "開立直",            # Open Riichi
     55: "抜きドラ",          # Kita/Nukidora
+    56: "役牌:北",           # North Wind
 }
 YAKUMAN = {
     'tenhou',
@@ -284,6 +291,7 @@ YAKUMAN = {
     'daisuurin',
     'ishino uenimo sannan',
     'daichisei',
+    'chinryuusou',
 }
 DOUBLE_YAKUMAN = {
     'junsei chuurenpoutou',
@@ -366,6 +374,9 @@ TRANSLATE = {
     "四暗刻単騎": "suuankou tanki",
     "国士無双十三面待ち": "koushi musou 13-sided",
     "大四喜": "daisuushi",
+    "清緑色": "chinryuusou",
+    "開立直": "open riichi",
+    "開ダブル立直": "open double riichi",
     "燕返し": "tsubame gaeshi",
     "槓振り": "kanburi",
     "十二落抬": "shiiaruraotai",

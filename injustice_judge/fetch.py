@@ -1341,6 +1341,18 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
                         ura_indicators = list(rc_to_tenhou_tiles(data["win_info"][0]["li_bao_card"]))
                     print("result: " + win_type)
                     print("yaku:", data["win_info"][0]["fang_info"])
+                elif data["end_type"] == 2: # four wind draw
+                    result = ["四風連打"]
+                    print("result: four wind draw")
+                elif data["end_type"] == 3: # four kan draw
+                    result = ["四槓散了"]
+                    print("result: four kan draw")
+                elif data["end_type"] == 4: # four riichi draw
+                    result = ["四家立直"]
+                    print("result: four riichi draw")
+                elif data["end_type"] == 5: # triple ron draw
+                    result = ["三家和了"]
+                    print("result: triple ron draw")
                 elif data["end_type"] == 6: # kyuushu kyuuhai
                     result = ["九種九牌"]
                     print("result: kyuushu kyuuhai")
