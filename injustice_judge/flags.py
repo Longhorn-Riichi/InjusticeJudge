@@ -4,9 +4,8 @@ from dataclasses import dataclass, field
 from .constants import Event, Shanten, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, print_pond, round_name
 from enum import Enum
-from .utils import apply_delta_scores, get_score, is_mangan, normalize_red_five, normalize_red_fives, to_dora_indicator, to_placement
+from .utils import apply_delta_scores, get_score, is_mangan, is_safe, normalize_red_five, normalize_red_fives, to_dora_indicator, to_placement
 from .wall import print_wall, get_hidden_dead_wall, get_remaining_draws
-from .wwyd import is_safe
 from .yaku import get_final_yaku, get_yaku, get_yakuman_tenpais, get_yakuman_waits
 from typing import *
 from pprint import pprint
@@ -696,20 +695,21 @@ class KyokuState:
                         draws = draws[:5]
                     if not set(wait).isdisjoint(set(normalize_red_fives(draws))):
                         self.add_flag(player, Flags.COULD_HAVE_TSUMOED, {"wait": wait, "draws": draws, "yakuman_tenpais": yakuman_tenpais})
-                    # check if a riichi player would have drawn the tile
-                    for j in range(self.num_players):
-                        riichi_player = (seat+j+1)%self.num_players
-                        if player == riichi_player or not self.at[riichi_player].in_riichi:
-                            continue
-                        riichi_wait = self.at[riichi_player].hand.shanten[1]
-                        draws = get_remaining_draws(wall=self.kyoku.wall,
-                                                    tiles_in_wall=self.tiles_in_wall - j,
-                                                    sanma=self.num_players == 3,
-                                                    num_kans_kitas=self.num_kans + self.num_kitas)
-                        if len(yakuman_tenpais) == 0:
-                            draws = draws[:5]
-                        if not (set(wait) - set(riichi_wait)).isdisjoint(set(normalize_red_fives(draws))):
-                            self.add_flag(player, Flags.COULD_HAVE_RONNED, {"riichi_player": riichi_player, "wait": wait, "draws": draws, "yakuman_tenpais": yakuman_tenpais})
+                    # check if a riichi player would have drawn the tile and we could call ron on it
+                    if not self.at[player].furiten:
+                        for j in range(self.num_players):
+                            riichi_player = (seat+j+1)%self.num_players
+                            if player == riichi_player or not self.at[riichi_player].in_riichi:
+                                continue
+                            riichi_wait = self.at[riichi_player].hand.shanten[1]
+                            draws = get_remaining_draws(wall=self.kyoku.wall,
+                                                        tiles_in_wall=self.tiles_in_wall - j,
+                                                        sanma=self.num_players == 3,
+                                                        num_kans_kitas=self.num_kans + self.num_kitas)
+                            if len(yakuman_tenpais) == 0:
+                                draws = draws[:5]
+                            if not (set(wait) - set(riichi_wait)).isdisjoint(set(normalize_red_fives(draws))):
+                                self.add_flag(player, Flags.COULD_HAVE_RONNED, {"riichi_player": riichi_player, "wait": wait, "draws": draws, "yakuman_tenpais": yakuman_tenpais})
 
     def process_result(self, i: int, seat: int, event_type: str, result_type: str, *results: Union[Ron, Tsumo, Draw]) -> None:
         # check if the last discard was a riichi (it must have dealt in)
@@ -842,7 +842,7 @@ class KyokuState:
                 if self.at[seat].hand.shanten[0] == 0:
                     in_dead_wall = sum(dead_wall.count(tile) for tile in self.at[seat].hand.shanten[1])
                     ukeire = self.kyoku.get_ukeire(seat)
-                    if in_dead_wall >= (ukeire+1) // 2:
+                    if ukeire > 0 and in_dead_wall >= (ukeire+1) // 2:
                         self.add_flag(seat, Flags.WAIT_WAS_IN_DEAD_WALL,
                                  {"wait": self.at[seat].hand.shanten[1],
                                   "ukeire": ukeire,

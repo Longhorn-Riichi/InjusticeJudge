@@ -5,7 +5,7 @@ from enum import Enum
 from typing import *
 from .display import ph, pt, relative_seat_name, round_name, shanten_name
 from .flags import Flags, determine_flags
-from .utils import apply_delta_scores, to_placement
+from .utils import apply_delta_scores, to_placement, normalize_red_fives
 from pprint import pprint
 
 # This file provides `evaluate_game`, which is called by `__init__.py`
@@ -1266,10 +1266,16 @@ def could_have_tsumoed(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
     draws = data[flags.index(Flags.COULD_HAVE_TSUMOED)]["draws"]
     yakuman_tenpais = data[flags.index(Flags.COULD_HAVE_TSUMOED)]["yakuman_tenpais"]
     yakuman_str = f" for {' '.join(yakuman_tenpais)} tenpai" if len(yakuman_tenpais) > 0 else ""
+
+    earliest_winning_draw_index = min(draws.index(w) for w in normalize_red_fives(wait) if w in draws)
+    if earliest_winning_draw_index == 0:
+        index_string = "on the very next turn"
+    else:
+        index_string = f"in {earliest_winning_draw_index+1} turns"
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="ended up waiting on",
-                        content=f"{ph(wait, kyoku.doras)}{yakuman_str}, but had the game not ended, you would have drawn {ph(draws, kyoku.doras)}"))]
+                        content=f"{ph(wait, kyoku.doras)}{yakuman_str}, and had the game not ended by {kyoku.result[0]}, you would have drawn {pt(draws[earliest_winning_draw_index], kyoku.doras)} {index_string}"))]
 
 # Print if, had the game not ended, you would have ronned a riichi player within 5 turns
 @injustice(require=[Flags.COULD_HAVE_RONNED],
@@ -1280,7 +1286,13 @@ def could_have_ronned(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyo
     yakuman_tenpais = data[flags.index(Flags.COULD_HAVE_RONNED)]["yakuman_tenpais"]
     riichi_player = data[flags.index(Flags.COULD_HAVE_RONNED)]["riichi_player"]
     yakuman_str = f" for {' '.join(yakuman_tenpais)} tenpai" if len(yakuman_tenpais) > 0 else ""
+
+    earliest_winning_draw_index = min(draws.index(w) for w in normalize_red_fives(wait) if w in draws)
+    if earliest_winning_draw_index == 0:
+        index_string = "on the very next turn"
+    else:
+        index_string = f"in {earliest_winning_draw_index+1} turns"
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="ended up waiting on",
-                        content=f"{ph(wait, kyoku.doras)}{yakuman_str}, but had the game not ended, {relative_seat_name(player, riichi_player)} who was in riichi would have dropped {ph(draws, kyoku.doras)}"))]
+                        content=f"{ph(wait, kyoku.doras)}{yakuman_str}, and had the game not ended by {kyoku.result[0]}, {relative_seat_name(player, riichi_player)}'s riichi would have forced them to drop {pt(draws[earliest_winning_draw_index], kyoku.doras)} {index_string}"))]

@@ -1,6 +1,6 @@
 import functools
 import itertools
-from .constants import MANZU, PINZU, SOUZU, PRED, SUCC, DORA, DORA_INDICATOR, TOGGLE_RED_FIVE, TRANSLATE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, OYA_RON_SCORE, KO_RON_SCORE
+from .constants import MANZU, PINZU, SOUZU, JIHAI, PRED, SUCC, DORA, DORA_INDICATOR, TOGGLE_RED_FIVE, TRANSLATE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, OYA_RON_SCORE, KO_RON_SCORE
 from typing import *
 
 # This file contains a bunch of utility functions that don't really belong anywhere else.
@@ -97,4 +97,27 @@ def to_dora(dora_indicator: int, num_players: int) -> int:
     return 19 if num_players == 3 and dora_indicator == 11 else DORA[dora_indicator]
 def to_dora_indicator(dora: int, num_players: int) -> int:
     return 11 if num_players == 3 and dora == 19 else DORA_INDICATOR[dora]
-    
+
+SUJI_VALUES = {1: (4,), 2: (5,), 3: (6,), 4: (1,7), 5: (2,8), 6: (3,9), 7: (4,), 8: (5,), 9: (6,)}
+SUJI = {k+n: tuple(x+n for x in v) for k, v in SUJI_VALUES.items() for n in {10,20,30}}
+def is_safe(tile: int, opponent_genbutsu: Set[int], visible_tiles: List[int]) -> bool:
+    """Returns true if the tile is any of genbutsu/suji/one-chance."""
+    # genbutsu
+    if tile in opponent_genbutsu:
+        return True
+    if tile not in JIHAI:
+        # suji
+        if all(suji in opponent_genbutsu for suji in SUJI[normalize_red_five(tile)]):
+            return True
+        # one-chance
+        # check all possible taatsu waiting on this tile
+        # if every taatsu is one-chance or no-chance then consider it safe
+        possible_taatsus = ((PRED[PRED[tile]], PRED[tile]), (PRED[tile], SUCC[tile]), (SUCC[tile], SUCC[SUCC[tile]]))
+        if all(any(visible_tiles.count(tile) >= 3 for tile in taatsu) for taatsu in possible_taatsus if 0 not in taatsu):
+            return True
+    else:
+        # check if there's 3 copies already
+        if visible_tiles.count(tile) >= 3:
+            return True
+
+    return False

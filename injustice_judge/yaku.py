@@ -215,7 +215,7 @@ def get_stateless_yaku(interpretation: Interpretation, shanten: Shanten, is_clos
     #   is handled in add_tsumo_yaku
     if len(triplets) >= 3:
         # check they are all closed
-        called_triplets = {tuple(normalize_red_fives(call.tiles[:3])) for call in interpretation.calls if call.type != "ankan"}
+        called_triplets = {tuple(normalize_red_fives(call.tiles[:3])) for call in interpretation.calls if call.type in {"pon", "kakan", "minkan"}}
         our_triplets = {tuple(normalize_red_fives(tri)) for tri in triplets}
         num_open_triplets = len(our_triplets & called_triplets)
         if len(triplets) - num_open_triplets >= 3:
