@@ -62,7 +62,7 @@ def shanten_name(shanten: Shanten) -> str:
     if shanten[0] >= 2:
         return SHANTEN_NAMES[shanten[0]]
     else:
-        return SHANTEN_NAMES[shanten[0]] + " accepting " + ph(shanten[1])
+        return SHANTEN_NAMES[shanten[0]] + " (accepting " + ph(shanten[1]) + ")"
 
 DISCORD_TILES = {
     11: "<:1m:1142707135021600830>",
