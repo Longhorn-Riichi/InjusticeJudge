@@ -1,4 +1,4 @@
-from .classes2 import Kyoku, Ron, Score, Tsumo
+from .classes2 import Hand, Kyoku, Ron, Score, Tsumo
 from .constants import Shanten, PLACEMENTS, SHANTEN_NAMES
 from dataclasses import dataclass
 from enum import Enum
@@ -583,6 +583,8 @@ def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
                 CheckClause(subject="you",
                                 verb="started with",
                                 object=f"{shanten_name(hand.shanten)}{all_last_str} {hand.to_str(doras=kyoku.doras)}"))]
+    else:
+        return []
 
 # Print if you started with 7-8 types of terminals and couldn't gain points as a result
 @injustice(require=[Flags.SEVEN_TERMINAL_START],

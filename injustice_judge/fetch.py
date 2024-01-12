@@ -1155,6 +1155,8 @@ async def parse_game_link(link: str, specified_players: Set[int] = set(), nickna
             specified_players = {parsed_player_seat}
         elif player is not None:
             specified_players = {player}
+        else:
+            specified_players = {0}
     return kyokus, parsed_metadata, specified_players
 
 def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, Any]]:
