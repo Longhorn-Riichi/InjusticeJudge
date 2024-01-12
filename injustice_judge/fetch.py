@@ -1263,7 +1263,6 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
             elif ev["eventType"] == 2: # start game or tenpai opportunity or draw
                 if data["in_card"] == 0:
                     if data["is_first_xun_in"]: # start game
-                        print("\n", round_name(round, honba))
                         starting_draw = haipai[round%4][-1]
                         haipai[round%4] = haipai[round%4][:-1]
                         for i, hand in enumerate(haipai):
@@ -1272,8 +1271,6 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
                         events.append((seat, "draw", starting_draw))
                     else: # tenpai opportunity
                         pass
-                        # from pprint import pprint
-                        # pprint(data)
                 else: # draw
                     tile = RC_TO_TENHOU_TILE[data["in_card"]]
                     tiles_in_wall -= 1
@@ -1334,34 +1331,24 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
                         fan_str = lambda yaku: f"{RIICHICITY_YAKU[yaku['fang_type']]}({'役満' if TRANSLATE[RIICHICITY_YAKU[yaku['fang_type']]] in YAKUMAN else str(yaku['fang_num'])+'飜'})"
                         yakus = [name for _, name in sorted((yaku['fang_type'], fan_str(yaku)) for yaku in win["fang_info"])]
                         delta_scores = with_starting_dealer_0([p["point_profit"] for p in data["user_profit"]])
-                        # print("delta scores: ", delta_scores)
                         result.append(delta_scores)
                         result.append([seat, last_seat if win_type == "ron" else seat, pao_seat, score_string+point_string, *yakus])
                     if data["win_info"][0]["li_bao_card"] is not None:
                         ura_indicators = list(rc_to_tenhou_tiles(data["win_info"][0]["li_bao_card"]))
-                    print("result: " + win_type)
-                    print("yaku:", data["win_info"][0]["fang_info"])
                 elif data["end_type"] == 2: # four wind draw
                     result = ["四風連打"]
-                    print("result: four wind draw")
                 elif data["end_type"] == 3: # four kan draw
                     result = ["四槓散了"]
-                    print("result: four kan draw")
                 elif data["end_type"] == 4: # four riichi draw
                     result = ["四家立直"]
-                    print("result: four riichi draw")
                 elif data["end_type"] == 5: # triple ron draw
                     result = ["三家和了"]
-                    print("result: triple ron draw")
                 elif data["end_type"] == 6: # kyuushu kyuuhai
                     result = ["九種九牌"]
-                    print("result: kyuushu kyuuhai")
                 elif data["end_type"] == 7: # ryuukyoku
                     result = ["流局"]
                     delta_scores = with_starting_dealer_0([p["point_profit"] for p in data["user_profit"]])
-                    # print("delta scores: ", delta_scores)
                     result.append(delta_scores)
-                    print("result: ryuukyoku")
                 else:
                     import os
                     if os.getenv("debug"):
