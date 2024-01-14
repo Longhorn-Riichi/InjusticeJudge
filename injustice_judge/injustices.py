@@ -342,10 +342,7 @@ def won_by_pon_pon_ron(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
 def head_bumped_someone(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     waiters = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.SOMEONE_WAITED_ON_WINNING_TILE}
     winners = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.WINNER}
-    folders = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.SOMEONE_FOLDED_FROM_TENPAI}
-    yakuless = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.SOMEONES_YAKULESS_HAND_COULD_HAVE_WON}
-    furitens = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.SOMEONES_FURITEN_HAND_COULD_HAVE_WON}
-    got_head_bumped = waiters - (winners - folders - yakuless - furitens)
+    got_head_bumped = waiters - winners
     if len(got_head_bumped) >= 1:
         return [Skill(kyoku.round, kyoku.honba, "Skill",
                 CheckClause(subject="you",
@@ -443,10 +440,12 @@ def won_with_naked_tanki(flags: List[Flags], data: List[Dict[str, Any]], kyoku: 
                         verb="won",
                         content=f"with a naked tanki wait"))]
 
+@skill(require=[Flags.LAST_CALL_TENPAI, Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.YOU_GAINED_POINTS])
 @skill(require=[Flags.LAST_DRAW_TENPAI, Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.YOU_GAINED_POINTS])
 def last_draw_tenpai(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    call_or_draw = "call" if Flags.LAST_CALL_TENPAI in flags else "draw"
     return [Skill(kyoku.round, kyoku.honba, "Skill",
-        CheckClause(subject="your very last draw",
+        CheckClause(subject=f"your very last {call_or_draw}",
                     verb="gave",
                     content="you tenpai, and you received noten payments for it"))]
 
@@ -525,6 +524,29 @@ def won_to_deny_three_dora(flags: List[Flags], data: List[Dict[str, Any]], kyoku
     else:
         return []
 
+@skill(require=[Flags.DREW_LAST_HONOR_AFTER_SKIPPING_THIRD])
+def drew_last_honor_after_skipping_third(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    tile = data[flags.index(Flags.DREW_LAST_HONOR_AFTER_SKIPPING_THIRD)]["tile"]
+    call_direction = data[flags.index(Flags.DREW_LAST_HONOR_AFTER_SKIPPING_THIRD)]["call_direction"]
+    turns_ago = data[flags.index(Flags.DREW_LAST_HONOR_AFTER_SKIPPING_THIRD)]["turns_ago"]
+    dir_map = {0: "self", 1: "shimocha", 2: "toimen", 3: "kamicha"}
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="skipped calling",
+                        content=f"{pt(tile, kyoku.doras)} from {dir_map[call_direction]}, only to draw into {ph((tile,tile,tile), kyoku.doras)} {turns_ago} turns later"))]
+
+@skill(require=[Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.YOU_SKIPPED_RON])
+@skill(require=[Flags.GAME_ENDED_WITH_RYUUKYOKU, Flags.YOU_SKIPPED_TSUMO])
+def you_skipped_win_but_got_noten_payments(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    win_map = {Flags.YOU_SKIPPED_RON: "ron", Flags.YOU_SKIPPED_TSUMO: "tsumo"}
+    all_wins = [win_map[flag] for flag in flags if flag in win_map]
+    num_skips = len(all_wins)
+    call_string = ", ".join(all_wins)
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="skipped calling",
+                        content=f"{call_string} in order to get noten payments"))]
+
 ###
 ### final round skills
 ###
@@ -597,17 +619,6 @@ def seven_terminal_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: 
                             verb="started with",
                             content=f"{num_types} types of terminal/honor tiles"))]
     return []
-
-# @injustice(require=[Flags.STARTED_WITH_TWO_147_SHAPES],
-#             forbid=[])
-# def started_with_two_147_shapes(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-#     hand = data[flags.index(Flags.STARTED_WITH_TWO_147_SHAPES)]["hand"]
-#     num = data[flags.index(Flags.STARTED_WITH_TWO_147_SHAPES)]["num"]
-#     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
-#             CheckClause(subject="you",
-#                             verb="started with",
-#                             object=f"{num} 1-4-7 shapes",
-#                             content=f"in your hand ({ph(hand)})"))]
 
 # Print if you were still at bad shanten after the first row of discards and couldn't gain points as a result
 @injustice(require=[Flags.FOUR_SHANTEN_AFTER_FIRST_ROW],
@@ -827,24 +838,6 @@ def against_triple_riichi(flags: List[Flags], data: List[Dict[str, Any]], kyoku:
             CheckClause(subject="you",
                         verb="were against",
                         object="a triple riichi, and dealt in"))]
-
-# # Print if your 3-shanten start was slower than someone else's 5-shanten start
-# @injustice(require=[Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN],
-#            forbid=[Flags.YOU_REACHED_TENPAI])
-# def your_3_shanten_slower_than_5_shanten(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-#     their_seat = data[flags.index(Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN)]["seat"]
-#     their_shanten = data[flags.index(Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN)]["their_shanten"]
-#     your_shanten = data[flags.index(Flags.YOUR_3_SHANTEN_SLOWER_THAN_5_SHANTEN)]["your_shanten"]
-#     if Flags.YOU_REACHED_TENPAI in flags:
-#         return [Injustice(kyoku.round, kyoku.honba, "Injustice",
-#                 CheckClause(subject=f"your {SHANTEN_NAMES[your_shanten]} starting hand",
-#                             verb="reached tenpai after",
-#                             content=f"{relative_seat_name(player, their_seat)} who started from {SHANTEN_NAMES[their_shanten]}"))]
-#     else:
-#         return [Injustice(kyoku.round, kyoku.honba, "Injustice",
-#                 CheckClause(subject=f"your {SHANTEN_NAMES[your_shanten]} starting hand",
-#                             verb="couldn't reach tenpai,",
-#                             content=f"yet {relative_seat_name(player, their_seat)}'s {SHANTEN_NAMES[their_shanten]} starting hand did"))]
 
 # Print if you were ever iishanten with zero tiles left
 @injustice(require=[Flags.IISHANTEN_WITH_ZERO_TILES])
