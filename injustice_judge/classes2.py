@@ -272,7 +272,7 @@ class Score:
                 payer = pao_seat
         if direct_hit: # either ron or tsumo pao or remaining ron pao payment
             assert payer is not None
-            honba_payment *= self.num_players
+            honba_payment *= (self.num_players - 1)
             score_deltas[payer] -= basic_score + honba_payment
             score_deltas[winner] += basic_score + honba_payment + riichi_payment
         else:

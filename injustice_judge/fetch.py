@@ -121,6 +121,8 @@ def postprocess_events(all_events: List[List[Event]],
                 kyoku.final_discard_event_index[seat] = len(kyoku.events) - 1
                 kyoku.pond[seat].append(tile)
                 update_shanten(seat)
+                if event_type == "riichi":
+                    kyoku.riichi_sticks += 1
             elif event_type in {"chii", "pon", "minkan"}: # calls
                 # process a call (which is like a special draw)
                 called_tile, call_tiles, call_dir = event_data
