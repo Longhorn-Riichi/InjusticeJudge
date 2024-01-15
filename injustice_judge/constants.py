@@ -11,7 +11,7 @@ from typing import *
 #    MAJSOUL_YAKU: maps mahjong soul yaku IDs to tenhou yaku names
 #     TENHOU_YAKU: maps tenhou yaku IDs to tenhou yaku names
 # RIICHICITY_YAKU: maps riichi city yaku IDs to tenhou yaku names
-#         YAKUMAN: set of yakuman names. there's also DOUBLE_YAKUMAN
+#         YAKUMAN: set of yakuman names. there's also DOUBLE_YAKUMAN and PAO_YAKUMAN
 #       TRANSLATE: a big map from all Japanese terms to English terms
 #       PRED/SUCC: get the predecessor/successor of a number tile, 0 if nonexistent
 #  DORA_INDICATOR: map from a dora to its indicator
@@ -299,6 +299,10 @@ DOUBLE_YAKUMAN = {
     'koushi musou 13-sided',
     'daisuushi',
     'daichisei',
+}
+PAO_YAKUMAN = {
+    'daisangen',
+    'daisuushi',
 }
 TRANSLATE = {
     "流局": "ryuukyoku",

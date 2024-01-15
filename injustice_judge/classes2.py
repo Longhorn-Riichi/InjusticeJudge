@@ -4,9 +4,9 @@ import functools
 from typing import *
 
 from .classes import CallInfo, Dir, GameRules, Interpretation
-from .constants import Event, Shanten, MANZU, PINZU, SOUZU, PRED, SUCC, DOUBLE_YAKUMAN, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, KO_TSUMO_SCORE, TRANSLATE
+from .constants import Event, Shanten, MANZU, PINZU, SOUZU, PRED, SUCC, DOUBLE_YAKUMAN, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, PAO_YAKUMAN, KO_TSUMO_SCORE, TRANSLATE
 from .display import ph, pt, shanten_name
-from .utils import calc_ko_oya_points, get_score, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, to_dora_indicator, try_remove_all_tiles
+from .utils import apply_delta_scores, calc_ko_oya_points, get_score, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, to_dora_indicator, try_remove_all_tiles
 from .shanten import calculate_shanten
 
 # These classes depend on shanten.py, which depends on classes.py, so we can't
@@ -248,15 +248,28 @@ class Score:
         honba_payment = self.rules.honba_value * honba
         direct_hit = not self.tsumo
         if pao_seat is not None:
-            direct_hit = True
-            if not self.tsumo:
-                # the deal-in player is not responsible for honba payments,
-                # so we take care of their share of payment right here
-                basic_score //= 2
-                assert payer is not None
-                score_deltas[payer] -= basic_score
-                score_deltas[winner] += basic_score
-            payer = pao_seat
+            # check if there's any pao yakuman in the mix
+            pao_yaku: List[Tuple[str, int]] = []
+            non_pao_yaku: List[Tuple[str, int]] = []
+            for y in self.yaku:
+                (pao_yaku if y[0] in PAO_YAKUMAN else non_pao_yaku).append(y)
+            if len(non_pao_yaku) > 0 and len(pao_yaku) > 0:
+                # need to split calculations based on pao yakuman and non-pao yakuman
+                pao_score = Score(pao_yaku, sum(y[1] for y in pao_yaku), self.fu, self.is_dealer, self.tsumo, self.num_players, self.rules)
+                pao_deltas = pao_score.to_score_deltas(dealer_seat, honba, riichi_sticks, winner, payer, pao_seat)
+                non_pao_score = Score(non_pao_yaku, sum(y[1] for y in non_pao_yaku), self.fu, self.is_dealer, self.tsumo, self.num_players, self.rules)
+                non_pao_deltas = non_pao_score.to_score_deltas(dealer_seat, honba, riichi_sticks, winner, payer)
+                return apply_delta_scores(pao_deltas, non_pao_deltas)
+            else:
+                direct_hit = True
+                if not self.tsumo:
+                    # the deal-in player is not responsible for honba payments,
+                    # so we take care of their share of payment right here
+                    basic_score //= 2
+                    assert payer is not None
+                    score_deltas[payer] -= basic_score
+                    score_deltas[winner] += basic_score
+                payer = pao_seat
         if direct_hit: # either ron or tsumo pao or remaining ron pao payment
             assert payer is not None
             honba_payment *= self.num_players
@@ -270,7 +283,6 @@ class Score:
                 score_deltas[payer] -= (oya_payment if payer == dealer_seat else ko_payment) + honba_payment
             # the winner gets gets all points paid plus riichi sticks
             score_deltas[winner] = riichi_payment - sum(score_deltas)
-        print(dealer_seat, pao_seat, basic_score, score_deltas, self.count_yakuman())
         return score_deltas
     def has_riichi(self) -> bool:
         return ("riichi", 1) in self.yaku or ("double riichi", 2) in self.yaku
