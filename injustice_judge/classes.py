@@ -222,6 +222,7 @@ class Interpretation:
 class GameRules:
     """Stores all the rules that InjusticeJudge cares about."""
     num_players: int = 4              # number of players
+    has_double_yakuman: bool = True   # whether the game treats certain yakuman as double
     use_red_fives: bool = True        # whether the game uses red fives
     immediate_kan_dora: bool = False  # whether kan immediately reveals a dora
     head_bump: bool = False           # whether head bump is enabled
@@ -248,6 +249,7 @@ class GameRules:
         else:
             placement_bonus = 5*[[rules.get("shunweima2", 0), rules.get("shunweima3", 0), rules.get("shunweima4", 0)]][:num_players]
         return cls(num_players = num_players,
+                   has_double_yakuman = True,
                    use_red_fives = rules.get("doraCount", 3) > 0,
                    immediate_kan_dora = rules.get("mingDoraImmediatelyOpen", False),
                    head_bump = rules.get("haveToutiao", False),
@@ -287,6 +289,7 @@ class GameRules:
                                [f0(csrule[30]), f0(csrule[31]), f0(csrule[32])],
                                [f0(csrule[33]), f0(csrule[34]), f0(csrule[35])]]
         return cls(num_players = num_players,
+                   has_double_yakuman = False,
                    use_red_fives = 0x0002 & rule1 == 0,
                    immediate_kan_dora = 0x00000008 & rule2 != 0,
                    head_bump = 0x00002000 & rule2 != 0,
@@ -306,7 +309,26 @@ class GameRules:
                    placement_bonus = placement_bonus)
     @classmethod
     def from_riichicity_metadata(cls, num_players: int, metadata: Dict[str, Any]) -> "GameRules":
-        return cls(num_players = num_players) # TODO
+        return cls(num_players = num_players,
+                   has_double_yakuman = True,
+                   use_red_fives = True,
+                   immediate_kan_dora = True,
+                   head_bump = False,
+                   renhou = False,
+                   kiriage_mangan = False,
+                   nagashi_mangan = True,
+                   double_round_wind = False,
+                   double_wind_4_fu = True,
+                   starting_doras = 1,
+                   riichi_value = 1000,
+                   honba_value = 100,
+                   noten_payment = (1000, 1500, 3000),
+                   is_hanchan = metadata["round"] == 2,
+                   is_sanma = num_players == 3,
+                   starting_points = 35000 if num_players == 3 else 25000,
+                   total_points = 40000 if num_players == 3 else 30000,
+                   placement_bonus = []
+                   )
     
     def calculate_placement_bonus(self, final_points: List[int], final_scores: List[float]):
         if len(self.placement_bonus) == 0:

@@ -225,8 +225,10 @@ class Score:
         # check for 13 han yaku and that it isn't like "dora 13" or something
         # (because dora shouldn't turn it into double yakuman)
         # this adds 1 for each yakuman plus 1 for each that are also double yakuman
-        return sum(1 for name, value in self.yaku if value == 13 and "13" not in name) \
-             + sum(1 for name, _ in self.yaku if name in DOUBLE_YAKUMAN)
+        ret = sum(1 for name, value in self.yaku if value in (13,26) and "13" not in name and "26" not in name)
+        if self.rules.has_double_yakuman:
+            ret += sum(1 for name, _ in self.yaku if name in DOUBLE_YAKUMAN)
+        return ret
     def get_limit_hand_name(self) -> str:
         if self.han >= 13:
             tuples = ["", "", "double ", "triple ", "quadruple ", "quintuple ", "sextuple "]
@@ -268,6 +270,7 @@ class Score:
                 score_deltas[payer] -= (oya_payment if payer == dealer_seat else ko_payment) + honba_payment
             # the winner gets gets all points paid plus riichi sticks
             score_deltas[winner] = riichi_payment - sum(score_deltas)
+        print(dealer_seat, pao_seat, basic_score, score_deltas, self.count_yakuman())
         return score_deltas
     def has_riichi(self) -> bool:
         return ("riichi", 1) in self.yaku or ("double riichi", 2) in self.yaku

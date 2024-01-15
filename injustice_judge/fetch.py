@@ -1323,7 +1323,12 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
                             score_string = LIMIT_HANDS[han]
                         points = win["all_point"]
                         point_string = f"{points}点"
-                        pao_seat = seat # TODO: pao
+                        pao_seat = seat
+                        for player, p in enumerate(with_starting_dealer_0(data["user_profit"])):
+                            if p["is_bao_pai"]:
+                                if pao_seat != seat:
+                                    raise Exception("2+ players paying pao is not implemented")
+                                pao_seat = player
                         if data["end_type"] == "1": # 
                             ko, oya = calc_ko_oya_points(points, num_players, is_dealer=(seat-round)%4==0)
                             if oya > 0:
