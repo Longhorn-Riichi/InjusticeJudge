@@ -1168,7 +1168,7 @@ def your_mangan_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]],
         return [Injustice(kyoku.round, kyoku.honba, "Injustice",
                 CheckClause(subject="your hand",
                             subject_description=hand_str,
-                            verb="could have had",
+                            verb="could have scored",
                             content=f"{limit_name} ({yaku_str}{fu_string}) but {score_string} {score} point hand",
                             last_subject=relative_seat_name(player, winner)))]
     else:

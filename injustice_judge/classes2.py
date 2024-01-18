@@ -4,7 +4,7 @@ import functools
 from typing import *
 
 from .classes import CallInfo, Dir, GameRules, Interpretation
-from .constants import Event, Shanten, MANZU, PINZU, SOUZU, PRED, SUCC, DOUBLE_YAKUMAN, LIMIT_HANDS, OYA_RON_SCORE, KO_RON_SCORE, OYA_TSUMO_SCORE, PAO_YAKUMAN, KO_TSUMO_SCORE, TRANSLATE
+from .constants import Event, Shanten, MANZU, PINZU, SOUZU, PRED, SUCC, DOUBLE_YAKUMAN, LIMIT_HANDS, PAO_YAKUMAN, TRANSLATE
 from .display import ph, pt, shanten_name
 from .utils import apply_delta_scores, calc_ko_oya_points, get_score, is_mangan, normalize_red_five, normalize_red_fives, sorted_hand, to_dora_indicator, try_remove_all_tiles
 from .shanten import calculate_shanten

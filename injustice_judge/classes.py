@@ -249,7 +249,7 @@ class GameRules:
         else:
             placement_bonus = 5*[[rules.get("shunweima2", 0), rules.get("shunweima3", 0), rules.get("shunweima4", 0)]][:num_players]
         return cls(num_players = num_players,
-                   has_double_yakuman = True,
+                   has_double_yakuman = not rules.get("disableDoubleYakuman", False),
                    use_red_fives = rules.get("doraCount", 3) > 0,
                    immediate_kan_dora = rules.get("mingDoraImmediatelyOpen", False),
                    head_bump = rules.get("haveToutiao", False),
@@ -260,7 +260,7 @@ class GameRules:
                    double_wind_4_fu = not rules.get("disableDoubleWindFourFu", False),
                    starting_doras = 3 if rules.get("dora3Mode", False) else 1,
                    riichi_value = rules.get("liqibang_value", 1000),
-                   honba_value = rules.get("changbang_value", 100),
+                   honba_value = rules.get("changbang_value", 100 * (num_players - 1)) // (num_players - 1),
                    noten_payment = (rules.get("noting_fafu_1", 1000), rules.get("noting_fafu_2", 1500), rules.get("noting_fafu_3", 3000)),
                    # mode: 1,2,11,12 = 4p east, 4p south, 3p east, 3p south
                    is_hanchan = mode % 10 == 2,
