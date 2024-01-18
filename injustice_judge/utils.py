@@ -121,3 +121,15 @@ def is_safe(tile: int, opponent_genbutsu: Set[int], visible_tiles: List[int]) ->
             return True
 
     return False
+
+def save_cache(filename: str, data: bytes) -> None:
+    """Save data to a cache file"""
+    import os
+    # make sure the cache directory exists
+    if not os.path.isdir("cached_games"):
+        os.mkdir("cached_games")
+    # make sure we have enough space
+    dir_size = sum(os.path.getsize(os.path.join(dirpath, f)) for dirpath, _, filenames in os.walk("cached_games") for f in filenames)
+    if dir_size < (1024 ** 3): # 1GB
+        with open(f"cached_games/{filename}", "wb") as file:
+            file.write(data)
