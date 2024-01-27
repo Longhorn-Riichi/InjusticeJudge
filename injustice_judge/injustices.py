@@ -1271,7 +1271,8 @@ def could_have_tsumoed(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
     yakuman_tenpais = data[flags.index(Flags.COULD_HAVE_TSUMOED)]["yakuman_tenpais"]
     yakuman_str = f" for {' '.join(yakuman_tenpais)} tenpai" if len(yakuman_tenpais) > 0 else ""
 
-    earliest_winning_draw_index = min(draws.index(w) for w in normalize_red_fives(wait) if w in draws)
+    draws_normal = tuple(normalize_red_fives(draws))
+    earliest_winning_draw_index = min(draws_normal.index(w) for w in normalize_red_fives(wait) if w in draws_normal)
     if earliest_winning_draw_index == 0:
         index_string = "on the very next turn"
     else:
