@@ -5832,20 +5832,20 @@ message ResFetchContestGameRule {
 }
 
 message ReqUpdateContestGameRule {
-    string contest_name = 1;
-    uint32 start_time = 2;
-    uint32 finish_time = 3;
-    bool open = 4;
-    uint32 rank_rule = 5;
-    GameRuleSetting game_rule_setting = 6;
-    bool auto_match = 7;
-    bool auto_disable_end_chat = 8;
-    uint32 contest_type = 9;
-    string banned_zones = 10;
-    string hidden_zones = 11;
-    bool emoji_switch = 12;
-    uint32 player_roster_type = 13;
-    uint32 disable_broadcast = 14;
+    optional string contest_name = 1;
+    optional uint32 start_time = 2;
+    optional uint32 finish_time = 3;
+    optional bool open = 4;
+    optional uint32 rank_rule = 5;
+    optional GameRuleSetting game_rule_setting = 6;
+    optional bool auto_match = 7;
+    optional bool auto_disable_end_chat = 8;
+    optional uint32 contest_type = 9;
+    optional string banned_zones = 10;
+    optional string hidden_zones = 11;
+    optional bool emoji_switch = 12;
+    optional uint32 player_roster_type = 13;
+    optional uint32 disable_broadcast = 14;
 }
 
 message ReqSearchAccountByNickname {
