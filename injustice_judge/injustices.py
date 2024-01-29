@@ -309,7 +309,7 @@ def called_kan_and_got_4_dora(flags: List[Flags], data: List[Dict[str, Any]], ky
 @skill(require=[Flags.YOU_DREW_CALLABLE_TILE])
 def you_drew_callable_tile(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     if flags.count(Flags.YOU_DREW_CALLABLE_TILE) > 1:
-        call_data = [(data[i]["call_type"], data[i]["call_tile"]) for i, flag in enumerate(flags) if flag == Flags.YOU_DREW_CALLABLE_TILE]
+        call_data = [(d["call_type"], d["call_tile"]) for flag, d in zip(flags, data) if flag == Flags.YOU_DREW_CALLABLE_TILE]
         call_strs = [f"{pt(call_tile, doras=kyoku.doras)} immediately after declining to {call_type} it" for call_type, call_tile in call_data]
         return [Skill(kyoku.round, kyoku.honba, "Skill",
                 CheckClause(subject="you",
@@ -340,8 +340,8 @@ def won_by_pon_pon_ron(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
 @skill(require=[Flags.YOU_WON, Flags.WINNER, Flags.GAME_ENDED_WITH_RON, Flags.SOMEONE_WAITED_ON_WINNING_TILE],
         forbid=[])
 def head_bumped_someone(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    waiters = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.SOMEONE_WAITED_ON_WINNING_TILE}
-    winners = {data[i]["seat"] for i, flag in enumerate(flags) if flag == Flags.WINNER}
+    waiters = {d["seat"] for flag, d in zip(flags, data) if flag == Flags.SOMEONE_WAITED_ON_WINNING_TILE}
+    winners = {d["seat"] for flag, d in zip(flags, data) if flag == Flags.WINNER}
     got_head_bumped = waiters - winners
     if len(got_head_bumped) >= 1:
         return [Skill(kyoku.round, kyoku.honba, "Skill",
@@ -509,10 +509,9 @@ def gained_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]], 
 @skill(require=[Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, Flags.YOU_WON],
         forbid=[Flags.WINNER_GOT_HAITEI])
 def won_to_deny_three_dora(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    dora_data = {data[i]["seat"]: data[i] for i, flag in enumerate(flags) if flag == Flags.SOMEONE_HAS_THREE_DORA_VISIBLE}
-    if player in dora_data.keys():
-        del dora_data[player]
-    seats = set(dora_data.keys())
+    winners = {d["seat"] for flag, d in zip(flags, data) if flag == Flags.WINNER}
+    dora_data = {d["seat"]: d for flag, d in zip(flags, data) if flag == Flags.SOMEONE_HAS_THREE_DORA_VISIBLE}
+    seats = set(dora_data.keys()) - winners
     num_dora_shown = sum(d["amount"] for d in dora_data.values())
     if len(seats) >= 1:
         player_str = " and ".join(map(lambda seat: relative_seat_name(player, seat), seats))
@@ -1292,7 +1291,8 @@ def could_have_ronned(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyo
     riichi_player = data[flags.index(Flags.COULD_HAVE_RONNED)]["riichi_player"]
     yakuman_str = f" for {' '.join(yakuman_tenpais)} tenpai" if len(yakuman_tenpais) > 0 else ""
 
-    earliest_winning_draw_index = min(draws.index(w) for w in normalize_red_fives(wait) if w in draws)
+    draws_normal = tuple(normalize_red_fives(draws))
+    earliest_winning_draw_index = min(draws_normal.index(w) for w in normalize_red_fives(wait) if w in draws_normal)
     if earliest_winning_draw_index == 0:
         index_string = "on the very next turn"
     else:
