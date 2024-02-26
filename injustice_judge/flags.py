@@ -146,6 +146,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOUR_RIICHI_TILE_DEALT_IN"
     " YOUR_TENPAI_TILE_DEALT_IN"
     " YOUR_TILES_ALL_DEAL_IN"
+    " YOUR_WIN_BLOCKED_BY_TEMP_FURITEN"
     " YOUR_YAKULESS_HAND_COULD_HAVE_WON"
     )
 
@@ -166,6 +167,7 @@ class KyokuPlayerState:
     last_discard: int                                 = 0
     last_discard_was_riichi: bool                     = False
     furiten: bool                                     = False
+    temporary_furiten: Optional[Tuple[Dir, int]]      = None
     nagashi: bool                                     = True
     in_riichi: bool                                   = False
     riichi_index: Optional[int]                       = None
@@ -452,6 +454,9 @@ class KyokuState:
         self.at[seat].num_discards += 1
         self.at[seat].last_discard = tile
         self.at[seat].last_discard_was_riichi = event_type == "riichi"
+        # clear temporary furiten, unless we are already in riichi
+        if not self.at[seat].in_riichi:
+            self.at[seat].temporary_furiten = None
         # check if this makes us furiten
         if self.at[seat].hand.shanten[0] == 0 and normalize_red_five(tile) in self.at[seat].hand.shanten[1]:
             self.at[seat].furiten = True
@@ -565,13 +570,20 @@ class KyokuState:
                                 rules = self.kyoku.rules,
                                 check_rons = not is_tsumo,
                                 check_tsumos = is_tsumo)
+                current_dir = Dir((4+seat-player)%4)
+                # check if we were furiten, which would prevent us from ronning
+                furiten = not is_tsumo and (at.furiten or at.temporary_furiten is not None)
+                if furiten:
+                    self.add_flag(player, Flags.YOUR_FURITEN_HAND_COULD_HAVE_WON, {"tile": tile, "wait": at.hand.shanten[1], "turns_left": self.tiles_in_wall})
+                    if not at.furiten:
+                        self.add_flag(player, Flags.YOUR_WIN_BLOCKED_BY_TEMP_FURITEN, {"tile": tile, "wait": at.hand.shanten[1], "turns_left": self.tiles_in_wall, "discard_dir": current_dir, "furiten_dir": at.temporary_furiten[0], "furiten_tile": at.temporary_furiten[1]})
+
                 yakuless = yaku[normalize_red_five(tile)].is_yakuless()
                 if yakuless:
                     self.add_flag(player, Flags.YOUR_YAKULESS_HAND_COULD_HAVE_WON, {"tile": tile, "wait": at.hand.shanten[1], "turns_left": self.tiles_in_wall})
-                # check if we were furiten, which would prevent us from ronning
-                furiten = not is_tsumo and at.furiten
-                if furiten:
-                    self.add_flag(player, Flags.YOUR_FURITEN_HAND_COULD_HAVE_WON, {"tile": tile, "wait": at.hand.shanten[1], "turns_left": self.tiles_in_wall})
+                    # set temporary furiten
+                    at.temporary_furiten = (current_dir, tile)
+
                 # otherwise, we can legally call ron/tsumo on this discard
                 if not yakuless and not furiten:
                     flag = Flags.YOU_CAN_CALL_TSUMO if is_tsumo else Flags.YOU_CAN_CALL_RON

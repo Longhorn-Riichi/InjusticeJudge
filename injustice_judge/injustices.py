@@ -900,6 +900,24 @@ def all_tenpai_discards_deal_in(flags: List[Flags], data: List[Dict[str, Any]], 
             CheckClause(subject="you",
                         verb="dealt in"))]
 
+# Print if temporary furiten blocked you from winning
+@injustice(require=[Flags.YOUR_WIN_BLOCKED_BY_TEMP_FURITEN])
+def your_win_blocked_by_temp_furiten(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    ret = []
+    dir_map = {0: "self", 1: "shimocha", 2: "toimen", 3: "kamicha"}
+    for i, flag in enumerate(flags):
+        if flag == Flags.YOUR_WIN_BLOCKED_BY_TEMP_FURITEN:
+            tile = data[i]["tile"]
+            wait = data[i]["wait"]
+            discard_dir = dir_map[data[i]["discard_dir"]]
+            furiten_dir = dir_map[data[i]["furiten_dir"]]
+            furiten_tile = data[i]["furiten_tile"]
+            ret.append(Injustice(kyoku.round, kyoku.honba, "Injustice",
+                       CheckClause(subject="you",
+                                   verb="missed",
+                                   content=f"winning on {pt(tile, kyoku.doras)} from {discard_dir} because {furiten_dir} put you in temporary furiten by discarding {pt(furiten_tile, kyoku.doras)}")))
+    return ret
+
 ###
 ### end game injustices
 ###
