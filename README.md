@@ -69,20 +69,31 @@ Newest feature on the block is skill detection. Skills are instances of pure mah
 
 Skills are pretty common. There's usually several in every game, and InjusticeJudge will recognize your skills for what they are.
 
+
+## Installation
+
+You need a pipenv and python 3.10+
+
+`pipenv install`
+
 ## Usage (standalone)
 
-Clone this repository and run with either:
+Clone this repository, install requrements and run with either:
 
-- `python main.py '<tenhou url>'`
-- `python main.py '<mahjong soul url>'`
-- `python main.py '<tenhou url>' <seat number 0-3>`
-- `python main.py '<mahjong soul url>' <seat number 0-3>`
+- `python main.py -l '<log url>'`
+- `python main.py -l '<log url>' -p <seat number 0-3>`
 
 where 0 = East, 1 = South, 2 = West, 3 = North.
 
 Outputs injustices to console.
 
-To output skills, open up `main.py` and change `{"injustice"}` to `{"skill"}`.
+To output skills use `-m skill`:
+- `python main.py -l '<log url>' -m skill`
+- `python main.py -l '<log url>' -p <seat number 0-3> -m skill`
+
+To output both skills and injustice use `-m both`:
+- `python main.py -l '<log url>' -m both`
+- `python main.py -l '<log url>' -p <seat number 0-3> -m both`
 
 ## Usage (library)
 

@@ -1,16 +1,28 @@
 import asyncio
-from pprint import pprint
 from injustice_judge import analyze_game
 from typing import *
 import sys
 
-if __name__ == "__main__":
-    assert len(sys.argv) >= 2, "expected one or two arguments, the tenhou url/majsoul link/riichicity id, and then seat [0-3] (optional)"
-    link = sys.argv[1]
-    players: Set[int] = {int(i) for i in sys.argv[2:]}
-    assert link != "", "expected one or two arguments, the tenhou url/majsoul link/riichicity id, and then seat [0-3] (optional)"
-    assert all(player in {0,1,2,3} for player in players), "expected remaining arguments to include 0 1 2 3"
-    print("\n".join(asyncio.run(analyze_game(link, players, look_for={"injustice"}))))
+import argparse
+
+def main():
+
+    parser = argparse.ArgumentParser(description='Analyzes your Mahjong Soul, tenhou.net, or Riichi City game to find instances of mahjong injustice.')
+
+    parser.add_argument('-l', '--link', type=str, help='Link to game log', required=True)
+    parser.add_argument('-p', '--players', type=int, nargs='*',  help='Number of seat: 0 = East, 1 = South, 2 = West, 3 = North', default=[], choices=[0, 1, 2, 3])
+    parser.add_argument('-m', '--mode', type=str, help='Output mode', choices=['skill', 'injustice', 'both'], default='injustice')
+
+    args = parser.parse_args()
+    link = args.link
+    players: Set[int] = set(args.players)
+
+    if args.mode == 'both':
+        mode = {'injustice', 'skill'}
+    else:
+        mode = {args.mode,}
+
+    print("\n".join(asyncio.run(analyze_game(link, players, look_for=mode))))
     # print("\n".join(asyncio.run(analyze_game(link, players, look_for={"skill"}))))
     # print("\n".join(asyncio.run(analyze_game(link, players))))
 
@@ -100,9 +112,13 @@ if __name__ == "__main__":
     # from injustice_judge.shanten import _calculate_shanten
     # print(_calculate_shanten.cache_info())
     # from injustice_judge.shanten import timers
+    # from pprint import pprint
     # pprint(timers)
 
     # unused:
     # this is perfect headless, but we don't rly count it as such
     # cause checking perfect headless hands is too expensive
     # test_shanten([13,14,14,15,15,27,28,29,33,34,34,35,35], (1.013, [12,13,14,15,16,32,33,34,35,36])) # 34455m789p34455s  headless perfect iishanten
+
+if __name__ == "__main__":
+    main()
