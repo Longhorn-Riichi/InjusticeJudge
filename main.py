@@ -9,7 +9,7 @@ def main():
 
     parser = argparse.ArgumentParser(description='Analyzes your Mahjong Soul, tenhou.net, or Riichi City game to find instances of mahjong injustice.')
 
-    parser.add_argument('-l', '--link', type=str, help='Link to game log', required=True)
+    parser.add_argument('link', type=str, help='Link to game log')
     parser.add_argument('-p', '--players', type=int, nargs='*',  help='Number of seat: 0 = East, 1 = South, 2 = West, 3 = North', default=[], choices=[0, 1, 2, 3])
     parser.add_argument('-m', '--mode', type=str, help='Output mode', choices=['skill', 'injustice', 'both'], default='injustice')
 
