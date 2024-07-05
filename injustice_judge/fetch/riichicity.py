@@ -17,6 +17,8 @@ class RiichiCityAPI:
         self.domain = domain
         self.email = email
         self.password = password
+        if self.email is None or self.password is None:
+            raise Exception("RiichiCityAPI was initialized without login credentials!")
         self.headers = {
           "User-Agent": "UnityPlayer/2021.3.35f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
           "Content-Type": "application/json",
