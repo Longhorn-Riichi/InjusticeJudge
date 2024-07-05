@@ -355,6 +355,13 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
                 "kan4":   "四槓散了",
                 "kaze4":  "四風連打",
             }
+            # the final round has an "owari" key storing the final scores
+            if "owari" in attrs:
+                final_scores = [int(v) * 100 for v in attrs["owari"].split(",")[0:8:2]]
+                final_results = [float(v) for v in attrs["owari"].split(",")[1:8:2]]
+                final_shuugi = [int(v) * 100 for v in attrs["owari"].split(",")[8::2]]
+                final_scores += final_shuugi
+                game_data["sc"] = [s for sc in zip(final_scores, final_results) for s in sc]
             # parse the score changes
             sc = attrs["sc"].split(",")
             # scores = [int(v) * 100 for v in sc[0:8:2]]
