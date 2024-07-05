@@ -83,7 +83,7 @@ def fetch_tenhou(link: str, use_xml: bool = True) -> Tuple[TenhouLog, Dict[str, 
         save_cache(filename=f"game-{identifier}.json", data=json.dumps(game_data, ensure_ascii=False).encode("utf-8"))
     log = game_data["log"]
     del game_data["log"]
-    return log, game_data, (player_seat or None)
+    return log, game_data, player_seat
 
 def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, Any]]:
     """
