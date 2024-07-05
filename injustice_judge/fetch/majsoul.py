@@ -16,6 +16,13 @@ from typing import *
 
 MajsoulLog = List[Tuple[str, proto.Wrapper]]
 
+class MahjongSoulError(Exception):
+    def __init__(self, code: int, method_name: str):
+        self.code = code
+        self.method_name = method_name
+        self.message = f"Mahjong Soul error from calling {method_name}: {code}"
+        super().__init__(self.message)
+
 class MahjongSoulAPI:
     """Helper class to interface with the Mahjong Soul API"""
     def __init__(self, endpoint: str) -> None:
@@ -54,7 +61,8 @@ class MahjongSoulAPI:
         wrapper = proto.Wrapper()
         wrapper.ParseFromString(rx[3:])
         res.ParseFromString(wrapper.data)
-        assert not res.error.code, f"{method.full_name} request received error {res.error.code}"
+        if res.error.code > 0:
+            raise MahjongSoulError(res.error.code, method.full_name)
         return res
 
 def parse_wrapped_bytes(data: bytes) -> Tuple[str, Message]:
