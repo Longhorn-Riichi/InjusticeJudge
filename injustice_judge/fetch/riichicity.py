@@ -75,7 +75,7 @@ async def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, An
         PASSWORD = os.getenv("rc_password")
         if EMAIL is not None and PASSWORD is not None:
             async with RiichiCityAPI("aga.mahjong-jp.net", EMAIL, PASSWORD) as api:
-                game_data = await api.call("/record/getRoomData", keyValue="cm9rn6eai08d9bnq6r6g")
+                game_data = await api.call("/record/getRoomData", keyValue=identifier)
                 if game_data["code"] != 0:
                     raise Exception(f"Error {game_data['code']}: {game_data['message']}")
         else:
@@ -84,7 +84,9 @@ async def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, An
     if username is not None:
         for p in game_data["data"]["handRecord"][0]["players"]:
             if p["nickname"] == username:
-                player = p["position"]
+                player_pos = p["position"]
+                starting_dealer_pos = json.loads(game_data["data"]["handRecord"][0]["handEventRecord"][0]["data"])["dealer_pos"]
+                player = (player_pos - starting_dealer_pos) % 4
                 break
     return game_data["data"]["handRecord"], game_data["data"], player
 
