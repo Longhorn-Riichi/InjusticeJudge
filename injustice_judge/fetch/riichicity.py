@@ -49,12 +49,19 @@ class RiichiCityAPI:
 
 RiichiCityLog = List[Any]
 
-async def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, Any]]:
+async def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, Any], Optional[int]]:
     """
     Fetch a raw riichi city log given the log identifier.
-    Example identifier: cm775fuai08d9bndf24g
+    Example identifier: cm775fuai08d9bndf24g@1
     """
     import json
+    player = None
+    username = None
+    if "@" in identifier:
+        identifier, username = identifier.split("@")
+        if username in "0123":
+            player = int(username)
+            username = None
     try:
         f = open(f"cached_games/game-{identifier}.json", 'rb')
         game_data = json.load(f)
@@ -74,8 +81,12 @@ async def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, An
         else:
             raise Exception("Need to set rc_email and rc_password (MD5 hash) in config.env!")
         save_cache(filename=f"game-{identifier}.json", data=json.dumps(game_data, ensure_ascii=False).encode("utf-8"))
-
-    return game_data["data"]["handRecord"], game_data["data"]
+    if username is not None:
+        for p in game_data["data"]["handRecord"][0]["players"]:
+            if p["nickname"] == username:
+                player = p["position"]
+                break
+    return game_data["data"]["handRecord"], game_data["data"], player
 
 def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Optional[str]) -> Tuple[List[Kyoku], GameMetadata, Optional[int]]:
     import json
@@ -279,5 +290,9 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
 
     all_walls = [[] for _ in all_events] # dummy
     assert len(all_events) == len(all_dora_indicators) == len(all_ura_indicators) == len(all_walls)
-    player_seat = player_names.index(nickname) if nickname in player_names else None
+    player_seat: Optional[int]
+    if nickname is not None and nickname in "0123":
+        player_seat = int(nickname)
+    else:
+        player_seat = player_names.index(nickname) if nickname in player_names else None
     return postprocess_events(all_events, parsed_metadata, all_dora_indicators, all_ura_indicators, all_walls), parsed_metadata, player_seat

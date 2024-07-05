@@ -37,9 +37,8 @@ async def parse_game_link(link: str, specified_players: Set[int] = set(), nickna
         if len(metadata["accounts"]) == 3:
             assert player != 3 or all(p != 3 for p in specified_players), "Can't specify North player in a sanma game"
         kyokus, parsed_metadata, parsed_player_seat = parse_majsoul(majsoul_log, metadata, nickname)
-    elif len(link) == 20: # riichi city log id
-        riichicity_log, metadata = await fetch_riichicity(link)
-        player = None
+    elif all(c in "0123456789abcdefghijklmnopqrstuv" for c in link[:20]): # riichi city log id
+        riichicity_log, metadata, player = await fetch_riichicity(link)
         kyokus, parsed_metadata, parsed_player_seat = parse_riichicity(riichicity_log, metadata, nickname)
     else:
         raise Exception("expected tenhou link similar to `tenhou.net/0/?log=`"
@@ -53,4 +52,5 @@ async def parse_game_link(link: str, specified_players: Set[int] = set(), nickna
             specified_players = {player}
         else:
             specified_players = {0}
+    print(specified_players)
     return kyokus, parsed_metadata, specified_players
