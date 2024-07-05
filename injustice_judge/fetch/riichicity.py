@@ -5,14 +5,51 @@ from ..display import round_name
 from ..utils import calc_ko_oya_points, is_mangan, save_cache, sorted_hand
 from .postprocess import postprocess_events
 from typing import *
+import requests
 
 ###
 ### loading and parsing riichi city games
 ###
 
+class RiichiCityAPI:
+    """Helper class to interface with the Mahjong Soul API"""
+    def __init__(self, domain: str, email: str, password: str) -> None:
+        self.domain = domain
+        self.email = email
+        self.password = password
+        self.headers = {
+          "User-Agent": "UnityPlayer/2021.3.35f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
+          "Content-Type": "application/json",
+          "X-Unity-Version": "2021.3.35f1",
+        }
+        self.cookies = {"deviceid": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}
+    async def __aenter__(self) -> "RiichiCityAPI":
+        res1 = await self.call("/users/checkVersion", version="2.1.4")
+        version = f"{res1['data']['Version']}.{res1['data']['MinVersion']}"
+        self.cookies["version"] = version
+        res2 = await self.call("/users/initSession")
+        self.cookies["sid"] = res2["data"]
+        res3 = await self.call("/users/emailLogin", adjustId="", email=self.email, passwd=self.password)
+        if res3["code"] > 0:
+            raise Exception("Unable to log into riichi city")
+        print("riichi city login successful")
+        self.cookies["uid"] = res3["data"]["user"]["id"]
+        return self
+
+    async def __aexit__(self, err_type: Optional[Type[BaseException]], 
+                              err_value: Optional[BaseException], 
+                              traceback: Optional[Any]) -> bool:
+        return False
+
+    async def call(self, endpoint: str, **data: Any) -> Dict:
+        # "Cookies" is not a typo
+        self.headers["Cookies"] = str(self.cookies).replace("'", "\"")
+        formatted = str(data).replace("'", "\"")
+        return requests.post(f"https://{self.domain}{endpoint}", headers=self.headers, data=formatted).json()
+
 RiichiCityLog = List[Any]
 
-def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, Any]]:
+async def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, Any]]:
     """
     Fetch a raw riichi city log given the log identifier.
     Example identifier: cm775fuai08d9bndf24g
@@ -27,21 +64,15 @@ def fetch_riichicity(identifier: str) -> Tuple[RiichiCityLog, Dict[str, Any]]:
         import requests
         import urllib3
         dotenv.load_dotenv("config.env")
-        SID = os.getenv("rc_sid")
-        if SID is not None:
-            game_data = requests.post(
-                url="http://13.112.183.79/record/getRoomData",
-                headers={
-                    "Cookies": "{\"sid\":\"" + SID + "\"}",
-                    "User-Agent": urllib3.util.SKIP_HEADER,  # type: ignore[attr-defined]
-                    "Accept-Encoding": urllib3.util.SKIP_HEADER,  # type: ignore[attr-defined]
-                    "Connection": "close",
-                },
-                data="{\"keyValue\":\"" + identifier + "\"}").json()
-            if game_data["code"] != 0:
-                raise Exception(f"Error {game_data['code']}: {game_data['message']}")
+        EMAIL = os.getenv("rc_email")
+        PASSWORD = os.getenv("rc_password")
+        if EMAIL is not None and PASSWORD is not None:
+            async with RiichiCityAPI("aga.mahjong-jp.net", EMAIL, PASSWORD) as api:
+                game_data = await api.call("/record/getRoomData", keyValue="cm9rn6eai08d9bnq6r6g")
+                if game_data["code"] != 0:
+                    raise Exception(f"Error {game_data['code']}: {game_data['message']}")
         else:
-            raise Exception("Need to set rc_sid in config.env!")
+            raise Exception("Need to set rc_email and rc_password (MD5 hash) in config.env!")
         save_cache(filename=f"game-{identifier}.json", data=json.dumps(game_data, ensure_ascii=False).encode("utf-8"))
 
     return game_data["data"]["handRecord"], game_data["data"]

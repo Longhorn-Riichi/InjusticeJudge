@@ -147,7 +147,7 @@ To do this:
 - Setup `mitmproxy`:
   + Run `SSLKEYLOGFILE=~/.mitmproxy/sslkeylogfile.txt mitmweb` on command line
   + In your computer's network settings, set it to use `127.0.0.1:8080` as an HTTPS proxy
-  + Visit <http://mitm.it> and install the certificate as instructed
+  + Visit <https://mitm.it> and install the certificate as instructed
 - Setup Wireshark:
   + Launch Wireshark and go into the preferences
   + Under `Protocols > TLS > (Pre)-Master-Secret log filename`, enter the absolute path of `$HOME/.mitmproxy/sslkeylogfile.txt` (e.g. `/Users/dani/.mitmproxy/sslkeylogfile.txt`), then hit OK

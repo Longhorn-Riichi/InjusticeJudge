@@ -38,7 +38,7 @@ async def parse_game_link(link: str, specified_players: Set[int] = set(), nickna
             assert player != 3 or all(p != 3 for p in specified_players), "Can't specify North player in a sanma game"
         kyokus, parsed_metadata, parsed_player_seat = parse_majsoul(majsoul_log, metadata, nickname)
     elif len(link) == 20: # riichi city log id
-        riichicity_log, metadata = fetch_riichicity(link)
+        riichicity_log, metadata = await fetch_riichicity(link)
         player = None
         kyokus, parsed_metadata, parsed_player_seat = parse_riichicity(riichicity_log, metadata, nickname)
     else:
