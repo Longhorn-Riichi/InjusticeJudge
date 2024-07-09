@@ -26,18 +26,8 @@ class RiichiCityAPI:
         }
         self.cookies = {"deviceid": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}
     async def __aenter__(self) -> "RiichiCityAPI":
-        res1 = await self.call("/users/checkVersion", version="2.1.4")
-        version = f"{res1['data']['Version']}.{res1['data']['MinVersion']}"
-        self.cookies["version"] = version
-        res2 = await self.call("/users/initSession")
-        self.cookies["sid"] = res2["data"]
-        res3 = await self.call("/users/emailLogin", adjustId="", email=self.email, passwd=self.password)
-        if res3["code"] > 0:
-            raise Exception("Unable to log into riichi city")
-        print("riichi city login successful")
-        self.cookies["uid"] = res3["data"]["user"]["id"]
+        await self.login()
         return self
-
     async def __aexit__(self, err_type: Optional[Type[BaseException]], 
                               err_value: Optional[BaseException], 
                               traceback: Optional[Any]) -> bool:
@@ -48,6 +38,18 @@ class RiichiCityAPI:
         self.headers["Cookies"] = str(self.cookies).replace("'", "\"")
         formatted = str(data).replace("'", "\"")
         return requests.post(f"https://{self.domain}{endpoint}", headers=self.headers, data=formatted).json()
+
+    async def login(self) -> None:
+        res1 = await self.call("/users/checkVersion", version="2.1.4")
+        version = f"{res1['data']['Version']}.{res1['data']['MinVersion']}"
+        self.cookies["version"] = version
+        res2 = await self.call("/users/initSession")
+        self.cookies["sid"] = res2["data"]
+        res3 = await self.call("/users/emailLogin", adjustId="", email=self.email, passwd=self.password)
+        if res3["code"] > 0:
+            raise Exception("Unable to log into riichi city")
+        # print("riichi city login successful")
+        self.cookies["uid"] = res3["data"]["user"]["id"]
 
 RiichiCityLog = List[Any]
 
