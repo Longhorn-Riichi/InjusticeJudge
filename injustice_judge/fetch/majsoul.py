@@ -39,17 +39,10 @@ class MahjongSoulAPI:
             raise Exception("MahjongSoulAPI was initialized without Mahjong Soul login credentials!")
     async def __aenter__(self) -> "MahjongSoulAPI":
         import requests
-        import websockets
         # url is the __MJ_GAME_INFO_API__ key of https://www.maj-soul.com/dhs/js/config.js
         self.version = requests.get(url="https://game.maj-soul.com/1/version.json").json()["version"][:-2]
         self.client_version_string = f"web-{self.version}"
-        self.ix = 0
-        if self.use_cn:
-            self.ws = await websockets.connect("wss://gateway-hw.maj-soul.com:443/gateway")  # type: ignore[attr-defined]
-            await self.login_cn()
-        elif self.use_en:
-            self.ws = await websockets.connect("wss://mjusgs.mahjongsoul.com:9663/")  # type: ignore[attr-defined]
-            await self.login_en()
+        await self.login()
         return self
     async def __aexit__(self, err_type: Optional[Type[BaseException]], 
                               err_value: Optional[BaseException], 
@@ -83,6 +76,20 @@ class MahjongSoulAPI:
         if res.error.code > 0:
             raise MahjongSoulError(res.error.code, method.full_name)
         return res
+
+    async def login(self) -> None:
+        import websockets
+        try:
+            await self.ws.close()  # type: ignore[has-type]
+        except:
+            pass
+        self.ix = 0
+        if self.use_cn:
+            self.ws = await websockets.connect("wss://gateway-hw.maj-soul.com:443/gateway")  # type: ignore[attr-defined]
+            await self.login_cn()
+        elif self.use_en:
+            self.ws = await websockets.connect("wss://mjusgs.mahjongsoul.com:9663/")  # type: ignore[attr-defined]
+            await self.login_en()
 
     async def login_cn(self) -> None:
         assert self.mjs_username is not None
