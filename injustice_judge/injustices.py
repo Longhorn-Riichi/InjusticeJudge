@@ -55,6 +55,12 @@ class Skill(CheckResult):
     pass
 
 def evaluate_game(kyoku: Kyoku, players: Set[int], player_names: List[str], look_for: Set[str] = {"injustice"}) -> List[str]:
+    all_results = get_results(kyoku, players, look_for)
+    return [format_result(seat, result_list, player_names, len(all_results) == 1)
+            for seat, result_list in all_results.items()
+            if len(result_list) > 0]
+
+def get_results(kyoku: Kyoku, players: Set[int], look_for: Set[str] = {"injustice"}) -> Dict[int, List[CheckResult]]:
     """
     Run each injustice function (defined below this function) against a parsed kyoku.
     Relevant injustice functions should return a list of Injustice objects each.
@@ -91,95 +97,93 @@ def evaluate_game(kyoku: Kyoku, players: Set[int], player_names: List[str], look
                     #       set(i["required_flags"]) - set(flags[player]),
                     #       "and/or has the flag(s)",
                     #       set(i["forbidden_flags"]) & set(flags[player]))
+    return all_results
 
-    # `all_results[seat]` contains a list of injustices for this kyoku,
+def format_result(seat: int, result_list: List[CheckResult], player_names: List[str], single_player: bool = True) -> str:
+    # `result_list` contains a list of injustices for this kyoku,
     #   but we need to group them up before we print.
     # This outputs a header like "- Injustice detected in **East 1**:"
     #   followed by `injustice.desc` joined by ", and"
-    #   for every injustice in all_results
-    rets = []
-    for seat, result_list in all_results.items():
-        if len(result_list) > 0:
-            # get the name of the longest name out of all the injustices
-            longest_name_length = max(len(r.name) for r in result_list)
-            longest_name = next(r.name for r in result_list if len(r.name) == longest_name_length)
-            verb_str = f"shown by **{player_names[seat]}**" \
-                       if any(isinstance(r, Skill) for r in result_list) else \
-                       f"detected for **{player_names[seat]}**" \
-                       if len(all_results) > 1 else \
-                       "detected"
+    assert len(result_list) > 0
+    # get the name of the longest name out of all the injustices
+    longest_name_length = max(len(r.name) for r in result_list)
+    longest_name = next(r.name for r in result_list if len(r.name) == longest_name_length)
+    verb_str = f"shown by **{player_names[seat]}**" \
+               if any(isinstance(r, Skill) for r in result_list) else \
+               f"detected for **{player_names[seat]}**" \
+               if not single_player else \
+               "detected"
 
-            # assemble the header
-            header = f"- {longest_name} {verb_str} in **{round_name(result_list[0].round, result_list[0].honba)}**:"
-            # now print the subject of the first injustice clause followed by content
-            # whenever the subject of the next clause is the same as the subject of the previous clause,
-            # we omit the subject and just write ", and <content>"
-            # return a list containing a single string
-            ret = header
-            last_clause = None
-            seen_results: Set[Tuple[str, str, str]] = set() # (subject, content)
-            current_subject = ""
-            already_said_tenpai_status = False
-            for result in result_list:
-                clause = result.clause
-                # skip things we've already said
-                if (clause.subject, clause.object, clause.content) in seen_results:
-                    continue
-                seen_results.add((clause.subject, clause.verb, clause.object))
+    # assemble the header
+    ret = f"- {longest_name} {verb_str} in **{round_name(result_list[0].round, result_list[0].honba)}**:"
+    # now print the subject of the first injustice clause followed by content
+    # whenever the subject of the next clause is the same as the subject of the previous clause,
+    # we omit the subject and just write ", and <content>"
+    # return a list containing a single string
+    last_clause = None
+    seen_results: Set[Tuple[str, str, str]] = set() # (subject, content)
+    current_subject = ""
+    already_said_tenpai_status = False
+    for result in result_list:
+        clause = result.clause
+        # skip things we've already said
+        content = clause.object or clause.content or ""
+        if (clause.subject, clause.object, content) in seen_results:
+            continue
+        seen_results.add((clause.subject, clause.verb, content))
 
-                # add ", and" unless it's the first clause
-                if last_clause is not None:
-                    ret += ", and"
-                else:
-                    last_clause = CheckClause(subject="",verb="")
+        # add ", and" unless it's the first clause
+        if last_clause is not None:
+            ret += ", and"
+        else:
+            last_clause = CheckClause(subject="",verb="")
 
-                # print subject if subject changed
-                if clause.subject != current_subject:
-                    ret += " " + clause.subject
-                    # print subject description
-                    # this is basically part of the subject,
-                    # but we don't want it to be used for comparing subjects
-                    if clause.subject_description is not None:
-                        ret += " " + clause.subject_description
+        # print subject if subject changed
+        if clause.subject != current_subject:
+            ret += " " + clause.subject
+            # print subject description
+            # this is basically part of the subject,
+            # but we don't want it to be used for comparing subjects
+            if clause.subject_description is not None:
+                ret += " " + clause.subject_description
 
-                # print verb if verb changed or if subject changed
-                if clause.verb != last_clause.verb or clause.subject != current_subject:
-                    # ad-hoc check to avoid "you dealt in, and you dealt into"
-                    if clause.subject == current_subject and clause.verb == "dealt into" and last_clause.verb == "dealt in":
-                        ret = ret[:-6] # remove ", and"
-                        ret += ", into"
-                    else:
-                        ret += " " + clause.verb
-                else:
-                    # ad-hoc check to avoid "you dealt into X, and Y"
-                    if clause.subject == current_subject and "dealt in" in clause.verb and "dealt in" in last_clause.verb:
-                        ret += " said hand was also"
+        # print verb if verb changed or if subject changed
+        if clause.verb != last_clause.verb or clause.subject != current_subject:
+            # ad-hoc check to avoid "you dealt in, and you dealt into"
+            if clause.subject == current_subject and clause.verb == "dealt into" and last_clause.verb == "dealt in":
+                ret = ret[:-6] # remove ", and"
+                ret += ", into"
+            else:
+                ret += " " + clause.verb
+        else:
+            # ad-hoc check to avoid "you dealt into X, and Y"
+            if clause.subject == current_subject and "dealt in" in clause.verb and "dealt in" in last_clause.verb:
+                ret += " said hand was also"
 
-                # print object and content always (if any)
-                content = ""
-                if clause.object is not None:
-                    content = clause.object
-                if clause.content is not None:
-                    if clause.object is not None:
-                        content += " " + clause.content
-                    else:
-                        content = clause.content
-                # ad-hoc check to avoid saying tenpai status string multiple times
-                for s in TENPAI_STATUS_STRINGS:
-                    if s in content:
-                        if already_said_tenpai_status:
-                            content = content.replace(s, "")
-                        already_said_tenpai_status = True
-                        break
-                ret += " " + content
+        # print object and content always (if any)
+        content = ""
+        if clause.object is not None:
+            content = clause.object
+        if clause.content is not None:
+            if clause.object is not None:
+                content += " " + clause.content
+            else:
+                content = clause.content
+        # ad-hoc check to avoid saying tenpai status string multiple times
+        for s in TENPAI_STATUS_STRINGS:
+            if s in content:
+                if already_said_tenpai_status:
+                    content = content.replace(s, "")
+                already_said_tenpai_status = True
+                break
+        ret += " " + content
 
-                # if the clause ends on another subject, change current subject to that
-                current_subject = clause.subject
-                if clause.last_subject is not None:
-                    current_subject = clause.last_subject
-                last_clause = clause
-            rets.append(ret)
-    return rets
+        # if the clause ends on another subject, change current subject to that
+        current_subject = clause.subject
+        if clause.last_subject is not None:
+            current_subject = clause.last_subject
+        last_clause = clause
+    return ret
 
 ###
 ### injustice definitions
