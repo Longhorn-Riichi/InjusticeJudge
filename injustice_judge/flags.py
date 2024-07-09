@@ -74,7 +74,6 @@ Flags = Enum("Flags", "_SENTINEL"
     " NINE_DRAWS_NO_IMPROVEMENT"
     " PASSED_FOUR_DANGEROUS_DISCARDS"
     " REACHED_DOUBLE_STARTING_POINTS"
-    " REACHED_TRIPLE_STARTING_POINTS"
     " SEVEN_TERMINAL_START"
     " SIX_DISCARDS_TSUMOGIRI_HONOR"
     " SIX_TSUMOGIRI_WITHOUT_TENPAI"
@@ -688,45 +687,50 @@ class KyokuState:
         # if no calls, use tsumo score. else, get ron score
         calls_present = len(get_yaku_args["hand"].calls) > 0  # type: ignore[attr-defined]
         all_scores = get_yaku(**get_yaku_args, check_rons = calls_present, check_tsumos = not calls_present)  # type: ignore[arg-type]
-        best_score, takame = max((score, wait) for wait, score in all_scores.items())
-        han = best_score.han
-        fu = best_score.fu   
-        # if we added tsumo, then we might not need the extra han from menzentsumo
-        # (e.g. 6 han + tsumo -> 7 han, still haneman, no need for tsumo)
-        # recalculate fu for a ron, and return that score if it results in the same limit hand
-        recalculate = han in {7, 9, 10, 12} or is_mangan(han-1, fu)
-        if recalculate and not calls_present:
-            ron_scores = get_yaku(**get_yaku_args, check_rons = True, check_tsumos = False)  # type: ignore[arg-type]
-            best_ron_score, ron_takame = max((score, wait) for wait, score in ron_scores.items())
-            ron_han = best_score.han
-            ron_fu = best_score.fu
-            if LIMIT_HANDS[ron_han] == LIMIT_HANDS[han] or (is_mangan(han, fu) and is_mangan(ron_han, ron_fu)):
-                best_score = best_ron_score
-                takame = ron_takame
-        han = best_score.han
-        fu = best_score.fu
-        if han >= 5 or is_mangan(han, fu):
-            hand_str = hand.print_hand_details(ukeire=ukeire, final_tile=None, furiten=furiten, doras=self.kyoku.doras, uras=self.kyoku.uras if self.at[seat].in_riichi else [])
-            self.add_flag(seat, Flags.YOU_HAD_LIMIT_TENPAI,
-                           {"hand_str": hand_str,
-                            "takame": takame,
-                            "limit_name": TRANSLATE[LIMIT_HANDS[han]],
-                            "yaku_str": ", ".join(name for name, value in best_score.yaku),
-                            "han": han,
-                            "fu": fu})
+        visible_tiles = self.kyoku.get_visible_tiles()
+        formatted_scores = [(score, wait) for wait, score in all_scores.items() if visible_tiles.count(wait) > 0]
+        if len(formatted_scores) > 0: # if wait is not dead
+            best_score, takame = max(formatted_scores)
+            han = best_score.han
+            fu = best_score.fu
+            # if we added tsumo, then we might not need the extra han from menzentsumo
+            # (e.g. 6 han + tsumo -> 7 han, still haneman, no need for tsumo)
+            # recalculate fu for a ron, and return that score if it results in the same limit hand
+            recalculate = han in {7, 9, 10, 12} or is_mangan(han-1, fu)
+            if recalculate and not calls_present:
+                ron_scores = get_yaku(**get_yaku_args, check_rons = True, check_tsumos = False)  # type: ignore[arg-type]
+                formatted_ron_scores = [(score, wait) for wait, score in ron_scores.items() if visible_tiles.count(wait) > 0]
+                if len(formatted_ron_scores) > 0: # if wait is not dead
+                    best_ron_score, ron_takame = max(formatted_ron_scores)
+                    ron_han = best_score.han
+                    ron_fu = best_score.fu
+                    if LIMIT_HANDS[ron_han] == LIMIT_HANDS[han] or (is_mangan(han, fu) and is_mangan(ron_han, ron_fu)):
+                        best_score = best_ron_score
+                        takame = ron_takame
+            han = best_score.han
+            fu = best_score.fu
+            if han >= 5 or is_mangan(han, fu):
+                hand_str = hand.print_hand_details(ukeire=ukeire, final_tile=None, furiten=furiten, doras=self.kyoku.doras, uras=self.kyoku.uras if self.at[seat].in_riichi else [])
+                self.add_flag(seat, Flags.YOU_HAD_LIMIT_TENPAI,
+                               {"hand_str": hand_str,
+                                "takame": takame,
+                                "limit_name": TRANSLATE[LIMIT_HANDS[han]],
+                                "yaku_str": ", ".join(name for name, value in best_score.yaku),
+                                "han": han,
+                                "fu": fu})
 
-        # check if we are yakuman tenpai
-        # first, do standard yakuman, otherwise, try kazoe yakuman
-        yakuman_waits: List[Tuple[str, Set[int]]] = [(y, get_yakuman_waits(self.at[seat].hand, y)) for y in get_yakuman_tenpais(self.at[seat].hand)]
-        # only report the yakuman if the waits are not dead
-        visible = self.get_visible_tiles()
-        yakuman_types: Set[str] = {t for t, waits in yakuman_waits if not all(visible.count(wait) == 4 for wait in waits)}
-        if len(yakuman_types) > 0:
-            self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"hand": self.at[seat].hand, "types": yakuman_types, "waits": yakuman_waits})
-        elif han >= 13 and not any(y in YAKUMAN for y, _ in best_score.yaku):
-            # filter for only the waits that let you reach kazoe yakuman
-            kazoe_waits: List[Tuple[str, Set[int]]] = [("kazoe yakuman", {wait for wait, score in all_scores.items() if score.han >= 13})]
-            self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"hand": self.at[seat].hand, "types": {f"kazoe yakuman ({', '.join(y for y, _ in best_score.yaku)})"}, "waits": kazoe_waits})
+            # check if we are yakuman tenpai
+            # first, do standard yakuman, otherwise, try kazoe yakuman
+            yakuman_waits: List[Tuple[str, Set[int]]] = [(y, get_yakuman_waits(self.at[seat].hand, y)) for y in get_yakuman_tenpais(self.at[seat].hand)]
+            # only report the yakuman if the waits are not dead
+            visible = self.get_visible_tiles()
+            yakuman_types: Set[str] = {t for t, waits in yakuman_waits if not all(visible.count(wait) == 4 for wait in waits)}
+            if len(yakuman_types) > 0:
+                self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"hand": self.at[seat].hand, "types": yakuman_types, "waits": yakuman_waits})
+            elif han >= 13 and not any(y in YAKUMAN for y, _ in best_score.yaku):
+                # filter for only the waits that let you reach kazoe yakuman
+                kazoe_waits: List[Tuple[str, Set[int]]] = [("kazoe yakuman", {wait for wait, score in all_scores.items() if score.han >= 13})]
+                self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"hand": self.at[seat].hand, "types": {f"kazoe yakuman ({', '.join(y for y, _ in best_score.yaku)})"}, "waits": kazoe_waits})
 
     def process_start_game(self, i: int, seat: int, event_type: str,
                            round: int, honba: int, riichi_sticks: int, scores: List[int]) -> None:
@@ -1080,10 +1084,9 @@ class KyokuState:
         # check if we're got double starting points
         for player in range(self.num_players):
             end_points = prev_scores[player] + delta_scores[player]
-            if end_points >= 3 * self.kyoku.get_starting_score():
-                self.add_flag(player, Flags.REACHED_TRIPLE_STARTING_POINTS, {"points": end_points})
-            if end_points >= 2 * self.kyoku.get_starting_score():
-                self.add_flag(player, Flags.REACHED_DOUBLE_STARTING_POINTS, {"points": end_points})
+            times_starting_score = end_points // self.kyoku.get_starting_score()
+            if times_starting_score >= 2:
+                self.add_flag(player, Flags.REACHED_DOUBLE_STARTING_POINTS, {"points": end_points, "multiple": times_starting_score})
 
     def _process_call(self, seat: int, call: CallInfo) -> None:
         # flip kan dora, if needed

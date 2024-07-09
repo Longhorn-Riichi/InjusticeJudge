@@ -42,6 +42,10 @@ class CheckResult:
     honba: int
     name: str
     clause: CheckClause
+    identifier: str = ""
+    def __post_init__(self) -> None:
+        import sys
+        super().__setattr__("identifier", sys._getframe(2).f_code.co_name) # get caller name
 
 @dataclass(frozen=True)
 class Injustice(CheckResult):
@@ -252,10 +256,13 @@ def won_with_3_starting_dora(flags: List[Flags], data: List[Dict[str, Any]], kyo
     hand = data[flags.index(Flags.YOU_WON)]["hand"]
     starting_dora = sorted(tile for tile in haipai.tiles if tile in kyoku.get_starting_doras())
     ending_dora = sorted(tile for tile in hand.tiles if tile in kyoku.doras)
-    return [Skill(kyoku.round, kyoku.honba, "Skill",
-            CheckClause(subject="you",
-                        verb="started with",
-                        content=f"at least 3 dora ({ph(starting_dora)}), and won with {num_dora} dora ({ph(ending_dora)})"))]
+    if num_dora >= len(starting_dora):
+        return [Skill(kyoku.round, kyoku.honba, "Skill",
+                CheckClause(subject="you",
+                            verb="started with",
+                            content=f"at least 3 dora ({ph(starting_dora)}), and won with {num_dora} dora ({ph(ending_dora)})"))]
+    else:
+        return []
 
 ###
 ### mid game skills
@@ -560,21 +567,15 @@ def got_out_of_last_place(flags: List[Flags], data: List[Dict[str, Any]], kyoku:
                         content=f"4th place (to {PLACEMENTS[new]}) in the final round"))]
 
 @skill(require=[Flags.FINAL_ROUND, Flags.REACHED_DOUBLE_STARTING_POINTS],
-        forbid=[Flags.REACHED_TRIPLE_STARTING_POINTS])
+        forbid=[])
 def ended_with_double_starting_points(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     points = data[flags.index(Flags.REACHED_DOUBLE_STARTING_POINTS)]["points"]
+    multiple = data[flags.index(Flags.REACHED_DOUBLE_STARTING_POINTS)]["multiple"]
+    mult_strings = {2: "double", 3: "triple", 4: "quadruple (!)", 5: "quintuple (!!!)"}
     return [Skill(kyoku.round, kyoku.honba, "Skill",
             CheckClause(subject="you",
                         verb="ended",
-                        content=f"the game with double starting points ({points})"))]
-
-@skill(require=[Flags.FINAL_ROUND, Flags.REACHED_TRIPLE_STARTING_POINTS])
-def ended_with_triple_starting_points(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
-    points = data[flags.index(Flags.REACHED_DOUBLE_STARTING_POINTS)]["points"]
-    return [Skill(kyoku.round, kyoku.honba, "Skill",
-            CheckClause(subject="you",
-                        verb="ended",
-                        content=f"the game with triple starting points ({points})"))]
+                        content=f"the game with {mult_strings[multiple]} starting points ({points})"))]
 
 ###
 ### early game injustices
@@ -1153,7 +1154,7 @@ def you_reached_yakuman_tenpai(flags: List[Flags], data: List[Dict[str, Any]], k
                         content=f"{' and '.join(yakuman_types)} tenpai, but {what_happened}",
                         last_subject=last_subject))]
 
-# Print if you got head bumped (or you skipped your ron)
+# Print if you got head bumped (or you skipped your ron at the same time someone else ronned)
 @injustice(require=[Flags.YOU_WAITED_ON_WINNING_TILE, Flags.GAME_ENDED_WITH_RON, Flags.WINNER],
             forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_GAINED_POINTS])
 def you_got_head_bumped(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
@@ -1279,7 +1280,7 @@ def wait_was_in_dead_wall(flags: List[Flags], data: List[Dict[str, Any]], kyoku:
                         verb="were hidden in",
                         object="the dead wall"))]
 
-# Print if, had the game not ended, you would have tsumoed within 5 turns
+# Print if, had the round not ended, you would have tsumoed within 5 turns
 @injustice(require=[Flags.COULD_HAVE_TSUMOED],
             forbid=[Flags.YOU_WON])
 def could_have_tsumoed(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
@@ -1297,9 +1298,9 @@ def could_have_tsumoed(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="ended up waiting on",
-                        content=f"{ph(wait, kyoku.doras)}{yakuman_str}, and had the game not ended by {kyoku.result[0]}, you would have drawn {pt(draws[earliest_winning_draw_index], kyoku.doras)} {index_string}"))]
+                        content=f"{ph(wait, kyoku.doras)}{yakuman_str}, and had the round not ended by {kyoku.result[0]}, you would have drawn {pt(draws[earliest_winning_draw_index], kyoku.doras)} {index_string}"))]
 
-# Print if, had the game not ended, you would have ronned a riichi player within 5 turns
+# Print if, had the round not ended, you would have ronned a riichi player within 5 turns
 @injustice(require=[Flags.COULD_HAVE_RONNED],
             forbid=[Flags.YOU_WON, Flags.COULD_HAVE_TSUMOED])
 def could_have_ronned(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
@@ -1318,4 +1319,4 @@ def could_have_ronned(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyo
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="ended up waiting on",
-                        content=f"{ph(wait, kyoku.doras)}{yakuman_str}, and had the game not ended by {kyoku.result[0]}, {relative_seat_name(player, riichi_player)}'s riichi would have forced them to drop {pt(draws[earliest_winning_draw_index], kyoku.doras)} {index_string}"))]
+                        content=f"{ph(wait, kyoku.doras)}{yakuman_str}, and had the round not ended by {kyoku.result[0]}, {relative_seat_name(player, riichi_player)}'s riichi would have forced them to drop {pt(draws[earliest_winning_draw_index], kyoku.doras)} {index_string}"))]
