@@ -52,5 +52,4 @@ async def parse_game_link(link: str, specified_players: Set[int] = set(), nickna
             specified_players = {player}
         else:
             specified_players = {0}
-    print(specified_players)
     return kyokus, parsed_metadata, specified_players

@@ -25,12 +25,31 @@ class MahjongSoulError(Exception):
 
 class MahjongSoulAPI:
     """Helper class to interface with the Mahjong Soul API"""
-    def __init__(self, endpoint: str) -> None:
-        self.endpoint = endpoint
+    def __init__(self, mjs_username: Optional[str]=None,
+                       mjs_password: Optional[str]=None,
+                       mjs_uid: Optional[str]=None,
+                       mjs_token: Optional[str]=None) -> None:
+        self.mjs_username = mjs_username
+        self.mjs_password = mjs_password
+        self.mjs_uid = mjs_uid
+        self.mjs_token = mjs_token
+        self.use_cn = self.mjs_username is not None and self.mjs_password is not None
+        self.use_en = self.mjs_uid is not None and self.mjs_token is not None
+        if not self.use_cn and not self.use_en:
+            raise Exception("MahjongSoulAPI was initialized without Mahjong Soul login credentials!")
     async def __aenter__(self) -> "MahjongSoulAPI":
+        import requests
         import websockets
-        self.ws = await websockets.connect(self.endpoint)  # type: ignore[attr-defined]
+        # url is the __MJ_GAME_INFO_API__ key of https://www.maj-soul.com/dhs/js/config.js
+        self.version = requests.get(url="https://game.maj-soul.com/1/version.json").json()["version"][:-2]
+        self.client_version_string = f"web-{self.version}"
         self.ix = 0
+        if self.use_cn:
+            self.ws = await websockets.connect("wss://gateway-hw.maj-soul.com:443/gateway")  # type: ignore[attr-defined]
+            await self.login_cn()
+        elif self.use_en:
+            self.ws = await websockets.connect("wss://mjusgs.mahjongsoul.com:9663/")  # type: ignore[attr-defined]
+            await self.login_en()
         return self
     async def __aexit__(self, err_type: Optional[Type[BaseException]], 
                               err_value: Optional[BaseException], 
@@ -43,8 +62,8 @@ class MahjongSoulAPI:
         assert method is not None, f"couldn't find method {name}"
 
         # prepare the payload (req) and a place to store the response (res)
-        req: Message = pb.reflection.MakeClass(method.input_type)(**fields)
-        res: Message = pb.reflection.MakeClass(method.output_type)()
+        req: Message = pb.reflection.MakeClass(method.input_type)(**fields)  # type: ignore[attr-defined]
+        res: Message = pb.reflection.MakeClass(method.output_type)()  # type: ignore[attr-defined]
         # the Res* response must have an error field
         assert hasattr(res, "error"), f"Got non-Res object: {res}\n\nfrom request: {req}"
 
@@ -65,13 +84,48 @@ class MahjongSoulAPI:
             raise MahjongSoulError(res.error.code, method.full_name)
         return res
 
+    async def login_cn(self) -> None:
+        assert self.mjs_username is not None
+        assert self.mjs_password is not None
+        import hashlib
+        import hmac
+        import requests
+        import uuid
+        await self.call(
+            "login",
+            account=self.mjs_username,
+            password=hmac.new(b"lailai", self.mjs_password.encode(), hashlib.sha256).hexdigest(),
+            device={"is_browser": True},
+            random_key=str(uuid.uuid1()),
+            client_version_string=self.client_version_string)
+
+    async def login_en(self) -> None:
+        assert self.mjs_uid is not None
+        assert self.mjs_token is not None
+        import requests
+        import uuid
+        # print("Calling heatbeat...")
+        await self.call("heatbeat")
+        # print("Requesting initial access token...")
+        USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
+        access_token = requests.post(url="https://passport.mahjongsoul.com/user/login", headers={"User-Agent": USER_AGENT, "Referer": "https://mahjongsoul.game.yo-star.com/"}, data={"uid":self.mjs_uid,"token":self.mjs_token,"deviceId":f"web|{self.mjs_uid}"}).json()["accessToken"]
+        # print("Requesting oauth access token...")
+        oauth_token = cast(proto.ResOauth2Auth, await self.call("oauth2Auth", type=7, code=access_token, uid=self.mjs_uid, client_version_string=self.client_version_string)).access_token
+        # print("Calling heatbeat...")
+        await self.call("heatbeat")
+        # print("Calling oauth2Check...")
+        assert cast(proto.ResOauth2Check, await self.call("oauth2Check", type=7, access_token=oauth_token)).has_account, "couldn't find account with oauth2Check"
+        # print("Calling oauth2Login...")
+        client_device_info = {"platform": "pc", "hardware": "pc", "os": "mac", "is_browser": True, "software": "Firefox", "sale_platform": "web"}  # type: ignore[dict-item]
+        await self.call("oauth2Login", type=7, access_token=oauth_token, reconnect=False, device=client_device_info, random_key=str(uuid.uuid1()), client_version={"resource": f"{self.version}.w"}, currency_platforms=[], client_version_string=self.client_version_string, tag="en")
+
 def parse_wrapped_bytes(data: bytes) -> Tuple[str, Message]:
     """Used to unwrap Mahjong Soul messages in fetch_majsoul() below"""
     wrapper = proto.Wrapper()
     wrapper.ParseFromString(data)
     name = wrapper.name.strip(f'.{proto.DESCRIPTOR.package}')
     try:
-        msg = pb.reflection.MakeClass(proto.DESCRIPTOR.message_types_by_name[name])()
+        msg = pb.reflection.MakeClass(proto.DESCRIPTOR.message_types_by_name[name])()  # type: ignore[attr-defined]
         msg.ParseFromString(wrapper.data)
     except KeyError as e:
         raise Exception(f"Failed to find message name {name}")
@@ -114,55 +168,10 @@ async def fetch_majsoul(link: str) -> Tuple[MajsoulLog, Dict[str, Any], Optional
     except Exception:
         import os
         import dotenv
-        import requests
-        import uuid
-
         dotenv.load_dotenv("config.env")
-        USERNAME = os.getenv("ms_username")
-        PASSWORD = os.getenv("ms_password")
-        
-        if USERNAME is not None and PASSWORD is not None:
-            import hmac
-            import hashlib
-            # login to the Chinese server with USERNAME and PASSWORD
-            MS_VERSION = requests.get(url="https://game.maj-soul.com/1/version.json").json()["version"][:-2]
-
-            # url is the __MJ_GAME_INFO_API__ key of https://www.maj-soul.com/dhs/js/config.js
-            async with MahjongSoulAPI("wss://common-v2.maj-soul.com:443/gateway") as api:
-                client_version_string = f"web-{MS_VERSION}"
-                client_device_info = {"is_browser": True}
-                print("Calling login...")
-                await api.call(
-                    "login",
-                    account=USERNAME,
-                    password=hmac.new(b"lailai", PASSWORD.encode(), hashlib.sha256).hexdigest(),
-                    device=client_device_info,
-                    random_key=str(uuid.uuid1()),
-                    client_version_string=client_version_string)
-                print("Calling fetchGameRecord...")
-                record = cast(proto.ResGameRecord, await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=client_version_string))
-        else:
-            # login to the EN server with UID and TOKEN
-            UID = os.getenv("ms_uid")
-            TOKEN = os.getenv("ms_token")
-            MS_VERSION = requests.get(url="https://mahjongsoul.game.yo-star.com/version.json").json()["version"][:-2]
-            async with MahjongSoulAPI("wss://mjusgs.mahjongsoul.com:9663/") as api:
-                print("Calling heatbeat...")
-                await api.call("heatbeat")
-                print("Requesting initial access token...")
-                USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
-                access_token = requests.post(url="https://passport.mahjongsoul.com/user/login", headers={"User-Agent": USER_AGENT, "Referer": "https://mahjongsoul.game.yo-star.com/"}, data={"uid":UID,"token":TOKEN,"deviceId":f"web|{UID}"}).json()["accessToken"]
-                print("Requesting oauth access token...")
-                oauth_token = cast(proto.ResOauth2Auth, await api.call("oauth2Auth", type=7, code=access_token, uid=UID, client_version_string=f"web-{MS_VERSION}")).access_token
-                print("Calling heatbeat...")
-                await api.call("heatbeat")
-                print("Calling oauth2Check...")
-                assert cast(proto.ResOauth2Check, await api.call("oauth2Check", type=7, access_token=oauth_token)).has_account, "couldn't find account with oauth2Check"
-                print("Calling oauth2Login...")
-                client_device_info = {"platform": "pc", "hardware": "pc", "os": "mac", "is_browser": True, "software": "Firefox", "sale_platform": "web"}  # type: ignore[dict-item]
-                await api.call("oauth2Login", type=7, access_token=oauth_token, reconnect=False, device=client_device_info, random_key=str(uuid.uuid1()), client_version={"resource": f"{MS_VERSION}.w"}, currency_platforms=[], client_version_string=f"web-{MS_VERSION}", tag="en")
-                print("Calling fetchGameRecord...")
-                record = cast(proto.ResGameRecord, await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=f"web-{MS_VERSION}"))
+        async with MahjongSoulAPI(mjs_username=os.getenv("ms_username"), mjs_password=os.getenv("ms_password"), mjs_uid=os.getenv("ms_uid"), mjs_token=os.getenv("ms_token")) as api:
+            print("Calling fetchGameRecord...")
+            record = cast(proto.ResGameRecord, await api.call("fetchGameRecord", game_uuid=identifier, client_version_string=api.client_version_string))
         save_cache(filename=f"game-{identifier}.log", data=record.SerializeToString())
 
     parsed = cast(proto.GameDetailRecords, parse_wrapped_bytes(record.data)[1])
@@ -228,7 +237,7 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any], nickname: Optio
             haipai: List[Tuple[int, ...]] = [sorted_hand(majsoul_hand_to_tenhou(h)) for h in [action.tiles0, action.tiles1, action.tiles2, action.tiles3] if len(h) > 0]
             num_players = len(haipai)
             # dealer starts with 14, remove one tile and turn it into a draw
-            *haipai[action.ju], first_tile = haipai[action.ju]
+            *haipai[action.ju], first_tile = haipai[action.ju]  # type: ignore[call-overload]
             for t in range(num_players):
                 events.append((t, "haipai", haipai[t]))
             # `round` can jump from `2` to `4` for sanma, and this is okay because
