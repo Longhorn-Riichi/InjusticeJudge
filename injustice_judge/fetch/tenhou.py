@@ -36,7 +36,7 @@ def parse_tenhou_link(link: str) -> Tuple[str, Optional[int]]:
     player_pattern = r'&tw=(\d)'
     player_match = re.search(player_pattern, link)
     if player_match is None:
-        player_seat = 0
+        player_seat = None
     else:
         player_seat = int(player_match.group(1))
 
