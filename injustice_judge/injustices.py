@@ -586,10 +586,9 @@ def ended_with_double_starting_points(flags: List[Flags], data: List[Dict[str, A
 ###
 
 # Print if you started with atrocious shanten and couldn't gain points as a result
-@injustice(require=[Flags.DREW_WORST_HAIPAI_SHANTEN],
-            forbid=[Flags.YOU_GAINED_POINTS])
 @injustice(require=[Flags.FIVE_SHANTEN_START],
-            forbid=[Flags.YOU_GAINED_POINTS, Flags.DREW_WORST_HAIPAI_SHANTEN])
+            forbid=[Flags.YOU_GAINED_POINTS, Flags.YOU_ALMOST_GOT_NAGASHI,
+                    Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI, Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
 def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     hand: Hand
     if Flags.FIVE_SHANTEN_START in flags:
@@ -614,7 +613,8 @@ def five_shanten_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
 
 # Print if you started with 7-8 types of terminals and couldn't gain points as a result
 @injustice(require=[Flags.SEVEN_TERMINAL_START],
-           forbid=[Flags.YOU_GAINED_POINTS])
+           forbid=[Flags.YOU_GAINED_POINTS, Flags.YOU_ALMOST_GOT_NAGASHI,
+                   Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI, Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
 def seven_terminal_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     num_types = data[flags.index(Flags.SEVEN_TERMINAL_START)]["num_types"]
     if num_types in {8,9}:
@@ -626,7 +626,8 @@ def seven_terminal_start(flags: List[Flags], data: List[Dict[str, Any]], kyoku: 
 
 # Print if you were still at bad shanten after the first row of discards and couldn't gain points as a result
 @injustice(require=[Flags.FOUR_SHANTEN_AFTER_FIRST_ROW],
-            forbid=[Flags.YOU_GAINED_POINTS])
+            forbid=[Flags.YOU_GAINED_POINTS, Flags.YOU_ALMOST_GOT_NAGASHI,
+                    Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI, Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
 def four_shanten_after_first_row(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     shanten = data[flags.index(Flags.FOUR_SHANTEN_AFTER_FIRST_ROW)]["shanten"]
     all_last_str = " in all last" if Flags.ALL_LAST in flags else ""
@@ -695,7 +696,9 @@ def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], k
     return ret
 
 # Print if you failed to improve your shanten for at least nine consecutive draws
-@injustice(require=[Flags.NINE_DRAWS_NO_IMPROVEMENT])
+@injustice(require=[Flags.NINE_DRAWS_NO_IMPROVEMENT],
+            forbid=[Flags.YOU_GAINED_POINTS, Flags.YOU_ALMOST_GOT_NAGASHI,
+                    Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI, Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
 def shanten_hell(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     shanten_data = data[len(flags) - 1 - flags[::-1].index(Flags.NINE_DRAWS_NO_IMPROVEMENT)]
     draws = shanten_data["draws"]
@@ -769,7 +772,7 @@ def chii_got_overridden(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
 
 # Print if you just barely failed nagashi
 @injustice(require=[Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI],
-            forbid=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
+            forbid=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED, Flags.YOU_ALMOST_GOT_NAGASHI])
 def lost_nagashi_to_draw(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     tile = data[flags.index(Flags.YOUR_LAST_DISCARD_ENDED_NAGASHI)]["tile"]
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
@@ -778,7 +781,8 @@ def lost_nagashi_to_draw(flags: List[Flags], data: List[Dict[str, Any]], kyoku: 
                         content=f"nagashi on your last discard ({pt(tile, doras=kyoku.doras)})"))]
 
 # Print if someone calls your last tile for nagashi (not ron)
-@injustice(require=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED])
+@injustice(require=[Flags.YOUR_LAST_NAGASHI_TILE_CALLED],
+            forbid=[Flags.YOU_ALMOST_GOT_NAGASHI])
 def lost_nagashi_to_call(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     nagashi_data = data[flags.index(Flags.YOUR_LAST_NAGASHI_TILE_CALLED)]
     tile = nagashi_data["tile"]
@@ -1324,3 +1328,12 @@ def could_have_ronned(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyo
             CheckClause(subject="you",
                         verb="ended up waiting on",
                         content=f"{ph(wait, kyoku.doras)}{yakuman_str}, and had the round not ended by {kyoku.result[0]}, {relative_seat_name(player, riichi_player)}'s riichi would have forced them to drop {pt(draws[earliest_winning_draw_index], kyoku.doras)} {index_string}"))]
+
+# Print if ron or tsumo happened after your last nagashi discard
+@injustice(require=[Flags.YOU_ALMOST_GOT_NAGASHI, Flags.WINNER])
+def almost_got_nagashi(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    winner = data[flags.index(Flags.WINNER)]["seat"]
+    return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+            CheckClause(subject="you",
+                        verb="were going to get",
+                        content=f"nagashi if {relative_seat_name(player, winner)} didn't call {kyoku.result[0]} at the last second"))]

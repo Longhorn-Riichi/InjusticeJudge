@@ -105,6 +105,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " WINNER_WON_WITH_PON_PON_RON"
     " WON_AFTER_CHANGING_WAIT"
     " YOU_ACHIEVED_NAGASHI"
+    " YOU_ALMOST_GOT_NAGASHI"
     " YOU_ARE_DEALER"
     " YOU_AVOIDED_LAST_PLACE"
     " YOU_CAN_CALL_RON"
@@ -749,13 +750,13 @@ class KyokuState:
         # add final round flag (NOT all last)
         if self.kyoku.is_final_round:
             self.add_global_flag(Flags.FINAL_ROUND)
-        # check who has the worst haipai shanten
-        starting_shanten = [self.kyoku.haipai[player].shanten[0] // 1 for player in range(self.num_players)]
-        get_starting_shanten = lambda player: self.kyoku.haipai[player].shanten[0] // 1
-        for player in range(self.num_players):
-            second_worst_shanten = max(get_starting_shanten(other_player) for other_player in range(self.num_players) if player != other_player)
-            if get_starting_shanten(player) > second_worst_shanten:
-                self.add_flag(player, Flags.DREW_WORST_HAIPAI_SHANTEN, {"hand": self.kyoku.haipai[player], "second_worst_shanten": second_worst_shanten})
+        # # check who has the worst haipai shanten
+        # starting_shanten = [self.kyoku.haipai[player].shanten[0] // 1 for player in range(self.num_players)]
+        # get_starting_shanten = lambda player: self.kyoku.haipai[player].shanten[0] // 1
+        # for player in range(self.num_players):
+        #     second_worst_shanten = max(get_starting_shanten(other_player) for other_player in range(self.num_players) if player != other_player)
+        #     if get_starting_shanten(player) > second_worst_shanten:
+        #         self.add_flag(player, Flags.DREW_WORST_HAIPAI_SHANTEN, {"hand": self.kyoku.haipai[player], "second_worst_shanten": second_worst_shanten})
         
     def process_end_game(self, i: int, seat: int, event_type: str, raw_result: List[Any]):
         # here we check the wall to see if we would have won had the game not ended
@@ -942,11 +943,16 @@ class KyokuState:
         winning_tile = self.kyoku.final_draw if is_tsumo else self.kyoku.final_discard
 
         # first check how each player reacts to this win
-        # check if anyone lost points to a first row win
         for seat in range(self.num_players):
+            # check if anyone lost points to a first row win
             if result.score_delta[seat] < 0:
                 if len(self.at[seat].pond) <= 6:
                     self.add_flag(seat, Flags.LOST_POINTS_TO_FIRST_ROW_WIN, {"seat": result.winner, "turn": len(self.at[seat].pond)})
+            # check if the win denied any nagashi
+            if self.at[seat].nagashi:
+                self.at[seat].nagashi = False
+                self.add_flag(seat, Flags.YOU_ALMOST_GOT_NAGASHI);
+        
         # if tenpai, check if any player could have ronned the winning tile
         for seat, (flags, data) in enumerate(zip(self.flags, self.data)):
             if Flags.YOU_CAN_CALL_RON in flags:
