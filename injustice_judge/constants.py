@@ -200,8 +200,8 @@ TENHOU_YAKU = {
     44: "清老頭",            # All Terminals
     45: "九蓮宝燈",          # Nine Gates
     46: "純正九蓮宝燈",       # True Nine Gates
-    47: "国士無双十三面待ち",  # Thirteen-wait Thirteen Orphans
-    48: "国士無双",          # Thirteen Orphans
+    47: "国士無双",          # Thirteen Orphans
+    48: "国士無双十三面待ち",  # Thirteen-wait Thirteen Orphans
     49: "大四喜",            # Four Big Winds
     50: "小四喜",            # Four Little Winds
     51: "四槓子",            # Four Quads
