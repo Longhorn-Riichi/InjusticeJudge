@@ -948,10 +948,11 @@ class KyokuState:
             if result.score_delta[seat] < 0:
                 if len(self.at[seat].pond) <= 6:
                     self.add_flag(seat, Flags.LOST_POINTS_TO_FIRST_ROW_WIN, {"seat": result.winner, "turn": len(self.at[seat].pond)})
-            # check if the win denied any nagashi
+            # check if the win denied any third row nagashi
             if self.at[seat].nagashi:
                 self.at[seat].nagashi = False
-                self.add_flag(seat, Flags.YOU_ALMOST_GOT_NAGASHI);
+                if len(self.at[seat].pond) >= 12:
+                    self.add_flag(seat, Flags.YOU_ALMOST_GOT_NAGASHI);
         
         # if tenpai, check if any player could have ronned the winning tile
         for seat, (flags, data) in enumerate(zip(self.flags, self.data)):
