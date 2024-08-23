@@ -1174,6 +1174,22 @@ def you_got_head_bumped(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
                         verb="were",
                         content=f"tenpai waiting on {ph(wait, kyoku.doras)}, and would have won, but instead you got head bumped by {relative_seat_name(player, winner)}"))]
 
+# Print if the winner tsumoed on your wait
+@injustice(require=[Flags.GAME_ENDED_WITH_TSUMO, Flags.YOU_REACHED_TENPAI],
+            forbid=[Flags.YOU_WON, Flags.YOU_FOLDED_FROM_TENPAI])
+def your_wait_was_tsumoed(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    your_waits = data[len(data) - 1 - flags[::-1].index(Flags.YOU_REACHED_TENPAI)]["hand"].shanten[1]
+    winner = data[flags.index(Flags.WINNER)]["seat"]
+    winning_tile = data[flags.index(Flags.WINNER)]["winning_tile"]
+    if winning_tile in your_waits:
+        return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+                CheckClause(subject="the tile",
+                            subject_description=f"{pt(winning_tile, doras=kyoku.doras)} that {relative_seat_name(player, winner)} tsumoed on",
+                            verb="was",
+                            content=f"exactly your wait {ph(your_waits, doras=kyoku.doras)}"))]
+    else:
+        return []
+
 # Print if someone else's below-mangan win destroyed your mangan+ tenpai
 @injustice(require=[Flags.YOU_HAD_LIMIT_TENPAI, Flags.WINNER],
             forbid=[Flags.YOU_FOLDED_FROM_TENPAI, Flags.YOU_GAINED_POINTS,
