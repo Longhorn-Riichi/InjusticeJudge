@@ -398,6 +398,7 @@ class KyokuState:
         # check if we drew into potential tenpai
         # but every discard that would give us tenpai deals into someone
         if 0 <= prev_hand.shanten[0] < 2:
+            just_reached_tenpai = tile in prev_hand.shanten[1]
             deals_into_someone = lambda tile: any(at.hand.shanten[0] == 0 and tile in at.hand.shanten[1] for at in self.at)
             for player in range(self.num_players):
                 if player == seat:
@@ -407,6 +408,7 @@ class KyokuState:
                     self.add_flag(seat, Flags.ALL_TENPAI_DISCARDS_DEAL_IN, {
                         "hand": self.at[seat].hand,
                         "discards": tuple(tenpai_discards.keys()),
+                        "just_reached_tenpai": just_reached_tenpai,
                         "furiten": all(any(tile in self.at[seat].pond for tile in hand.hidden_part) for hand in tenpai_discards.values())})
 
     def process_self_kan(self, i: int, seat: int, event_type: str, called_tile: int, call_tiles: Tuple[int, ...], call_dir: Dir) -> None:

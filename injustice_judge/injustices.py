@@ -895,6 +895,7 @@ def your_tiles_all_deal_in(flags: List[Flags], data: List[Dict[str, Any]], kyoku
 def all_tenpai_discards_deal_in(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     hand = data[len(data) - 1 - flags[::-1].index(Flags.ALL_TENPAI_DISCARDS_DEAL_IN)]["hand"]
     discards = data[len(data) - 1 - flags[::-1].index(Flags.ALL_TENPAI_DISCARDS_DEAL_IN)]["discards"]
+    just_reached_tenpai = data[len(data) - 1 - flags[::-1].index(Flags.ALL_TENPAI_DISCARDS_DEAL_IN)]["just_reached_tenpai"]
     furiten = data[len(data) - 1 - flags[::-1].index(Flags.ALL_TENPAI_DISCARDS_DEAL_IN)]["furiten"]
     if len(discards) > 1:
         discard_string = f"any of {ph(discards, doras=kyoku.doras)}, but they would all deal in"
@@ -903,7 +904,7 @@ def all_tenpai_discards_deal_in(flags: List[Flags], data: List[Dict[str, Any]], 
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="your hand",
                         subject_description=hand.to_str(doras=kyoku.doras),
-                        verb="could only reach",
+                        verb=f"could only {'reach' if just_reached_tenpai else 'maintain'}",
                         content=f"{'(furiten) ' if furiten else ''}tenpai by discarding {discard_string}")),
             Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
