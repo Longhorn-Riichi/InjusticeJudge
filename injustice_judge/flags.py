@@ -397,7 +397,7 @@ class KyokuState:
                 self.add_flag(seat, Flags.IISHANTEN_WITH_ZERO_TILES, {"shanten": self.at[seat].hand.shanten})
         # check if we drew into potential tenpai
         # but every discard that would give us tenpai deals into someone
-        if 0 <= prev_hand.shanten[0] < 2 and tile in prev_hand.shanten[1]:
+        if 0 <= prev_hand.shanten[0] < 2:
             deals_into_someone = lambda tile: any(at.hand.shanten[0] == 0 and tile in at.hand.shanten[1] for at in self.at)
             for player in range(self.num_players):
                 if player == seat:
