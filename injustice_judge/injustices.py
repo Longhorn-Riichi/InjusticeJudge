@@ -176,7 +176,8 @@ def format_result(seat: int, result_list: List[CheckResult], player_names: List[
                     content = content.replace(s, "")
                 already_said_tenpai_status = True
                 break
-        ret += " " + content
+        if content != "":
+            ret += " " + content
 
         # if the clause ends on another subject, change current subject to that
         current_subject = clause.subject
