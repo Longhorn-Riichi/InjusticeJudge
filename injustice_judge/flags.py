@@ -409,7 +409,7 @@ class KyokuState:
                         "hand": self.at[seat].hand,
                         "discards": tuple(tenpai_discards.keys()),
                         "just_reached_tenpai": just_reached_tenpai,
-                        "furiten": all(any(tile in self.at[seat].pond for tile in hand.hidden_part) for hand in tenpai_discards.values())})
+                        "furiten": all(any(tile in self.at[seat].pond for tile in hand.shanten[1]) for hand in tenpai_discards.values())})
 
     def process_self_kan(self, i: int, seat: int, event_type: str, called_tile: int, call_tiles: Tuple[int, ...], call_dir: Dir) -> None:
         self.at[seat].turn += 1
