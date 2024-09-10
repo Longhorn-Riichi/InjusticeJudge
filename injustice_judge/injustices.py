@@ -891,8 +891,9 @@ def your_tiles_all_deal_in(flags: List[Flags], data: List[Dict[str, Any]], kyoku
                         verb="only had",
                         content=f"tiles that would deal in ({wait_string})"))]
 
-# Print if you were about to reach tenpai but all of your tenpai discards deal in
-@injustice(require=[Flags.ALL_TENPAI_DISCARDS_DEAL_IN, Flags.YOU_DEALT_IN])
+# Print if you were about to reach/maintain tenpai but all of your tenpai discards deal in
+@injustice(require=[Flags.ALL_TENPAI_DISCARDS_DEAL_IN, Flags.YOU_DEALT_IN],
+            forbid=[Flags.YOU_DECLARED_RIICHI])
 def all_tenpai_discards_deal_in(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     hand = data[len(data) - 1 - flags[::-1].index(Flags.ALL_TENPAI_DISCARDS_DEAL_IN)]["hand"]
     discards = data[len(data) - 1 - flags[::-1].index(Flags.ALL_TENPAI_DISCARDS_DEAL_IN)]["discards"]
