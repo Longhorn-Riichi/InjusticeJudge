@@ -261,7 +261,7 @@ def parse_riichicity(log: RiichiCityLog, metadata: Dict[str, Any], nickname: Opt
                     import os
                     if os.getenv("debug"):
                         raise Exception("unknown end_type " + str(data["end_type"]) + ", in " + round_name(round, honba) + " with " + str(tiles_in_wall) + " tiles left in wall")
-                events.append((0, "end_game", result))
+                events.append((last_seat, "end_game", result))
             elif ev["eventType"] == 6: # end game
                 # these are unsorted, so we need to sort them
                 user_data = sorted(data["user_data"], key=lambda p: player_ids.index(p["user_id"]))

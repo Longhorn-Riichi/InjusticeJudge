@@ -761,17 +761,17 @@ class KyokuState:
         #         self.add_flag(player, Flags.DREW_WORST_HAIPAI_SHANTEN, {"hand": self.kyoku.haipai[player], "second_worst_shanten": second_worst_shanten})
         
     def process_end_game(self, i: int, seat: int, event_type: str, raw_result: List[Any]):
-        # here we check the wall to see if we would have won had the game not ended
+        # here we check the wall to see if anyone would have won had the game not ended
         if len(self.kyoku.wall) > 0:
             winners = {r[0] for r in raw_result[2::2]}
             for i in range(self.num_players):
-                player = (seat+i+1)%self.num_players
+                player = (seat+i)%self.num_players
                 if player not in winners and self.at[player].hand.shanten[0] == 0:
                     wait = self.at[player].hand.shanten[1]
                     yakuman_tenpais = get_yakuman_tenpais(self.at[player].hand)
                     # check if we would have tsumoed the tile
                     draws = get_remaining_draws(wall=self.kyoku.wall,
-                                                tiles_in_wall=self.tiles_in_wall - i,
+                                                tiles_in_wall=self.tiles_in_wall - ((i+3)%4),
                                                 sanma=self.num_players == 3,
                                                 num_kans_kitas=self.num_kans + self.num_kitas)
                     if len(yakuman_tenpais) == 0:
@@ -781,12 +781,12 @@ class KyokuState:
                     # check if a riichi player would have drawn the tile and we could call ron on it
                     if not self.at[player].furiten:
                         for j in range(self.num_players):
-                            riichi_player = (seat+j+1)%self.num_players
+                            riichi_player = (seat+j)%self.num_players
                             if player == riichi_player or not self.at[riichi_player].in_riichi:
                                 continue
                             riichi_wait = self.at[riichi_player].hand.shanten[1]
                             draws = get_remaining_draws(wall=self.kyoku.wall,
-                                                        tiles_in_wall=self.tiles_in_wall - j,
+                                                        tiles_in_wall=self.tiles_in_wall - ((j+3)%4),
                                                         sanma=self.num_players == 3,
                                                         num_kans_kitas=self.num_kans + self.num_kitas)
                             if len(yakuman_tenpais) == 0:

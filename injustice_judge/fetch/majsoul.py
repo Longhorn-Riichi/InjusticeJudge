@@ -220,7 +220,8 @@ def parse_majsoul(actions: MajsoulLog, metadata: Dict[str, Any], nickname: Optio
         nonlocal all_events
         nonlocal dora_indicators
         nonlocal ura_indicators
-        events.append((0, "end_game", result))
+        nonlocal last_seat
+        events.append((last_seat, "end_game", result))
         all_events.append(events)
         all_dora_indicators.append(dora_indicators)
         all_ura_indicators.append(ura_indicators)
