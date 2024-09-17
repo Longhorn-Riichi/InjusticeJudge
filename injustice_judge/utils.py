@@ -57,21 +57,24 @@ def get_taatsu_wait(taatsu: Tuple[int, ...]) -> Set[int]:
     return {PRED[t1], SUCC[t2]} - {0} if SUCC[t1] == t2 else {SUCC[t1]} if SUCC[SUCC[t1]] == t2 else set()
 
 @functools.lru_cache(maxsize=2048)
-def get_waits(hand: Tuple[int, ...]) -> Set[int]:
-    """Get all waits in a hand full of taatsus and no floating tiles, excluding pair waits"""
+def get_waits_taatsus(hand: Tuple[int, ...]) -> Tuple[Set[int], Set[Tuple[int, int]]]:
+    """Get all waits and taatsus in a hand full of taatsus and no floating tiles, excluding pair waits"""
     hand = sorted_hand(hand)
 
     # parse out all the taatsus
     waits = set()
+    all_taatsus = set()
     to_update: Set[Tuple[Tuple[int, ...], Tuple[Tuple[int, int], ...]]] = {(hand, ())}
     while len(to_update) > 0:
         hand, taatsus = to_update.pop()
         if len(hand) <= 1: # done
+            all_taatsus |= set(taatsus)
             waits |= set().union(*map(get_taatsu_wait, taatsus))
             continue
         # try to find pairs, ryanmens, and kanchans, using every tile in the hand
         for i, tile in enumerate(hand):
             if tile in (*hand[:i], *hand[i+1:]): # pair, ignore
+                all_taatsus.add((tile, tile))
                 to_update.add((try_remove_all_tiles(hand, (tile, tile)), taatsus))
             if SUCC[tile] in hand:
                 taatsu = (tile, SUCC[tile])
@@ -79,7 +82,10 @@ def get_waits(hand: Tuple[int, ...]) -> Set[int]:
             if SUCC[SUCC[tile]] in hand:
                 taatsu = (tile, SUCC[SUCC[tile]])
                 to_update.add((try_remove_all_tiles(hand, taatsu), (*taatsus, taatsu)))
-    return waits
+    return waits, all_taatsus
+
+def get_waits(hand: Tuple[int, ...]) -> Set[int]:
+    return get_waits_taatsus(hand)[0]
 
 def calc_ko_oya_points(total_points: int, num_players: int, is_dealer: bool) -> Tuple[int, int]:
     """Reverse-calculate the ko and oya parts of the total points"""
