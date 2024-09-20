@@ -3,7 +3,7 @@ import itertools
 from .classes import Interpretation
 from .constants import Shanten, PRED, SUCC, TANYAOHAI, YAOCHUUHAI
 from .display import ph, pt
-from .utils import get_taatsu_wait, get_waits, get_waits_taatsus, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
+from .utils import extract_groups, get_taatsu_wait, get_waits, get_waits_taatsus, normalize_red_five, normalize_red_fives, sorted_hand, to_sequence, try_remove_all_tiles
 
 from typing import *
 from pprint import pprint
@@ -270,16 +270,20 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
             taatsus = set()
             floating_tiles = set()
             added_as_taatsu = [False] * len(headless_iishanten_tiles)
-            for i, (t1, t2) in enumerate(zip(headless_iishanten_tiles_list[:-1], headless_iishanten_tiles_list[1:])):
-                if t2 in (SUCC[t1], SUCC[SUCC[t1]]):
+            tiles = [0, *headless_iishanten_tiles_list, 0]
+            for i, (l, t1, t2, r) in enumerate(zip(tiles[:-3], tiles[1:-2], tiles[2:-1], tiles[3:])):
+                is_ryanmen = t2 == SUCC[t1]
+                is_kanchan = t2 == SUCC[SUCC[t1]]
+                # we ignore kanchans if there is a ryanmen on either side that would provide the same wait
+                ignore_kanchan = t1 == SUCC[l] or r == SUCC[t2]
+                if is_ryanmen or (not ignore_kanchan and is_kanchan):
                     taatsus.add((t1, t2))
                     added_as_taatsu[i] = True
                     added_as_taatsu[i+1] = True
             for in_taatsu, tile in zip(added_as_taatsu, headless_iishanten_tiles_list):
                 if not in_taatsu:
                     floating_tiles.add(tile)
-            taatsu_tiles: Set[int] = set(tile for taatsu in taatsus for tile in taatsu)
-            headless_taatsu_waits = get_waits(tuple(taatsu_tiles))
+            headless_taatsu_waits = {wait for taatsu in taatsus for wait in get_taatsu_wait(taatsu)}
             headless_tanki_waits = headless_iishanten_tiles if len(taatsus) >= 2 else floating_tiles
             waits |= headless_taatsu_waits | headless_tanki_waits
             debug_info["headless_taatsus"] = taatsus
@@ -338,13 +342,23 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
         complex_waits = get_taatsu_wait(t1) | get_taatsu_wait(t2)
         complex_waits |= ({t1[0], pair_shape[0]} if is_pair(t1) else set())
         complex_waits |= ({t2[0], pair_shape[0]} if is_pair(t2) else set())
-        complete_waits |= simple_wait | complex_waits
+
+        # calculate wait extensions
+        sequences, triplets = extract_groups(try_remove_all_tiles(starting_hand, h))
+        # only sequence extensions apply
+        left_extensions = set(PRED[PRED[PRED[tile]]] for tile in simple_wait | complex_waits if to_sequence(PRED[PRED[tile]]) in sequences)
+        left_extensions |= set(PRED[PRED[PRED[tile]]] for tile in left_extensions if to_sequence(PRED[PRED[tile]]) in sequences)
+        right_extensions = set(SUCC[SUCC[SUCC[tile]]] for tile in simple_wait | complex_waits if to_sequence(tile) in sequences)
+        right_extensions |= set(SUCC[SUCC[SUCC[tile]]] for tile in right_extensions if to_sequence(tile) in sequences)
+        complete_waits |= simple_wait | complex_waits | left_extensions | right_extensions
         debug_info["complex_hands"].append({
             "pair": pair_shape,
             "complex_shape": complex_shape,
             "simple_shape": other_tiles,
             "simple_wait": simple_wait,
             "complex_waits": complex_waits,
+            "left_extensions": left_extensions,
+            "right_extensions": right_extensions,
         })
 
     floating_waits = set()
@@ -363,12 +377,22 @@ def get_iishanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, g
                 if t2 in (t1,SUCC[t1],SUCC[SUCC[t1]]) or t3 in (t2,SUCC[t2],SUCC[SUCC[t2]]):
                     shanpon_waits |= {tile, pair_shape[0]}
                     taatsus.add((tile, tile))
-        floating_waits |= taatsu_waits | shanpon_waits
+
+        # calculate wait extensions
+        sequences, triplets = extract_groups(try_remove_all_tiles(starting_hand, h))
+        # only sequence extensions apply
+        left_extensions = set(PRED[PRED[PRED[tile]]] for tile in taatsu_waits | shanpon_waits if to_sequence(PRED[PRED[tile]]) in sequences)
+        left_extensions |= set(PRED[PRED[PRED[tile]]] for tile in left_extensions if to_sequence(PRED[PRED[tile]]) in sequences)
+        right_extensions = set(SUCC[SUCC[SUCC[tile]]] for tile in taatsu_waits | shanpon_waits if to_sequence(tile) in sequences)
+        right_extensions |= set(SUCC[SUCC[SUCC[tile]]] for tile in right_extensions if to_sequence(tile) in sequences)
+        floating_waits |= taatsu_waits | shanpon_waits | left_extensions | right_extensions
         debug_info["floating_hands"].append({
             "pair": pair_shape,
             "simple_shapes": taatsus,
             "simple_taatsu_waits": taatsu_waits,
             "simple_shanpon_waits": shanpon_waits,
+            "left_extensions": left_extensions,
+            "right_extensions": right_extensions,
         })
 
     def get_other_tiles(hand1: Tuple[int, ...], i: int,
