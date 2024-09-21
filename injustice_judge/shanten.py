@@ -87,18 +87,20 @@ def eliminate_from_suits(suits: Suits, keep_some: bool,
         return rec(hand) if keep_some else set(filter(lambda h: len(h) == max_length, rec(hand)))
 
     return (
-        set.union(*(remove(s) for s in suits[0])),
-        set.union(*(remove(s) for s in suits[1])),
-        set.union(*(remove(s) for s in suits[2])),
-        suits[3] if multiples_to_check == 0 else set.union(*(remove(s, do_sequences=False) for s in suits[3]))
+        set().union(*(remove(s) for s in suits[0])),
+        set().union(*(remove(s) for s in suits[1])),
+        set().union(*(remove(s) for s in suits[2])),
+        suits[3] if multiples_to_check == 0 else set().union(*(remove(s, do_sequences=False) for s in suits[3]))
     )
 
+to_none = lambda tile: ()
 to_sequences = lambda tile: ((tile+2, tile+1, tile),)
 to_taatsus = lambda tile: ((tile+2, tile), (tile+1, tile),)
 eliminate_some_groups  = lambda suits: eliminate_from_suits(suits, True,  to_sequences, 3)
 eliminate_some_taatsus = lambda suits: eliminate_from_suits(suits, True,  to_taatsus)
 eliminate_all_groups   = lambda suits: eliminate_from_suits(suits, False, to_sequences, 3)
 eliminate_all_taatsus  = lambda suits: eliminate_from_suits(suits, False, to_taatsus)
+eliminate_some_pairs   = lambda suits: eliminate_from_suits(suits, True,  to_none, 2)
 
 def get_tenpai_waits(hand: Tuple[int, ...]) -> Set[int]:
     """Given a tenpai hand, get all its waits"""
@@ -186,33 +188,78 @@ def add_complex_shape(hand: Tuple[int, ...], recursed: bool = False) -> None:
             remaining_hand = try_remove_all_tiles(hand, shape)
             if len(remaining_hand) < len(hand):
                 complex_shapes[hand].add((shape, remaining_hand))
-                if not recursed:
+                if True: # we want multiple complex shapes; no need to stop when recursed once
                     add_complex_shape(remaining_hand, recursed=True)
                     add_pair_shape(remaining_hand, recursed=True)
 
-def determine_kuttsuki_headless_tiles(shanten_int: int, groups_needed: int, tatsuuless_hands: Suits) -> Tuple[Set[int], Set[int], Set[int]]:
+def identify_pairs_and_complex(suits: Suits) -> Tuple[Suits, Suits]:
+    global pair_shapes
+    global complex_shapes
+    pair_hands: Suits = (set(()),set(()),set(()),set(()))
+    complex_hands: Suits = (set(()),set(()),set(()),set(()))
+    for i, suit in enumerate(suits):
+        for hand in suit:
+            # check if there's a pair
+            add_pair_shape(hand)
+            if len(pair_shapes[hand]) > 0:
+                pair_hands[i].add(hand)
+            if i < 3:
+                # check if there's any complex shapes
+                add_complex_shape(hand)
+                if len(complex_shapes[hand]) > 0:
+                    complex_hands[i].add(hand)
+    return pair_hands, complex_hands
+
+def get_other_tiles(hand_size: int, suits: Suits,
+                    hand1: Tuple[int, ...], i: int,
+                    hand2: Tuple[int, ...] = (), j: int = -1,
+                    hand3: Tuple[int, ...] = (), k: int = -1) -> Iterator[Tuple[int, ...]]:
+    # get all combinations of tiles from all other suits
+    # such that adding them to (*hand, *hand2) makes it length 7
+    # i is the suit for hand1, j is the suit for hand2
+    return ((*(tuple(10+tile for tile in a) if 0 not in (i,j,k) else ()),
+             *(tuple(20+tile for tile in b) if 1 not in (i,j,k) else ()),
+             *(tuple(30+tile for tile in c) if 2 not in (i,j,k) else ()),
+             *(tuple(40+tile for tile in d) if 3 not in (i,j,k) else ()))
+            for a in ({hand1} if i == 0 else {hand2} if j == 0 else {hand3} if k == 0 else suits[0])
+            for b in ({hand1} if i == 1 else {hand2} if j == 1 else {hand3} if k == 0 else suits[1])
+            for c in ({hand1} if i == 2 else {hand2} if j == 2 else {hand3} if k == 0 else suits[2])
+            for d in ({hand1} if i == 3 else {hand2} if j == 3 else {hand3} if k == 0 else suits[3])
+            if len(a)+len(b)+len(c)+len(d) == hand_size)
+
+def calculate_wait_extensions(groups: Tuple[int, ...], waits: Set[int]) -> Tuple[Set[int], Set[int]]:
+    sequences, triplets = extract_groups(groups)
+    # only sequence extensions apply
+    left_extensions = set(PRED[PRED[PRED[tile]]] for tile in waits if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences)
+    left_extensions |= set(PRED[PRED[PRED[tile]]] for tile in left_extensions if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences)
+    right_extensions = set(SUCC[SUCC[SUCC[tile]]] for tile in waits if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences)
+    right_extensions |= set(SUCC[SUCC[SUCC[tile]]] for tile in right_extensions if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences)
+    return left_extensions, right_extensions
+
+def determine_kuttsuki_headless_tiles(shanten_int: int, groups_needed: int, groupless_hands: Suits) -> Tuple[Set[int], Set[int], Set[int]]:
     kuttsuki_tiles: Set[int] = set() # tiles that could be the floating kuttsuki tiles in hand
     headless_tiles: Set[int] = set() # tiles that could be part of the 7 headless tiles in hand
     pair_tiles: Set[int] = set() # pairs that exist in hand
     # the resulting hands should have 2, 4, 6 total tiles
-    # if any of the suits contains a pair, then every tile in all other suits are possible kutsuki tiles
-    # otherwise it's pairless and all tiles are headless iishanten tiles
+    # if any of the suits contains a pair, then all non-pair tiles are possible kutsuki tiles
+    # otherwise it's pairless and all tiles are headless tiles
     kuttsuki_always_exists = False
-    for i, suit in enumerate(tatsuuless_hands):
+    taatsuless_hands = eliminate_all_taatsus(eliminate_some_pairs(groupless_hands))
+    for i, (suit, taatsuless) in enumerate(zip(groupless_hands, taatsuless_hands)):
         has_kuttsuki = False
         has_non_kuttsuki = False
-        for hand in suit:
+        for hand in taatsuless:
             ctr = Counter(hand)
             has_pair = 2 in ctr.values()
             is_kuttsuki = (shanten_int == 1 and has_pair) \
-                or (shanten_int == 2 and (has_pair or groups_needed == 1)) \
-                or (shanten_int == 3 and (has_pair or groups_needed == 2))
+                       or (shanten_int == 2 and (has_pair or groups_needed == 1)) \
+                       or (shanten_int == 3 and (has_pair or groups_needed == 2))
             pair_tiles |= {(10*(i+1))+tile for tile, cnt in ctr.items() if cnt == 2}
             if is_kuttsuki:
                 # grab the non-pair tiles in this suit
                 kuttsuki_tiles |= {(10*(i+1))+tile for tile, cnt in ctr.items() if cnt == 1}
                 # grab every tile in every other suit
-                kuttsuki_tiles |= {(10*(j+1))+tile for j, s in enumerate(tatsuuless_hands) if i != j for hand in s for tile in hand}
+                kuttsuki_tiles |= {(10*(j+1))+tile for j, s in enumerate(taatsuless_hands) if i != j for hand in s for tile in hand}
                 # grab every non-pair tile in this suit
                 headless_tiles |= {(10*(i+1))+tile for tile in hand if ctr[tile] < 2}
                 has_kuttsuki = True
@@ -220,31 +267,45 @@ def determine_kuttsuki_headless_tiles(shanten_int: int, groups_needed: int, tats
                 # grab every tile in this suit
                 headless_tiles |= {(10*(i+1))+tile for tile in hand}
                 has_non_kuttsuki = True
+        for hand in suit - taatsuless:
+            # grab every tile in this suit
+            headless_tiles |= {(10*(i+1))+tile for tile in hand}
         if has_kuttsuki and not has_non_kuttsuki:
             kuttsuki_always_exists = True
     if kuttsuki_always_exists:
         headless_tiles = set()
     return kuttsuki_tiles, headless_tiles, pair_tiles
 
-def get_headless_taatsus(headless_tiles: Set[int]) -> Tuple[Set[Tuple[int, int]], Set[int]]:
+def get_headless_taatsus_waits(headless_tiles: Iterable[int]) -> Tuple[Tuple[Tuple[int, int], ...], Set[int], Tuple[int, ...]]:
     tiles_list: List[int] = list(sorted(headless_tiles))
     taatsus: Set[Tuple[int, int]] = set()
-    floating_tiles: Set[int] = set()
-    added_as_taatsu: List[bool] = [False] * len(headless_tiles)
-    tiles = [0, *tiles_list, 0]
+    floating_tiles: Tuple[int, ...] = ()
+    added_as_taatsu: List[bool] = [False] * len(tiles_list)
+    tile_possibilities: Set[Tuple[int, ...]] = {tuple(tiles_list)} | set(from_suits(eliminate_all_groups(to_suits(tuple(tiles_list)))))
+    tiles = [0]
+    for t in tile_possibilities:
+        tiles.extend([*t, 0])
     for i, (l, t1, t2, r) in enumerate(zip(tiles[:-3], tiles[1:-2], tiles[2:-1], tiles[3:])):
+        is_pair = t2 == t1
         is_ryanmen = t2 == SUCC[t1]
         is_kanchan = t2 == SUCC[SUCC[t1]]
+        if is_ryanmen and (PRED[t1] in tiles[1:-1] or SUCC[t2] in tiles[1:-1]):
+            # skip groups (they should not be passed in, but we use this function for non-headless hands too)
+            continue
         # we ignore kanchans if there is a ryanmen on either side that would provide the same wait
         ignore_kanchan = t1 == SUCC[l] or r == SUCC[t2]
-        if is_ryanmen or (not ignore_kanchan and is_kanchan):
+        # we ignore pairs if it's a triplet
+        ignore_pair = l == t1 or t2 == r
+        if (not ignore_pair and is_pair) or is_ryanmen or (not ignore_kanchan and is_kanchan):
             taatsus.add((t1, t2))
-            added_as_taatsu[i] = True
-            added_as_taatsu[i+1] = True
+            if i < len(tiles_list):
+                added_as_taatsu[i] = True
+                added_as_taatsu[i+1] = True
     for in_taatsu, tile in zip(added_as_taatsu, tiles_list):
         if not in_taatsu:
-            floating_tiles.add(tile)
-    return taatsus, floating_tiles
+            floating_tiles = (*floating_tiles, tile)
+    waits = set().union(*map(get_taatsu_wait, taatsus))
+    return tuple(sorted(taatsus)), waits, tuple(sorted(floating_tiles))
 
 def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless_hands: Suits, groups_needed: int) -> Tuple[float, Set[int], Dict[str, Any]]:
     # given an 1-3 shanten hand, calculate the shanten type and its waits
@@ -275,7 +336,7 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
     # One hand could have multiple iishanten types contributing to the overall wait.
     # Combining the above is how we describe those kinds of hands:
     # - 1.120 chiitoi kuttsuki iishanten
-    # - 1.021 kuttsuki floating iishanten
+    # - 2.021 kuttsuki floating ryanshanten
     # - 1.121 chiitoi kuttsuki floating iishanten
     shanten: float = float(shanten_int)
     waits: Set[int] = set()
@@ -283,249 +344,205 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
 
     assert shanten_int in {1, 2, 3}, "get_shanten_type was not passed an 1- to 3-shanten hand"
 
-    if shanten_int == 1:
-        # one group needed = kuttsuki or headless iishanten hand
-        # since we assume the input is an iishanten hand, we just remove some taatsus
-        # if what's remaining contains a pair and two other tiles, then it's kuttsuki iishanten
-        # if what's remaining contains no pair, then it's headless iishanten
-        # there can be multiple results after removing all the groups,
-        #   so it's possible a given hand can have both kuttsuki waits and headless waits
-        assert groups_needed in {1, 2}, "get_shanten_type was not passed an iishanten hand" 
-        if groups_needed == 1:
-            # kuttsuki_tiles = tiles that could be the floating kuttsuki tiles in hand
-            # headless_tiles = tiles that could be part of the 4 headless tiles in hand
-            # kuttsuki_pair_tiles = the tile of the pair in hand
-            kuttsuki_tiles, headless_tiles, kuttsuki_pair_tiles = determine_kuttsuki_headless_tiles(shanten_int, groups_needed, eliminate_some_taatsus(groupless_hands))
-            # if there's kuttsuki tiles, then it's kuttsuki iishanten
-            if len(kuttsuki_tiles) > 0:
-                shanten += 0.02
-                # for each kuttsuki tile, its waits are {tile-2,tile-1,tile,tile+1,tile+2}
-                for tile in kuttsuki_tiles:
-                    waits |= {PRED[PRED[tile]], PRED[tile], tile, SUCC[tile], SUCC[SUCC[tile]]} - {0}
-            debug_info["kuttsuki_waits"] = waits.copy()
-            debug_info["kuttsuki_tiles"] = kuttsuki_tiles
-            debug_info["headless_tiles"] = headless_tiles
-            debug_info["kuttsuki_pair_tiles"] = kuttsuki_pair_tiles
-            # if there's headless tiles, then it's headless iishanten
-            if len(headless_tiles) > 0:
-                shanten += 0.01
-                # there's two kinds of headless: either you have two taatsus,
-                #   or one taatsu + two floating tiles
-                # the taatsu waits always contribute to the wait
-                # the floating tiles are always tanki waits
-                # when you have two taatsus, either can be treated as two floating tiles,
-                #   so all four of the taatsu tiles are tanki waits
-                taatsus, floating_tiles = get_headless_taatsus(headless_tiles)
-                headless_taatsu_waits = {wait for taatsu in taatsus for wait in get_taatsu_wait(taatsu)}
-                headless_tanki_waits = headless_tiles if len(taatsus) >= 2 else floating_tiles
-                waits |= headless_taatsu_waits | headless_tanki_waits
-                debug_info["headless_taatsus"] = taatsus
-                debug_info["headless_floating_tiles"] = floating_tiles
-                debug_info["headless_taatsu_waits"] = headless_taatsu_waits
-                debug_info["headless_tanki_waits"] = headless_tanki_waits
-        is_headless_or_kutsuki = shanten > 1
+    # first check headless and kuttsuki
+    is_headless_or_kutsuki = False
+    if shanten_int >= groups_needed:
+        kuttsuki_tiles, headless_tiles, kuttsuki_pair_tiles = determine_kuttsuki_headless_tiles(shanten_int, groups_needed, groupless_hands)
+        # if there's kuttsuki tiles, then it's kuttsuki iishanten
+        kuttsuki_taatsus: Set[Tuple[int, int]] = set()
+        kuttsuki_taatsu_waits: Set[int] = set()
+        kuttsuki_tanki_waits: Set[int] = set()
+        if len(kuttsuki_tiles) > 0:
+            shanten += 0.02
+            is_headless_or_kutsuki = True
+            # for each kuttsuki tile, its waits are {tile-2,tile-1,tile,tile+1,tile+2}
+            for tile in kuttsuki_tiles:
+                kuttsuki_tanki_waits |= {PRED[PRED[tile]], PRED[tile], tile, SUCC[tile], SUCC[SUCC[tile]]} - {0}
+            # the pair tile also contributes to the wait
+            waits |= kuttsuki_pair_tiles
+            # so do the waits of the remaining taatsu
+            for hand in from_suits(groupless_hands):
+                remaining = try_remove_all_tiles(hand, tuple([*kuttsuki_tiles, *kuttsuki_pair_tiles, *kuttsuki_pair_tiles]))
+                taatsus, taatsu_waits, floating_tiles = get_headless_taatsus_waits(remaining)
+                kuttsuki_taatsus |= set(taatsus)
+                kuttsuki_taatsu_waits |= taatsu_waits
 
-        # now we check for complete and floating iishanten
-        # floating iishanten is when you have a floating tile + a pair + 2 taatsus/pairs
-        # complete iishanten is when that floating tile forms a complex group with either of the 2 taatsus/pairs
+        debug_info["kuttsuki_taatsus"] = tuple(sorted(kuttsuki_taatsus))
+        debug_info["kuttsuki_taatsu_waits"] = kuttsuki_taatsu_waits
+        debug_info["kuttsuki_tanki_waits"] = kuttsuki_tanki_waits
+        waits |= kuttsuki_taatsu_waits
+        debug_info["kuttsuki_tiles"] = kuttsuki_tiles
+        debug_info["headless_tiles"] = headless_tiles
+        debug_info["kuttsuki_pair_tiles"] = kuttsuki_pair_tiles
+        # if there's headless tiles, then it's headless iishanten
+        if len(headless_tiles) > 0:
+            shanten += 0.01
+            is_headless_or_kutsuki = True
+            # for 2-shanten there's two kinds of headless: either you have three taatsus,
+            #   or two taatsus + 3 floating tiles
+            # the taatsu waits always contribute to the wait
+            # the floating tiles are always tanki waits
+            # when you have three taatsus, any can be treated as two floating tiles,
+            #   so all six of the taatsu tiles are tanki waits
+            taatsus, headless_taatsu_waits, floating_tiles = get_headless_taatsus_waits(headless_tiles)
+            headless_tanki_waits = headless_tiles if len(taatsus) >= shanten_int+1 else set(floating_tiles)
+            waits |= headless_taatsu_waits | headless_tanki_waits
+            debug_info["headless_taatsus"] = taatsus
+            debug_info["headless_floating_tiles"] = floating_tiles
+            debug_info["headless_taatsu_waits"] = headless_taatsu_waits
+            debug_info["headless_tanki_waits"] = headless_tanki_waits
 
-        min_length = max_length = 7
-        suits: Suits = eliminate_some_groups(to_suits(starting_hand))
+    simple_hand_length = 4 + (3 * shanten_int)
 
-        global pair_shapes
-        global complex_shapes
-        pair_hands: Suits = (set(()),set(()),set(()),set(()))
-        complex_hands: Suits = (set(()),set(()),set(()),set(()))
+    suits = eliminate_some_groups(to_suits(starting_hand))
+    pair_hands, complex_hands = identify_pairs_and_complex(suits)
+    groupless_suits = eliminate_all_groups(suits)
+    pair_hands_removed = tuple({remaining for hand in suit for _, remaining in pair_shapes[hand]} for suit in pair_hands)
+    groupless_pair_hands = eliminate_all_groups(pair_hands_removed)
+    debug_info["simple_hands"] = []
 
-        debug_info["complex_hands"] = []
-        debug_info["floating_hands"] = []
+    # first identify every single pair and complex group in all suits
 
-        # first identify every single pair and complex group in all suits
-        for i, suit in enumerate(suits):
-            for hand in suit:
-                # check if there's a pair
-                add_pair_shape(hand)
-                if len(pair_shapes[hand]) > 0:
-                    pair_hands[i].add(hand)
-                if i < 3:
-                    # check if there's any complex shapes
-                    add_complex_shape(hand)
-                    if len(complex_shapes[hand]) > 0:
-                        complex_hands[i].add(hand)
-
-        complete_waits = set()
-        is_perfect_iishanten = False
-        def add_complex_hand(complex_shape: Tuple[int, ...], pair_shape: Tuple[int, ...], other_tiles: Tuple[int, ...]) -> None:
-            # populate complete_waits with all possible complex waits arising from this breakdown of the hand
-            nonlocal complete_waits
-            nonlocal is_perfect_iishanten
-            nonlocal debug_info
-            is_pair = lambda h: len(h) == 2 and h[0] == h[1]
-            is_ryanmen = lambda h: len(h) == 2 and SUCC[h[0]] == h[1] and h[0] not in {11,18,21,28,31,38}
-            h = (*complex_shape, *pair_shape, *other_tiles)
-            # extra tiles must form a taatsu
-            if len(other_tiles) != 2:
-                return
-            simple_wait = get_taatsu_wait(other_tiles)
-            if not (is_pair(other_tiles) or len(simple_wait) > 0):
-                return
-            t1, t2 = complex_shape[0:2], complex_shape[1:3]
-            if is_ryanmen(other_tiles) and (is_ryanmen(t1) or is_ryanmen(t2)):
-                is_perfect_iishanten = True
-            complex_waits = get_taatsu_wait(t1) | get_taatsu_wait(t2)
-            complex_waits |= ({t1[0], pair_shape[0]} if is_pair(t1) else set())
-            complex_waits |= ({t2[0], pair_shape[0]} if is_pair(t2) else set())
+    is_perfect_iishanten = False
+    has_complete_hand = False
+    has_floating_hand = False
+    def add_hand(complex_hand: Tuple[int, ...], pair_shape: Tuple[int, ...], other_tiles: Tuple[int, ...]) -> None:
+        # populate complete_waits with all possible complex waits arising from this breakdown of the hand
+        nonlocal waits
+        nonlocal is_perfect_iishanten
+        nonlocal has_complete_hand
+        nonlocal has_floating_hand
+        nonlocal debug_info
+        is_pair = lambda h: len(h) == 2 and h[0] == h[1]
+        is_ryanmen = lambda h: len(h) == 2 and SUCC[h[0]] == h[1] and h[0] not in {11,18,21,28,31,38}
+        h = (*complex_hand, *pair_shape, *other_tiles)
+        valid_interpretations = []
+        for i, suit in enumerate(to_suits(complex_hand)):
+            add_i = lambda h: tuple(10*(i+1)+tile for tile in h)
+            queue: Set[Any] = {(hand, ()) for hand in suit} | {((), ())}
+            while len(queue) > 0:
+                cx_hand, all_cx_shapes = queue.pop()
+                removed = complex_shapes.get(cx_hand, set())
+                if len(removed) == 0:
+                    remaining_tiles = (*add_i(cx_hand), *other_tiles)
+                    taatsus, taatsu_waits, floating = get_headless_taatsus_waits(remaining_tiles)
+                    # print(remaining_tiles, pair_shape, taatsus, floating)
+                    # if there are shanten+1 simple/complex shapes, add to valid_interpretations
+                    # we already have 1 due to the pair, so we need shanten more
+                    if len(taatsus) + len(all_cx_shapes) >= shanten: 
+                        valid_interpretations.append((taatsus, all_cx_shapes, floating))
+                else:
+                    for cx_shape, remainder in removed:
+                        queue.add((remainder, (*all_cx_shapes, add_i(cx_shape))))
+        if len(valid_interpretations) == 0:
+            return
+        for s_shapes, cx_shapes, floating in valid_interpretations:
+            # print(s_shapes, cx_shapes, floating)
+            simple_waits = set()
+            complex_waits = set()
+            for simple_shape in s_shapes:
+                if simple_shape[0] == simple_shape[1]:
+                    simple_waits.add(simple_shape[0])
+                else:
+                    simple_waits |= get_taatsu_wait(simple_shape)
+            for complex_shape in cx_shapes:
+                t1, t2 = complex_shape[0:2], complex_shape[1:3]
+                if shanten_int == 1 and len(s_shapes) == 1 and is_ryanmen(s_shapes[0]) and (is_ryanmen(t1) or is_ryanmen(t2)):
+                    is_perfect_iishanten = True
+                complex_waits |= get_taatsu_wait(t1) | get_taatsu_wait(t2)
+                complex_waits |= ({t1[0], pair_shape[0]} if is_pair(t1) else set())
+                complex_waits |= ({t2[0], pair_shape[0]} if is_pair(t2) else set())
+            if len(floating) == 0:
+                has_complete_hand = True
+            else:
+                has_floating_hand = True
 
             # calculate wait extensions
-            sequences, triplets = extract_groups(try_remove_all_tiles(starting_hand, h))
-            # only sequence extensions apply
-            left_extensions = set(PRED[PRED[PRED[tile]]] for tile in simple_wait | complex_waits if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences)
-            left_extensions |= set(PRED[PRED[PRED[tile]]] for tile in left_extensions if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences)
-            right_extensions = set(SUCC[SUCC[SUCC[tile]]] for tile in simple_wait | complex_waits if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences)
-            right_extensions |= set(SUCC[SUCC[SUCC[tile]]] for tile in right_extensions if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences)
-            complete_waits |= simple_wait | complex_waits | left_extensions | right_extensions
-            debug_info["complex_hands"].append({
+            left_extensions, right_extensions = calculate_wait_extensions(try_remove_all_tiles(starting_hand, h), simple_waits | complex_waits)
+            waits |= simple_waits | complex_waits | left_extensions | right_extensions
+            debug_info["simple_hands"].append({
                 "pair": pair_shape,
-                "complex_shape": complex_shape,
-                "simple_shape": other_tiles,
-                "simple_wait": simple_wait,
+                "simple_shapes": s_shapes,
+                "complex_shapes": cx_shapes,
+                "floating_tiles": floating,
+                "simple_waits": simple_waits,
                 "complex_waits": complex_waits,
                 "left_extensions": left_extensions,
                 "right_extensions": right_extensions,
             })
+            # print(debug_info["simple_hands"][-1])
 
-        floating_waits = set()
-        def add_floating_hand(pair_shape: Tuple[int, ...], other_tiles: Tuple[int, ...]) -> None:
-            # populate floating_waits with all possible floating waits arising from this breakdown of the hand
-            nonlocal floating_waits
-            nonlocal debug_info
-            h = (*pair_shape, *other_tiles)
-            assert len(other_tiles) == 5
-            taatsu_waits, taatsus = get_waits_taatsus(other_tiles)
-            # shanpon waits are all pairs in the hand where removing it doesn't leave you with 3 floating tiles
-            shanpon_waits = set()
-            for i, tile in enumerate(other_tiles[:-1]):
-                if other_tiles[i+1] == tile: # pair
-                    t1,t2,t3 = (*other_tiles[:i],*other_tiles[i+2:])
-                    if t2 in (t1,SUCC[t1],SUCC[SUCC[t1]]) or t3 in (t2,SUCC[t2],SUCC[SUCC[t2]]):
-                        shanpon_waits |= {tile, pair_shape[0]}
-                        taatsus.add((tile, tile))
+    # populate waits by constructing all possible floating/complete hands
+    for i, suit in enumerate(pair_hands):
+        add_i = lambda h: tuple(10*(i+1)+tile for tile in h)
+        for pair_hand in suit:
+            for pair_shape, remaining in pair_shapes[pair_hand]:
+                # check if we broke a set for this pair shape
+                pair_broke_set = pair_hand not in groupless_suits[i]
+                # if we broke a set and don't have enough sets originally
+                # then we cannot choose this pair
+                if pair_broke_set and groups_needed > shanten:
+                    continue
+                # for all possible length <simple_hand_length> hands containing the pair,
+                for other_tiles in get_other_tiles(simple_hand_length, suits, pair_hand, i):
+                    # add this hand as a floating hand
+                    # print(pair_shape, remaining, other_tiles)
+                    add_hand((), add_i(pair_shape), tuple(sorted((*add_i(remaining), *other_tiles))))
+                    # get all combinations of complex shapes possible
+                    complex_suits: Tuple[Any, ...] = tuple([{remaining} if i == j else complex_hands[j].copy() for j in range(3)])
+                    for suit2 in complex_suits:
+                        queue: Set[Any] = suit2.copy()
+                        suit2.clear()
+                        while len(queue) > 0:
+                            tiles = queue.pop()
+                            for complex_shape, remaining2 in complex_shapes.get(tiles, set()):
+                                # check if we broke a set for this complex shape
+                                cx_broke_set = pair_hand not in groupless_pair_hands[i]
+                                # if we broke a triplet and don't have enough sets originally
+                                # then we cannot choose this complex shape
+                                if cx_broke_set and groups_needed > shanten:
+                                    continue
+                                # same if we also broke a set with the pair
+                                if pair_broke_set and cx_broke_set:
+                                    continue
+                                # print(pair_hand, tiles, pair_shape, complex_shape)
+                                suit2.add(tiles)
+                                queue.add((tiles, remaining2))
+                    # print(i, complex_suits)
 
-            # calculate wait extensions
-            sequences, triplets = extract_groups(try_remove_all_tiles(starting_hand, h))
-            # only sequence extensions apply
-            left_extensions = set(PRED[PRED[PRED[tile]]] for tile in taatsu_waits | shanpon_waits if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences)
-            left_extensions |= set(PRED[PRED[PRED[tile]]] for tile in left_extensions if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences)
-            right_extensions = set(SUCC[SUCC[SUCC[tile]]] for tile in taatsu_waits | shanpon_waits if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences)
-            right_extensions |= set(SUCC[SUCC[SUCC[tile]]] for tile in right_extensions if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences)
-            floating_waits |= taatsu_waits | shanpon_waits | left_extensions | right_extensions
-            debug_info["floating_hands"].append({
-                "pair": pair_shape,
-                "simple_shapes": taatsus,
-                "simple_taatsu_waits": taatsu_waits,
-                "simple_shanpon_waits": shanpon_waits,
-                "left_extensions": left_extensions,
-                "right_extensions": right_extensions,
-            })
+                    all_complex_shapes: List[Tuple[int, ...]] = []
+                    other_tiles_params: List[Tuple] = []
+                    for complex_shapes1 in list(complex_suits[i]) + [()]:
+                        all_complex_shapes.append((complex_shapes1,))
+                        other_tiles_params.append((complex_shapes1, i))
+                        for j, suit2 in enumerate(complex_suits):
+                            if i == j:
+                                continue
+                            for complex_shapes2 in suit2:
+                                all_complex_shapes.append((complex_shapes1, complex_shapes2))
+                                other_tiles_params.append((complex_shapes1, i, complex_shapes2, j))
+                                for k, suit3 in enumerate(complex_suits):
+                                    if i == k or j == k:
+                                        continue
+                                    for complex_shapes3 in suit3:
+                                        all_complex_shapes.append((complex_shapes1, complex_shapes2, complex_shapes3))
+                                        other_tiles_params.append((complex_shapes1, i, complex_shapes2, j, complex_shapes3, k))
 
-        def get_other_tiles(hand1: Tuple[int, ...], i: int,
-                            hand2: Tuple[int, ...], j: int) -> Iterator[Tuple[int, ...]]:
-            # get all combinations of tiles from all other suits
-            # such that adding them to (*hand, *hand2) makes it length 7
-            # i is the suit for hand1, j is the suit for hand2
-            return ((*(tuple(10+tile for tile in a) if 0 not in (i,j) else ()),
-                     *(tuple(20+tile for tile in b) if 1 not in (i,j) else ()),
-                     *(tuple(30+tile for tile in c) if 2 not in (i,j) else ()),
-                     *(tuple(40+tile for tile in d) if 3 not in (i,j) else ()))
-                    for a in ({hand1} if i == 0 else {hand2} if j == 0 else suits[0])
-                    for b in ({hand1} if i == 1 else {hand2} if j == 1 else suits[1])
-                    for c in ({hand1} if i == 2 else {hand2} if j == 2 else suits[2])
-                    for d in ({hand1} if i == 3 else {hand2} if j == 3 else suits[3])
-                    if len(a)+len(b)+len(c)+len(d) == 7)
-
-        # populate complex_waits and floating_waits by constructing all possible such hands
-        # add_floating_hand just requires any hand with a pair
-        # add_complex_hand requires both a pair and a complex group
-        for i, suit in enumerate(pair_hands):
-            add_i = lambda h: tuple(10*(i+1)+tile for tile in h)
-            for pair_hand in suit:
-                for pair_shape, remaining in pair_shapes[pair_hand]:
-                    contains_complex_shape = i != 3 and len(complex_shapes.get(remaining, set())) > 0
-                    # for all possible length 7 hands containing the pair,
-                    for other_tiles in get_other_tiles(pair_hand, i, (), -1):
-                        # add this hand as a floating hand
-                        add_floating_hand(add_i(pair_shape), tuple(sorted((*add_i(remaining), *other_tiles))))
-                        # add this hand as a complex hand, if there's a complex shape
-                        if contains_complex_shape:
-                            for complex_shape, remaining2 in complex_shapes[remaining]:
-                                add_complex_hand(add_i(complex_shape), add_i(pair_shape), tuple(sorted((*other_tiles, *add_i(remaining2)))))
-                    if contains_complex_shape:
-                        continue
-                    # look for a candidate complex shape in some other suit
-                    for j, suit in enumerate(complex_hands[:3]):
-                        if i == j:
+                    add_ix = lambda h, ix: tuple(10*(ix+1)+tile for tile in h)
+                    for shapes, params in zip(all_complex_shapes, other_tiles_params):
+                        if shapes[0] == ():
+                            shapes = shapes[1:]
+                        if len(shapes) == 0:
                             continue
-                        add_j = lambda h: tuple(10*(j+1)+tile for tile in h)
-                        for complex_hand in suit:
-                            for complex_shape, remaining2 in complex_shapes[complex_hand]:
-                                # for all possible length 7 hands containing both the pair and complex hand,
-                                for other_tiles in get_other_tiles(pair_hand, i, complex_hand, j):
-                                    # add this hand as a complex hand
-                                    add_complex_hand(add_j(complex_shape), add_i(pair_shape), tuple(sorted((*other_tiles, *add_i(remaining), *add_j(remaining2)))))
+                        # add pair shape to suit i
+                        cx_shapes = tuple(tile for h, ix in zip(params[0::2], params[1::2]) for tile in add_ix(h, ix))
+                        for other_tiles in get_other_tiles(simple_hand_length, suits, (*params[0], *pair_shape), *params[1:]):
+                            add_hand(cx_shapes, add_ix(pair_shape, i), other_tiles)
+                    # print(i, other_tiles_params)
 
-        debug_info["complete_waits"] = complete_waits
-        debug_info["floating_waits"] = floating_waits
-
-        shanten += 0.003 if is_perfect_iishanten and not is_headless_or_kutsuki else \
-                   0.002 if len(complete_waits - waits) > 0 else \
-                   0.001 if len(floating_waits - waits) > 0 else 0
-        waits |= complete_waits | floating_waits
-    elif shanten_int == 2:
-        assert groups_needed in {1, 2, 3}, "get_shanten_type was not passed an ryanshanten hand" 
-        if groups_needed in {1, 2}:
-            kuttsuki_tiles, headless_tiles, kuttsuki_pair_tiles = determine_kuttsuki_headless_tiles(shanten_int, groups_needed, eliminate_all_taatsus(groupless_hands))
-            # if there's kuttsuki tiles, then it's kuttsuki iishanten
-            kuttsuki_taatsus: Set[Tuple[int, int]] = set()
-            kuttsuki_taatsu_waits: Set[int] = set()
-            if len(kuttsuki_tiles) > 0:
-                shanten += 0.02
-                # for each kuttsuki tile, its waits are {tile-2,tile-1,tile,tile+1,tile+2}
-                for tile in kuttsuki_tiles:
-                    waits |= {PRED[PRED[tile]], PRED[tile], tile, SUCC[tile], SUCC[SUCC[tile]]} - {0}
-                # the pair tile also contributes to the wait
-                waits |= kuttsuki_pair_tiles
-                # so do the waits of the remaining taatsu
-                for hand in from_suits(groupless_hands):
-                    kuttsuki_taatsu_waits, kuttsuki_taatsus = get_waits_taatsus(try_remove_all_tiles(hand, tuple([*kuttsuki_tiles, *kuttsuki_pair_tiles, *kuttsuki_pair_tiles])))
-                    waits |= kuttsuki_taatsu_waits
-                
-            debug_info["kuttsuki_waits"] = waits.copy()
-            debug_info["kuttsuki_taatsus"] = kuttsuki_taatsus
-            debug_info["kuttsuki_taatsu_waits"] = kuttsuki_taatsu_waits
-            waits |= kuttsuki_taatsu_waits
-            debug_info["kuttsuki_tiles"] = kuttsuki_tiles
-            debug_info["headless_tiles"] = headless_tiles
-            debug_info["kuttsuki_pair_tiles"] = kuttsuki_pair_tiles
-            # if there's headless tiles, then it's headless iishanten
-            if len(headless_tiles) > 0:
-                shanten += 0.01
-                # there's two kinds of headless: either you have three taatsus,
-                #   or two taatsus + 3 floating tiles
-                # the taatsu waits always contribute to the wait
-                # the floating tiles are always tanki waits
-                # when you have two taatsus, either can be treated as two floating tiles,
-                #   so all four of the taatsu tiles are tanki waits
-                taatsus, floating_tiles = get_headless_taatsus(headless_tiles)
-                headless_taatsu_waits = {wait for taatsu in taatsus for wait in get_taatsu_wait(taatsu)}
-                headless_tanki_waits = headless_tiles if len(taatsus) >= 2 else floating_tiles
-                waits |= headless_taatsu_waits | headless_tanki_waits
-                debug_info["headless_taatsus"] = taatsus
-                debug_info["headless_floating_tiles"] = floating_tiles
-                debug_info["headless_taatsu_waits"] = headless_taatsu_waits
-                debug_info["headless_tanki_waits"] = headless_tanki_waits
-        is_headless_or_kutsuki = shanten > 2
-
-
+    shanten += 0.003 if is_perfect_iishanten else \
+               0.002 if has_complete_hand else \
+               0.001 if has_floating_hand else 0
     return round(shanten, 3), waits, debug_info
 
 # def get_ryanshanten_type(starting_hand: Tuple[int, ...], groupless_hands: Suits, groups_needed: int) -> Tuple[float, Set[int], Dict[str, Any]]:
