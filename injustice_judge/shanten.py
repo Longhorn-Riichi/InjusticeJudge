@@ -300,7 +300,8 @@ def get_headless_taatsus_waits(headless_tiles: Iterable[int]) -> Tuple[Tuple[Tup
             taatsus.add((t1, t2))
             if i < len(tiles_list):
                 added_as_taatsu[i] = True
-                added_as_taatsu[i+1] = True
+                if i+1 < len(tiles_list):
+                    added_as_taatsu[i+1] = True
     for in_taatsu, tile in zip(added_as_taatsu, tiles_list):
         if not in_taatsu:
             floating_tiles = (*floating_tiles, tile)
@@ -488,6 +489,9 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
                     # add this hand as a floating hand
                     # print(pair_shape, remaining, other_tiles)
                     add_hand((), add_i(pair_shape), tuple(sorted((*add_i(remaining), *other_tiles))))
+                    # honor suit cannot have complex shapes
+                    if i == 3:
+                        break
                     # get all combinations of complex shapes possible
                     complex_suits: Tuple[Any, ...] = tuple([{remaining} if i == j else complex_hands[j].copy() for j in range(3)])
                     for suit2 in complex_suits:
