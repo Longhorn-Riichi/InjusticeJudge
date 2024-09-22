@@ -139,7 +139,7 @@ def tenhou_xml_to_log(identifier: str, xml: str) -> Tuple[TenhouLog, Dict[str, A
         elif name == "GO":
             # ruleset
             game_data["lobby"] = int(attrs["lobby"])
-            game_data["rule"] = attrs["rule"].split(",") if "rule" in attrs else [""] * 7
+            game_data["rule"] = attrs["rule"].split(",") if "rule" in attrs else ["", "", hex(int(attrs["type"])), "", "", "", ""]
             game_data["csrule"] = attrs["csrule"].split(",") if "csrule" in attrs else [""] * 40
             rules = GameRules.from_tenhou_rules(num_players, game_data["rule"], game_data["csrule"])
         elif name == "UN":
