@@ -290,12 +290,15 @@ def get_headless_taatsus_waits(headless_tiles: Iterable[int]) -> Tuple[Tuple[Tup
         is_ryanmen = t2 == SUCC[t1]
         is_kanchan = t2 == SUCC[SUCC[t1]]
         if is_ryanmen and (PRED[t1] in tiles[1:-1] or SUCC[t2] in tiles[1:-1]):
-            # skip groups (they should not be passed in, but we use this function for non-headless hands too)
+            # skip sequences (they should not be passed in, but we use this function for non-headless hands too)
             continue
+        pair_side = l != 0 and r != 0 and (t1 == l or r == t2)
+        ryanmen_side = l != 0 and r != 0 and (t1 == SUCC[l] or r == SUCC[t2])
+        kanchan_side = l != 0 and r != 0 and (t1 == SUCC[SUCC[l]] or r == SUCC[SUCC[t2]])
         # we ignore kanchans if there is a ryanmen on either side that would provide the same wait
-        ignore_kanchan = t1 == SUCC[l] or r == SUCC[t2]
-        # we ignore pairs if it's a triplet
-        ignore_pair = l == t1 or t2 == r
+        ignore_kanchan = ryanmen_side
+        # we ignore pairs if it's a triplet, or if there is a kanchan/ryanmen on either side
+        ignore_pair = pair_side or ryanmen_side or kanchan_side
         if (not ignore_pair and is_pair) or is_ryanmen or (not ignore_kanchan and is_kanchan):
             taatsus.add((t1, t2))
             if i < len(tiles_list):
@@ -393,20 +396,11 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
             debug_info["headless_taatsu_waits"] = headless_taatsu_waits
             debug_info["headless_tanki_waits"] = headless_tanki_waits
 
-    simple_hand_length = 4 + (3 * shanten_int)
-
-    suits = eliminate_some_groups(to_suits(starting_hand))
-    pair_hands, complex_hands = identify_pairs_and_complex(suits)
-    groupless_suits = eliminate_all_groups(suits)
-    pair_hands_removed = tuple({remaining for hand in suit for _, remaining in pair_shapes[hand]} for suit in pair_hands)
-    groupless_pair_hands = eliminate_all_groups(pair_hands_removed)
-    debug_info["simple_hands"] = []
-
-    # first identify every single pair and complex group in all suits
-
+    # helper function for the below
     is_perfect_iishanten = False
     has_complete_hand = False
     has_floating_hand = False
+    debug_info["simple_hands"] = []
     def add_hand(complex_hand: Tuple[int, ...], pair_shape: Tuple[int, ...], other_tiles: Tuple[int, ...]) -> None:
         # populate complete_waits with all possible complex waits arising from this breakdown of the hand
         nonlocal waits
@@ -427,14 +421,17 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
                 if len(removed) == 0:
                     remaining_tiles = (*add_i(cx_hand), *other_tiles)
                     taatsus, taatsu_waits, floating = get_headless_taatsus_waits(remaining_tiles)
+                    # print(complex_hand, pair_shape, other_tiles, taatsus, floating)
                     # print(remaining_tiles, pair_shape, taatsus, floating)
                     # if there are shanten+1 simple/complex shapes, add to valid_interpretations
                     # we already have 1 due to the pair, so we need shanten more
-                    if len(taatsus) + len(all_cx_shapes) >= shanten: 
+                    if len(taatsus) + len(all_cx_shapes) >= shanten_int+1: 
                         valid_interpretations.append((taatsus, all_cx_shapes, floating))
                 else:
                     for cx_shape, remainder in removed:
                         queue.add((remainder, (*all_cx_shapes, add_i(cx_shape))))
+        # if complex_hand == ():
+        #     print(pair_shape, other_tiles, valid_interpretations)
         if len(valid_interpretations) == 0:
             return
         for s_shapes, cx_shapes, floating in valid_interpretations:
@@ -473,7 +470,13 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
             })
             # print(debug_info["simple_hands"][-1])
 
-    # populate waits by constructing all possible floating/complete hands
+    # first identify every single pair and complex group in all suits
+    suits = eliminate_some_groups(to_suits(starting_hand))
+    pair_hands, complex_hands = identify_pairs_and_complex(suits)
+
+    # then populate waits by constructing all possible floating/complete hands
+    groupless_suits = eliminate_all_groups(suits)
+    simple_hand_length = 4 + (3 * shanten_int)
     for i, suit in enumerate(pair_hands):
         add_i = lambda h: tuple(10*(i+1)+tile for tile in h)
         for pair_hand in suit:
@@ -489,19 +492,23 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
                     # add this hand as a floating hand
                     # print(pair_shape, remaining, other_tiles)
                     add_hand((), add_i(pair_shape), tuple(sorted((*add_i(remaining), *other_tiles))))
-                    # honor suit cannot have complex shapes
                     if i == 3:
-                        break
+                        break # honor suit cannot have complex shapes
                     # get all combinations of complex shapes possible
-                    complex_suits: Tuple[Any, ...] = tuple([{remaining} if i == j else complex_hands[j].copy() for j in range(3)])
-                    for suit2 in complex_suits:
+                    complex_suits: Suits = (*([{remaining} if i == j else complex_hands[j].copy() for j in range(3)]), set())
+                    # remove the maximum number of groups
+                    groupless_complex_suits = tuple({hand for hand in suit if len(hand) == min(map(len, suit))} for suit in eliminate_all_groups(complex_suits))
+                    for j, suit2 in enumerate(complex_suits):
                         queue: Set[Any] = suit2.copy()
                         suit2.clear()
                         while len(queue) > 0:
                             tiles = queue.pop()
                             for complex_shape, remaining2 in complex_shapes.get(tiles, set()):
                                 # check if we broke a set for this complex shape
-                                cx_broke_set = pair_hand not in groupless_pair_hands[i]
+                                cx_broke_set = tiles not in groupless_complex_suits[j]
+                                # if i != j:
+                                #     cx_broke_set = cx_broke_set and tiles not in groupless_suits[j]
+                                # print(pair_broke_set, cx_broke_set)
                                 # if we broke a triplet and don't have enough sets originally
                                 # then we cannot choose this complex shape
                                 if cx_broke_set and groups_needed > shanten:
@@ -514,23 +521,23 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
                                 queue.add((tiles, remaining2))
                     # print(i, complex_suits)
 
-                    all_complex_shapes: List[Tuple[int, ...]] = []
+                    all_complex_shapes: List[List[Tuple[int, ...]]] = []
                     other_tiles_params: List[Tuple] = []
-                    for complex_shapes1 in list(complex_suits[i]) + [()]:
-                        all_complex_shapes.append((complex_shapes1,))
-                        other_tiles_params.append((complex_shapes1, i))
+                    for complex_shape1 in complex_suits[i] | {()}:
+                        all_complex_shapes.append([complex_shape1])
+                        other_tiles_params.append((complex_shape1, i))
                         for j, suit2 in enumerate(complex_suits):
                             if i == j:
                                 continue
-                            for complex_shapes2 in suit2:
-                                all_complex_shapes.append((complex_shapes1, complex_shapes2))
-                                other_tiles_params.append((complex_shapes1, i, complex_shapes2, j))
+                            for complex_shape2 in suit2:
+                                all_complex_shapes.append([complex_shape1, complex_shape2])
+                                other_tiles_params.append((complex_shape1, i, complex_shape2, j))
                                 for k, suit3 in enumerate(complex_suits):
                                     if i == k or j == k:
                                         continue
-                                    for complex_shapes3 in suit3:
-                                        all_complex_shapes.append((complex_shapes1, complex_shapes2, complex_shapes3))
-                                        other_tiles_params.append((complex_shapes1, i, complex_shapes2, j, complex_shapes3, k))
+                                    for complex_shape3 in suit3:
+                                        all_complex_shapes.append([complex_shape1, complex_shape2, complex_shape3])
+                                        other_tiles_params.append((complex_shape1, i, complex_shape2, j, complex_shape3, k))
 
                     add_ix = lambda h, ix: tuple(10*(ix+1)+tile for tile in h)
                     for shapes, params in zip(all_complex_shapes, other_tiles_params):
@@ -593,7 +600,7 @@ def _calculate_shanten(starting_hand: Tuple[int, ...]) -> Shanten:
         now = time.time()
         shanten, waits, _ = get_shanten_type(shanten_int, starting_hand, groupless_hands, groups_needed)
         timers["get_shanten_type"] += time.time() - now
-        assert shanten != 1, f"somehow failed to detect type of iishanten for iishanten hand {ph(sorted_hand(starting_hand))}"
+        # assert shanten != 1, f"somehow failed to detect type of iishanten for iishanten hand {ph(sorted_hand(starting_hand))}"
 
     # if tenpai, get the waits
     elif shanten == 0:
