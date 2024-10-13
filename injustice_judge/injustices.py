@@ -434,6 +434,13 @@ def won_after_changing_wait(flags: List[Flags], data: List[Dict[str, Any]], kyok
     else:
         return []
 
+@skill(require=[Flags.YOU_WON, Flags.WAITED_TO_RIICHI, Flags.WINNER_GOT_IPPATSU])
+def waited_for_ippatsu(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+        CheckClause(subject="you",
+                    verb="waited to riichi",
+                    content=f"and got ippatsu when you did"))]
+
 @skill(require=[Flags.YOU_WON, Flags.YOU_ARE_DEALER, Flags.YOU_WERE_FIRST])
 def won_first_place_3_honba(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     points = data[flags.index(Flags.YOU_WON)]["score_object"].to_points()

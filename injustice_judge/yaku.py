@@ -556,7 +556,7 @@ def add_yakuman(yaku_for_wait: YakuForWait,
         elif len(yakumans) == 0 and use_renhou: # renhou
             # compare our current yaku to renhou
             # if renhou is equal or better, then we replace it with renhou
-            for wait in waits:
+            for wait in yaku_for_wait.keys():
                 if sum(value for name, value in yaku_for_wait[wait]) <= 5:
                     yaku_for_wait[wait] = [("renhou", 5)]
 

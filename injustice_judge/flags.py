@@ -85,6 +85,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " TENPAI_ON_LAST_DISCARD"
     " TURN_SKIPPED_BY_PON"
     " WAIT_WAS_IN_DEAD_WALL"
+    " WAITED_TO_RIICHI"
     " WINNER"
     " WINNER_GOT_BAIMAN"
     " WINNER_GOT_DOUBLE_WIND"
@@ -477,6 +478,9 @@ class KyokuState:
             if self.num_players == 4 and sum(1 for at in self.at if at.in_riichi) == 3:
                 non_riichi_seat = next(i for i, b in enumerate(self.at) if b.in_riichi == False)
                 self.add_flag(non_riichi_seat, Flags.AGAINST_TRIPLE_RIICHI)
+            # check if we waited to riichi
+            if prev_hand.prev_shanten[0] == 0:
+                self.add_flag(seat, Flags.WAITED_TO_RIICHI)
         # check if this is the deal-in tile
         is_last_discard_of_the_game = i == max(self.kyoku.final_discard_event_index)
         if is_last_discard_of_the_game and self.kyoku.result[0] == "ron":
