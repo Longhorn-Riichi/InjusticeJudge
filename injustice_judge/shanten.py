@@ -244,7 +244,7 @@ def determine_kuttsuki_headless_tiles(shanten_int: int, groups_needed: int, grou
     # if any of the suits contains a pair, then all non-pair tiles are possible kutsuki tiles
     # otherwise it's pairless and all tiles are headless tiles
     kuttsuki_always_exists = False
-    taatsuless_hands = eliminate_all_taatsus(eliminate_some_pairs(groupless_hands))
+    taatsuless_hands = eliminate_some_taatsus(eliminate_some_pairs(groupless_hands))
     for i, (suit, taatsuless) in enumerate(zip(groupless_hands, taatsuless_hands)):
         has_kuttsuki = False
         has_non_kuttsuki = False
@@ -310,6 +310,20 @@ def get_headless_taatsus_waits(headless_tiles: Iterable[int]) -> Tuple[Tuple[Tup
             floating_tiles = (*floating_tiles, tile)
     waits = set().union(*map(get_taatsu_wait, taatsus))
     return tuple(sorted(taatsus)), waits, tuple(sorted(floating_tiles))
+
+def get_taatsus_waits(hand: Iterable[int]) -> Iterator[Tuple[Tuple[Tuple[int, int], ...], Set[int], Tuple[int, ...]]]:
+    # get all possible taatsu waits, including pair waits
+    tiles: Tuple[int, ...] = tuple(sorted(hand))
+    for tile, amt in Counter(tiles).items():
+        if amt >= 2:
+            pair = (tile, tile)
+            remaining = try_remove_all_tiles(tiles, pair)
+            assert len(remaining) < len(tiles)
+            for taatsus, waits, floating_tiles in get_taatsus_waits(remaining):
+                taatsus = (*taatsus, pair)
+                waits = waits.copy() | {tile}
+                yield taatsus, waits, floating_tiles
+    yield get_headless_taatsus_waits(tiles)
 
 def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless_hands: Suits, groups_needed: int) -> Tuple[float, Set[int], Dict[str, Any]]:
     # given an 1-3 shanten hand, calculate the shanten type and its waits
@@ -414,19 +428,23 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
         valid_interpretations = []
         for i, suit in enumerate(to_suits(complex_hand)):
             add_i = lambda h: tuple(10*(i+1)+tile for tile in h)
-            queue: Set[Any] = {(hand, ()) for hand in suit} | {((), ())}
+            queue: Set[Any] = {(hand, ()) for hand in suit}
+            empty_hand = ((), ())
+            if i == 0:
+                queue.add(empty_hand)
+            elif empty_hand in queue:
+                queue.remove(empty_hand)
             while len(queue) > 0:
                 cx_hand, all_cx_shapes = queue.pop()
                 removed = complex_shapes.get(cx_hand, set())
                 if len(removed) == 0:
                     remaining_tiles = (*add_i(cx_hand), *other_tiles)
-                    taatsus, taatsu_waits, floating = get_headless_taatsus_waits(remaining_tiles)
-                    # print(complex_hand, pair_shape, other_tiles, taatsus, floating)
-                    # print(remaining_tiles, pair_shape, taatsus, floating)
-                    # if there are shanten+1 simple/complex shapes, add to valid_interpretations
-                    # we already have 1 due to the pair, so we need shanten more
-                    if len(taatsus) + len(all_cx_shapes) >= shanten_int+1: 
-                        valid_interpretations.append((taatsus, all_cx_shapes, floating))
+                    for taatsus, taatsu_waits, floating in get_taatsus_waits(remaining_tiles):
+                        # print(remaining_tiles, pair_shape, taatsus, floating)
+                        # if there are shanten+1 simple/complex shapes, add to valid_interpretations
+                        # we already have 1 due to the pair, so we need shanten more
+                        if len(taatsus) + len(all_cx_shapes) >= shanten_int+1: 
+                            valid_interpretations.append((taatsus, all_cx_shapes, floating))
                 else:
                     for cx_shape, remainder in removed:
                         queue.add((remainder, (*all_cx_shapes, add_i(cx_shape))))
@@ -435,7 +453,6 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
         if len(valid_interpretations) == 0:
             return
         for s_shapes, cx_shapes, floating in valid_interpretations:
-            # print(s_shapes, cx_shapes, floating)
             simple_waits = set()
             complex_waits = set()
             for simple_shape in s_shapes:
