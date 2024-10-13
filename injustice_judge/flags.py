@@ -111,6 +111,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_CAN_CALL_RON"
     " YOU_CAN_CALL_TSUMO"
     " YOU_CHASED"
+    " YOU_CHOSE_WRONG_TENPAI"
     " YOU_DEALT_IN"
     " YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT"
     " YOU_DECLARED_RIICHI"
@@ -590,6 +591,28 @@ class KyokuState:
                 if not yakuless and not furiten:
                     flag = Flags.YOU_CAN_CALL_TSUMO if is_tsumo else Flags.YOU_CAN_CALL_RON
                     self.add_flag(player, flag, {"tile": tile, "wait": at.hand.shanten[1], "turns_left": self.tiles_in_wall})
+        # check if this discard puts us from not tenpai to tenpai
+        if prev_hand.prev_shanten[0] > 0 and self.at[seat].hand.shanten[0] == 0:
+            # check if we could have discarded something else for a different tenpai wait
+            possible_tenpais = prev_hand.get_possible_tenpais()
+            other_tenpais: Dict[int, Set[int]] = {} # wait => tiles you could have discarded
+            for tile, tenpai_hand in possible_tenpais.items():
+                if self.at[seat].hand.shanten[1] != tenpai_hand.shanten[1]:
+                    for wait in tenpai_hand.shanten[1]:
+                        if wait not in self.at[seat].hand.shanten[1]:
+                            if wait not in other_tenpais:
+                                other_tenpais[wait] = set()
+                            other_tenpais[wait].add(tile)
+            # now check if the very next discard would have dealt into one of those tenpai waits
+            next_discard = next((event_data[0] for _, event_type, *event_data in self.kyoku.events[i+1:] if event_type in ["discard", "riichi"]), None)
+            if next_discard in other_tenpais:
+                data = {
+                    "next_discard": next_discard,
+                    "chosen_wait": self.at[seat].hand.shanten[1],
+                    "counterfactual_discards": other_tenpais[next_discard],
+                    "possible_tenpais": possible_tenpais
+                }
+                self.add_flag(seat, Flags.YOU_CHOSE_WRONG_TENPAI, data)
 
     def process_shanten_change(self, i: int, seat: int, event_type: str,
                                prev_shanten: Shanten, new_shanten: Shanten,
@@ -678,7 +701,7 @@ class KyokuState:
         # check if we are mangan+ tenpai
         get_yaku_args = {
             "hand": hand,
-            "events": self.kyoku.events,
+            "events": self.kyoku.events[i:],
             "doras": self.kyoku.doras,
             "uras": self.kyoku.uras if self.at[seat].in_riichi else [],
             "round": self.kyoku.round,

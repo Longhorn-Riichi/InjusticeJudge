@@ -1070,7 +1070,24 @@ def drew_tile_completing_past_wait(flags: List[Flags], data: List[Dict[str, Any]
             CheckClause(subject="you",
                         verb="drew",
                         content=f"a tile {pt(tile, doras=kyoku.doras)} that would have completed your past tenpai wait on {ph(wait, kyoku.doras)}"
-                                    f" if you didn't decide to {'switch to ' + shanten_name(shanten) if shanten[0] == 0 else 'fold'}"))]
+                                f" if you didn't decide to {'switch to ' + shanten_name(shanten) if shanten[0] == 0 else 'fold'}"))]
+
+# Print if you chose a tenpai different from one that could have won next turn
+@injustice(require=[Flags.YOU_CHOSE_WRONG_TENPAI],
+            forbid=[Flags.YOU_GAINED_POINTS])
+def chose_wrong_tenpai(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    tenpai_data = data[flags.index(Flags.YOU_CHOSE_WRONG_TENPAI)]
+    next_discard = tenpai_data["next_discard"]
+    chosen_wait = tenpai_data["chosen_wait"]
+    counterfactual_discards = tenpai_data["counterfactual_discards"]
+    possible_tenpais = tenpai_data["possible_tenpais"]
+    return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+            CheckClause(subject="you",
+                        verb="chose",
+                        content=f"to wait on {ph(chosen_wait, doras=kyoku.doras)},"
+                                f" but if you instead discarded {'or'.join(pt(discard, doras=kyoku.doras) for discard in counterfactual_discards)}"
+                                f" to wait on {'or'.join(ph(possible_tenpais[discard].shanten[1], doras=kyoku.doras) for discard in counterfactual_discards)}"
+                                f" then you would have won on the very next discard {pt(next_discard, doras=kyoku.doras)}"))]
 
 # Print if you dealt into ura 3 OR if someone else tsumoed and got ura 3
 @injustice(require=[Flags.WINNER_GOT_URA_3, Flags.YOU_LOST_POINTS])

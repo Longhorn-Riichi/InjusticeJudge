@@ -690,12 +690,13 @@ def get_yaku(hand: Hand,
 
     is_tenhou = not any(event_type == "discard" for _, event_type, *_ in events)
     if is_tenhou: # for tenhou we'll try every possible wait
-        tenhou_draw = next(event_data[0] for _, event_type, *event_data in events if event_type == "draw")
-        tiles = tuple(sorted_hand((*hand.tiles, tenhou_draw)))
-        for i in range(len(tiles)):
-            for interpretation in Interpretation((*tiles[:i], *tiles[i+1:]), calls=()) \
-                    .generate_all_interpretations(yakuhai=yakuhai, is_closed_hand=True):
-                process_interpretation(interpretation)
+        tenhou_draw = next((event_data[0] for _, event_type, *event_data in events if event_type == "draw"), None)
+        if tenhou_draw is not None:
+            possible_tenhou_hands = hand.add(tenhou_draw).get_possible_tenpais().values()
+            for hand in possible_tenhou_hands:
+                for interpretation in Interpretation(hand.tiles, calls=()) \
+                        .generate_all_interpretations(yakuhai=yakuhai, is_closed_hand=True):
+                    process_interpretation(interpretation)
     else:
         for interpretation in Interpretation(hand.hidden_part, calls=tuple(hand.calls)) \
                 .generate_all_interpretations(yakuhai=yakuhai, is_closed_hand=is_closed_hand):
