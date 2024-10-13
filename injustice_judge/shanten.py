@@ -286,6 +286,8 @@ def get_headless_taatsus_waits(headless_tiles: Iterable[int]) -> Tuple[Tuple[Tup
     for t in tile_possibilities:
         tiles.extend([*t, 0])
     for i, (l, t1, t2, r) in enumerate(zip(tiles[:-3], tiles[1:-2], tiles[2:-1], tiles[3:])):
+        if t1 == 0 or t2 == 0:
+            continue
         is_pair = t2 == t1
         is_ryanmen = t2 == SUCC[t1]
         is_kanchan = t2 == SUCC[SUCC[t1]]
