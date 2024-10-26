@@ -466,5 +466,5 @@ class Kyoku:
     def get_ukeire(self, seat) -> int:
         return self.hands[seat].ukeire(self.get_visible_tiles())
     def get_starting_doras(self) -> List[int]:
-        return self.doras[:(3 if self.rules.use_red_fives else 0) + self.num_dora_indicators_visible]
+        return self.doras[:(3 if self.rules.use_red_fives else 0) + self.rules.starting_doras]
 

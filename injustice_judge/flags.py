@@ -1146,7 +1146,7 @@ class KyokuState:
             new_dora = self.kyoku.doras[len(self.current_doras)]
             self.current_doras.append(new_dora)
             # check if that just gave us 4 dora
-            if self.at[seat].hand.tiles_with_kans.count(new_dora) == 4:
+            if list(normalize_red_fives(self.at[seat].hand.tiles_with_kans)).count(new_dora) == 4:
                 self.add_flag(seat, Flags.YOU_FLIPPED_DORA_BOMB, {"doras": self.current_doras.copy(), "call": kan_call, "hand": self.at[seat].hand})
             # if anyone's resulting calls contain 3+ dora, add a flag
             for player in range(self.num_players):
