@@ -705,7 +705,7 @@ class KyokuState:
         # check if we are mangan+ tenpai
         get_yaku_args = {
             "hand": hand,
-            "events": self.kyoku.events[i:],
+            "events": self.kyoku.events[:i],
             "doras": self.kyoku.doras,
             "uras": self.kyoku.uras if self.at[seat].in_riichi else [],
             "round": self.kyoku.round,
