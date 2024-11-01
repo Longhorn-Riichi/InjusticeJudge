@@ -1218,6 +1218,16 @@ def determine_flags(kyoku: Kyoku) -> Tuple[List[List[Flags]], List[List[Dict[str
                 state.process_tenpai(i, *event)
         elif event_type == "start_game":
             state.process_start_game(i, *event)
+            # check if anyone is tenpai at draw
+            for seat in range(state.num_players):
+                shanten = state.kyoku.haipai[seat].shanten
+                if shanten[0] == 0:
+                    state.process_tenpai(i, seat, event_type,
+                        prev_shanten = shanten,
+                        new_shanten = shanten,
+                        hand = state.at[seat].hand,
+                        ukeire = state.at[seat].hand.ukeire(state.get_visible_tiles()),
+                        furiten = state.at[seat].furiten)
         elif event_type == "end_game":
             state.process_end_game(i, *event)
         elif event_type == "result":

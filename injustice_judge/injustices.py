@@ -801,17 +801,33 @@ def lost_nagashi_to_call(flags: List[Flags], data: List[Dict[str, Any]], kyoku: 
                         content=f"nagashi on your last discard {pt(tile, doras=kyoku.doras)} because {relative_seat_name(player, caller)} called it"))]
 
 # Print if ankan removed (part of) your tenpai wait
-@injustice(require=[Flags.ANKAN_ERASED_TENPAI_WAIT])
+@injustice(require=[Flags.YOU_REACHED_TENPAI, Flags.ANKAN_ERASED_TENPAI_WAIT])
 def ankan_erased_tenpai_wait(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     tile = data[flags.index(Flags.ANKAN_ERASED_TENPAI_WAIT)]["tile"]
     wait = data[flags.index(Flags.ANKAN_ERASED_TENPAI_WAIT)]["wait"]
     ukeire = data[flags.index(Flags.ANKAN_ERASED_TENPAI_WAIT)]["ukeire"]
     caller = data[flags.index(Flags.ANKAN_ERASED_TENPAI_WAIT)]["caller"]
-    return [Injustice(kyoku.round, kyoku.honba, "Injustice",
-            CheckClause(subject=f"{relative_seat_name(player, caller)}'s ankan",
-                        subject_description=ph((50,tile,tile,50), kyoku.doras),
-                        verb="erased",
-                        content=f"{'your entire' if ukeire <= 4 else 'part of your'} wait {ph(wait, kyoku.doras)}"))]
+    flags_before = flags[:flags.index(Flags.ANKAN_ERASED_TENPAI_WAIT)]
+    if Flags.YOU_HAD_LIMIT_TENPAI in flags_before:
+        ix = len(flags_before) - 1 - flags_before[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)
+        hand_str = data[ix]["hand_str"]
+        yaku_str = data[ix]["yaku_str"]
+        limit_name = data[ix]["limit_name"]
+        han = data[ix]["han"]
+        fu = data[ix]["fu"]
+        fu_string = f", {fu} fu" if han < 5 else "" # need to show fu if 3 or 4 han
+        return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+                CheckClause(subject=f"{relative_seat_name(player, caller)}'s ankan",
+                            subject_description=ph((50,tile,tile,50), kyoku.doras),
+                            verb="erased",
+                            content=f"{'your entire' if ukeire <= 4 else 'part of your'} wait {ph(wait, kyoku.doras)}"
+                                    f" while you were tenpai for {limit_name} ({yaku_str}{fu_string})"))]
+    else:
+        return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+                CheckClause(subject=f"{relative_seat_name(player, caller)}'s ankan",
+                            subject_description=ph((50,tile,tile,50), kyoku.doras),
+                            verb="erased",
+                            content=f"{'your entire' if ukeire <= 4 else 'part of your'} wait {ph(wait, kyoku.doras)}"))]
 
 # Print if you tsumogiri honors 6 times in a row and are not going for nagashi
 @injustice(require=[Flags.SIX_DISCARDS_TSUMOGIRI_HONOR],
@@ -1225,8 +1241,8 @@ def your_mangan_tenpai_destroyed(flags: List[Flags], data: List[Dict[str, Any]],
     hand_str = data[len(data) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["hand_str"]
     yaku_str = data[len(data) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["yaku_str"]
     limit_name = data[len(data) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["limit_name"]
-    han = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["han"]
-    fu = data[flags.index(Flags.YOU_HAD_LIMIT_TENPAI)]["fu"]
+    han = data[len(data) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["han"]
+    fu = data[len(data) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["fu"]
     score = data[flags.index(Flags.WINNER)]["score_object"].to_points()
     winner = data[flags.index(Flags.WINNER)]["seat"]
 
