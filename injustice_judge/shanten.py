@@ -3,7 +3,7 @@ import itertools
 from .classes import Interpretation
 from .constants import Shanten, PRED, SUCC, TANYAOHAI, YAOCHUUHAI
 from .display import ph, pt
-from .utils import extract_groups, get_taatsu_wait, get_waits, get_waits_taatsus, normalize_red_five, normalize_red_fives, sorted_hand, to_sequence, try_remove_all_tiles
+from .utils import extract_groups, get_taatsu_wait, get_waits, get_waits_taatsus, normalize_red_five, normalize_red_fives, sorted_hand, to_sequence, to_triplet, try_remove_all_tiles
 
 from typing import *
 from pprint import pprint
@@ -227,14 +227,47 @@ def get_other_tiles(hand_size: int, suits: Suits,
             for d in ({hand1} if i == 3 else {hand2} if j == 3 else {hand3} if k == 0 else suits[3])
             if len(a)+len(b)+len(c)+len(d) == hand_size)
 
-def calculate_wait_extensions(groups: Tuple[int, ...], waits: Set[int]) -> Tuple[Set[int], Set[int]]:
+def calculate_wait_extensions(groups: Tuple[int, ...], waits: Set[int]) -> List[Tuple[Set[int], int, Tuple[int, int, int]]]:
     sequences, triplets = extract_groups(groups)
     # only sequence extensions apply
-    left_extensions = set(PRED[PRED[PRED[tile]]] for tile in waits if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences)
-    left_extensions |= set(PRED[PRED[PRED[tile]]] for tile in left_extensions if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences)
-    right_extensions = set(SUCC[SUCC[SUCC[tile]]] for tile in waits if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences)
-    right_extensions |= set(SUCC[SUCC[SUCC[tile]]] for tile in right_extensions if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences)
-    return left_extensions, right_extensions
+    left_extensions = []
+    left_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[tile]])) for tile in waits if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences])
+    left_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[tile]])) for ([tile], _, _) in left_extensions if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences])
+    right_extensions = []
+    right_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(tile)) for tile in waits if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences])
+    right_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(tile)) for ([tile], _, _) in right_extensions if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences])
+    return left_extensions + right_extensions
+
+def calculate_tanki_wait_extensions(groups: Tuple[int, ...], waits: Set[int]) -> List[Tuple[Set[int], int, Tuple[int, int, int]]]:
+    sequences, triplets = extract_groups(groups)
+    # sequence extensions
+    left_extensions = []
+    left_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[tile]])) for tile in waits if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences])
+    left_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[tile]])) for ([tile], _, _) in left_extensions if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences])
+    left_adj_extensions = []
+    left_adj_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[PRED[tile]]])) for tile in waits if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[PRED[tile]]]) in sequences])
+    left_adj_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[PRED[tile]]])) for ([tile], _, _) in left_adj_extensions if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[PRED[tile]]]) in sequences])
+    right_extensions = []
+    right_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(tile)) for tile in waits if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences])
+    right_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(tile)) for ([tile], _, _) in right_extensions if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences])
+    right_adj_extensions = []
+    right_adj_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(SUCC[tile])) for tile in waits if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(SUCC[tile]) in sequences])
+    right_adj_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(SUCC[tile])) for ([tile], _, _) in right_adj_extensions if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(SUCC[tile]) in sequences])
+    # triplet extensions
+    triplet_extensions = []
+    for tile in waits:
+        # 3335, 4445, 5666, 5777
+        possible_triplet_extensions = [
+            ({PRED[tile]}, to_triplet(PRED[PRED[tile]])),
+            ({PRED[PRED[tile]], SUCC[tile]}, to_triplet(PRED[tile])),
+            ({PRED[tile], SUCC[SUCC[tile]]}, to_triplet(SUCC[tile])),
+            ({SUCC[tile]}, to_triplet(SUCC[SUCC[tile]])),
+        ]
+        for tiles, triplet in possible_triplet_extensions:
+            tiles = set(tile for tile in tiles if tile > 0)
+            if triplet in triplets and len(tiles) > 0:
+                triplet_extensions.append((tiles, tile, triplet))
+    return left_extensions + left_adj_extensions + right_extensions + right_adj_extensions + triplet_extensions
 
 def determine_kuttsuki_headless_tiles(shanten_int: int, groups_needed: int, groupless_hands: Suits) -> Tuple[Set[int], Set[int], Set[int]]:
     kuttsuki_tiles: Set[int] = set() # tiles that could be the floating kuttsuki tiles in hand
@@ -406,11 +439,15 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
             #   so all six of the taatsu tiles are tanki waits
             taatsus, headless_taatsu_waits, floating_tiles = get_headless_taatsus_waits(headless_tiles)
             headless_tanki_waits = headless_tiles if len(taatsus) >= shanten_int+1 else set(floating_tiles)
-            waits |= headless_taatsu_waits | headless_tanki_waits
+            extensions = calculate_tanki_wait_extensions(try_remove_all_tiles(starting_hand, tuple(headless_tiles)), headless_tanki_waits)
+            extended_waits = set(wait for waits, _, _ in extensions for wait in waits)
+            waits |= headless_taatsu_waits | headless_tanki_waits | extended_waits
             debug_info["headless_taatsus"] = taatsus
             debug_info["headless_floating_tiles"] = floating_tiles
             debug_info["headless_taatsu_waits"] = headless_taatsu_waits
             debug_info["headless_tanki_waits"] = headless_tanki_waits
+            debug_info["headless_tanki_extensions"] = extensions
+            # sequences extend waits
 
     # helper function for the below
     is_perfect_iishanten = False
@@ -475,8 +512,9 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
                 has_floating_hand = True
 
             # calculate wait extensions
-            left_extensions, right_extensions = calculate_wait_extensions(try_remove_all_tiles(starting_hand, h), simple_waits | complex_waits)
-            waits |= simple_waits | complex_waits | left_extensions | right_extensions
+            extensions = calculate_wait_extensions(try_remove_all_tiles(starting_hand, h), simple_waits | complex_waits)
+            extended_waits = set(wait for waits, _, _ in extensions for wait in waits)
+            waits |= simple_waits | complex_waits | extended_waits
             debug_info["simple_hands"].append({
                 "pair": pair_shape,
                 "simple_shapes": s_shapes,
@@ -484,8 +522,7 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
                 "floating_tiles": floating,
                 "simple_waits": simple_waits,
                 "complex_waits": complex_waits,
-                "left_extensions": left_extensions,
-                "right_extensions": right_extensions,
+                "extensions": extensions,
             })
             # print(debug_info["simple_hands"][-1])
 
