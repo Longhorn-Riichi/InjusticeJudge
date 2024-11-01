@@ -85,7 +85,7 @@ class MahjongSoulAPI:
             pass
         self.ix = 0
         if self.use_en:
-            self.ws = await websockets.connect("wss://mjusgs.mahjongsoul.com:9663/")  # type: ignore[attr-defined]
+            self.ws = await websockets.connect("wss://engame.mahjongsoul.com:443/gateway")  # type: ignore[attr-defined]
             await self.login_en()
         elif self.use_cn:
             self.ws = await websockets.connect("wss://gateway-hw.maj-soul.com:443/gateway")  # type: ignore[attr-defined]
