@@ -138,7 +138,7 @@ class Interpretation:
         return self
     def add_wait_fu(self, yakuhai: Tuple[int, ...]) -> bool:
         """return True if the final wait is valid"""
-        if len(self.hand) == 2:
+        if len(self.hand) == 2 and self.pair is not None:
             # taatsu wait -- might be a single wait
             is_shanpon = self.is_shanpon()
             waits = self.get_waits()

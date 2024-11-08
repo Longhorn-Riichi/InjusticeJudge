@@ -230,15 +230,7 @@ def get_other_tiles(hand_size: int, suits: Suits,
 def extract_unique_groups(groups: Tuple[int, ...]) -> Tuple[List[Tuple[int, int, int]], List[Tuple[int, int, int]]]:
     sequences: List[Tuple[int, ...]] = []
     triplets: List[Tuple[int, ...]] = []
-    if len(groups) == 12:
-        groups = (*groups, 1)
-    elif len(groups) == 9:
-        groups = (*groups, 1, 1, 3, 3)
-    elif len(groups) == 6:
-        groups = (*groups, 1, 1, 3, 3, 5, 5, 7)
-    elif len(groups) == 3:
-        groups = (*groups, 1, 1, 3, 3, 5, 5, 7, 7, 9, 9)
-    for interpretation in Interpretation(groups).generate_all_interpretations():
+    for interpretation in Interpretation((*groups, 1)).generate_all_interpretations():
         sequences.extend(list(interpretation.sequences))
         triplets.extend(list(interpretation.triplets))
     return cast(List[Tuple[int, int, int]], list(set(sequences))), \
