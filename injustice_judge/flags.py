@@ -802,7 +802,7 @@ class KyokuState:
                                                 sanma=self.num_players == 3,
                                                 num_kans_kitas=self.num_kans + self.num_kitas)
                     if len(yakuman_tenpais) == 0:
-                        draws = draws[:5]
+                        draws = draws[:3]
                     if not set(wait).isdisjoint(set(normalize_red_fives(draws))):
                         self.add_flag(player, Flags.COULD_HAVE_TSUMOED, {"wait": wait, "draws": draws, "yakuman_tenpais": yakuman_tenpais})
                     # check if a riichi player would have drawn the tile and we could call ron on it
@@ -817,7 +817,7 @@ class KyokuState:
                                                         sanma=self.num_players == 3,
                                                         num_kans_kitas=self.num_kans + self.num_kitas)
                             if len(yakuman_tenpais) == 0:
-                                draws = draws[:5]
+                                draws = draws[:3]
                             if not (set(wait) - set(riichi_wait)).isdisjoint(set(normalize_red_fives(draws))):
                                 self.add_flag(player, Flags.COULD_HAVE_RONNED, {"riichi_player": riichi_player, "wait": wait, "draws": draws, "yakuman_tenpais": yakuman_tenpais})
 
