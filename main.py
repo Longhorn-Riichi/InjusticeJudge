@@ -20,7 +20,7 @@ def main():
     if args.mode == 'both':
         mode = {'injustice', 'skill'}
     else:
-        mode = {args.mode,}
+        mode = {args.mode}
 
     print("\n".join(asyncio.run(analyze_game(link, players, look_for=mode))))
     # print("\n".join(asyncio.run(analyze_game(link, players, look_for={"skill"}))))

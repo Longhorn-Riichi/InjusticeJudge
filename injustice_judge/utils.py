@@ -27,19 +27,6 @@ def try_remove_all_tiles(hand: Tuple[int, ...], tiles: Tuple[int, ...]) -> Tuple
 
 to_sequence = lambda tile: (SUCC[SUCC[tile]], SUCC[tile], tile)
 to_triplet = lambda tile: (tile, tile, tile)
-def extract_groups(groups: Tuple[int, ...]) -> Tuple[List[Tuple[int, int, int]], List[Tuple[int, int, int]]]:
-    def extract_group(groups: Tuple[int, ...], to_group: Callable[[int], Tuple[int, int, int]]) -> Tuple[Tuple[int, ...], List[Tuple[int, int, int]]]:
-        ret = []
-        for tile in groups:
-            group = to_group(tile)
-            rest = try_remove_all_tiles(groups, group)
-            if len(rest) < len(groups):
-                ret.append(group)
-                groups = rest
-        return groups, ret
-    groups, sequences = extract_group(groups, to_sequence)
-    groups, triplets = extract_group(groups, to_triplet)
-    return sequences, triplets
 
 def get_score(han: int, fu: int, is_dealer: bool, is_tsumo: bool, num_players: int) -> int:
     """

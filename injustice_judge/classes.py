@@ -104,28 +104,37 @@ class Interpretation:
     def add_triplet(self, triplet: Tuple[int, int, int], call: bool = False, closed: bool = True, kan: bool = False) -> "Interpretation":
         triplet_fu = (4 if triplet[0] in YAOCHUUHAI else 2) * (2 if closed else 1) * (4 if kan else 1)
         # print(f"add {triplet_fu} for closed triplet {ph(triplet)}, {ph(self.hand)}")
-        return Interpretation(self.hand if call else try_remove_all_tiles(self.hand, triplet),
-                              self.ron_fu + triplet_fu,
-                              self.tsumo_fu + triplet_fu,
-                              self.sequences,
-                              add_group(self.triplets, triplet),
-                              self.pair, calls=self.calls)
+        ret = Interpretation(self.hand if call else try_remove_all_tiles(self.hand, triplet),
+                             self.ron_fu + triplet_fu,
+                             self.tsumo_fu + triplet_fu,
+                             self.sequences,
+                             add_group(self.triplets, triplet),
+                             self.pair, calls=self.calls)
+        if not call and ret.hand == self.hand:
+            return self
+        return ret
     def add_sequence(self, sequence: Tuple[int, int, int], call: bool = False) -> "Interpretation":
-        return Interpretation(self.hand if call else try_remove_all_tiles(self.hand, sequence),
-                              self.ron_fu,
-                              self.tsumo_fu,
-                              add_group(self.sequences, sequence),
-                              self.triplets,
-                              self.pair, calls=self.calls)
+        ret = Interpretation(self.hand if call else try_remove_all_tiles(self.hand, sequence),
+                             self.ron_fu,
+                             self.tsumo_fu,
+                             add_group(self.sequences, sequence),
+                             self.triplets,
+                             self.pair, calls=self.calls)
+        if not call and ret.hand == self.hand:
+            return self
+        return ret
     def add_pair(self, pair: Tuple[int, int], yakuhai: Tuple[int, ...]) -> "Interpretation":
         if self.pair is None:
             yakuhai_fu = 2 * yakuhai.count(pair[0])
             # print(f"add {yakuhai_fu} for yakuhai pair {ph(pair)}, {ph(self.hand)}")
-            return Interpretation(try_remove_all_tiles(self.hand, pair),
-                                  self.ron_fu + yakuhai_fu,
-                                  self.tsumo_fu + yakuhai_fu,
-                                  self.sequences, self.triplets,
-                                  pair, calls=self.calls)
+            ret = Interpretation(try_remove_all_tiles(self.hand, pair),
+                                 self.ron_fu + yakuhai_fu,
+                                 self.tsumo_fu + yakuhai_fu,
+                                 self.sequences, self.triplets,
+                                 pair, calls=self.calls)
+            if ret.hand == self.hand:
+                return self
+            return ret
         return self
     def add_wait_fu(self, yakuhai: Tuple[int, ...]) -> bool:
         """return True if the final wait is valid"""
@@ -177,15 +186,15 @@ class Interpretation:
         # finally, iterate through all possible interpretations of the hand
         interpretations: Set[Interpretation] = set()
         to_update: Set[Interpretation] = {base_interpretation}
-        already_processed: Set[Tuple[int, ...]] = set()
+        already_processed: Set[Interpretation] = set()
 
         while len(to_update) > 0:
             interpretation = to_update.pop()
             # skip if we've already seen this one
-            if interpretation.hand in already_processed:
+            if interpretation in already_processed:
                 continue
             else:
-                already_processed.add(interpretation.hand)
+                already_processed.add(interpretation)
             # either output the interpretation, or recurse with smaller hands
             if len(interpretation.hand) <= 2:
                 if interpretation.add_wait_fu(yakuhai):
@@ -196,7 +205,7 @@ class Interpretation:
                     nodes = [interpretation.add_triplet((tile, tile2, tile2)),
                              interpretation.add_sequence((SUCC[SUCC[tile]], SUCC[tile], tile)),
                              interpretation.add_pair((tile, tile2), yakuhai=yakuhai)]
-                    to_update |= {n for n in nodes if n is not None}
+                    to_update |= {n for n in nodes if n != interpretation}
 
             # special case: aryanmen pinfu requires a single sequence remain unprocessed
             if len(interpretation.hand) == 1:

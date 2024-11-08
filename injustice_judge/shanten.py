@@ -3,7 +3,7 @@ import itertools
 from .classes import Interpretation
 from .constants import Shanten, PRED, SUCC, TANYAOHAI, YAOCHUUHAI
 from .display import ph, pt
-from .utils import extract_groups, get_taatsu_wait, get_waits, get_waits_taatsus, normalize_red_five, normalize_red_fives, sorted_hand, to_sequence, to_triplet, try_remove_all_tiles
+from .utils import get_taatsu_wait, get_waits, get_waits_taatsus, normalize_red_five, normalize_red_fives, sorted_hand, to_sequence, to_triplet, try_remove_all_tiles
 
 from typing import *
 from pprint import pprint
@@ -227,8 +227,25 @@ def get_other_tiles(hand_size: int, suits: Suits,
             for d in ({hand1} if i == 3 else {hand2} if j == 3 else {hand3} if k == 0 else suits[3])
             if len(a)+len(b)+len(c)+len(d) == hand_size)
 
+def extract_unique_groups(groups: Tuple[int, ...]) -> Tuple[List[Tuple[int, int, int]], List[Tuple[int, int, int]]]:
+    sequences: List[Tuple[int, ...]] = []
+    triplets: List[Tuple[int, ...]] = []
+    if len(groups) == 12:
+        groups = (*groups, 1)
+    elif len(groups) == 9:
+        groups = (*groups, 1, 1, 3, 3)
+    elif len(groups) == 6:
+        groups = (*groups, 1, 1, 3, 3, 5, 5, 7)
+    elif len(groups) == 3:
+        groups = (*groups, 1, 1, 3, 3, 5, 5, 7, 7, 9, 9)
+    for interpretation in Interpretation(groups).generate_all_interpretations():
+        sequences.extend(list(interpretation.sequences))
+        triplets.extend(list(interpretation.triplets))
+    return cast(List[Tuple[int, int, int]], list(set(sequences))), \
+           cast(List[Tuple[int, int, int]], list(set(triplets)))
+
 def calculate_wait_extensions(groups: Tuple[int, ...], waits: Set[int]) -> List[Tuple[Set[int], int, Tuple[int, int, int]]]:
-    sequences, triplets = extract_groups(groups)
+    sequences, triplets = extract_unique_groups(groups)
     # only sequence extensions apply
     left_extensions = []
     left_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[tile]])) for tile in waits if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences])
@@ -239,7 +256,7 @@ def calculate_wait_extensions(groups: Tuple[int, ...], waits: Set[int]) -> List[
     return left_extensions + right_extensions
 
 def calculate_tanki_wait_extensions(groups: Tuple[int, ...], waits: Set[int]) -> List[Tuple[Set[int], int, Tuple[int, int, int]]]:
-    sequences, triplets = extract_groups(groups)
+    sequences, triplets = extract_unique_groups(groups)
     # sequence extensions
     left_extensions = []
     left_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[tile]])) for tile in waits if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences])

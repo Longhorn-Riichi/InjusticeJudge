@@ -151,8 +151,8 @@ def format_result(seat: int, result_list: List[CheckResult], player_names: List[
         if clause.verb != last_clause.verb or clause.subject != current_subject:
             # ad-hoc check to avoid "you dealt in, and you dealt into"
             if clause.subject == current_subject and clause.verb == "dealt into" and last_clause.verb == "dealt in":
-                ret = ret[:-6] # remove ", and"
-                ret += ", into"
+                ret = ret[:-7] # remove "in, and"
+                ret += "into"
             else:
                 ret += " " + clause.verb
         else:
@@ -1272,7 +1272,7 @@ def couldnt_avoid_last_with_3_dora(flags: List[Flags], data: List[Dict[str, Any]
                                 f" but you couldn't since {relative_seat_name(player, winner)} won"))]
 
 # Print if someone took your points and you dropped placement only because of ura
-@injustice(require=[Flags.YOU_DEALT_IN, Flags.YOU_DROPPED_PLACEMENT, Flags.WINNER],
+@injustice(require=[Flags.YOU_LOST_POINTS, Flags.YOU_DROPPED_PLACEMENT, Flags.WINNER],
             forbid=[])
 def dropped_placement_due_to_ura(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     score: Score = data[flags.index(Flags.WINNER)]["score_object"]
