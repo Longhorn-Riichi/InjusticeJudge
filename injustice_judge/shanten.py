@@ -3,7 +3,7 @@ import itertools
 from .classes import Interpretation
 from .constants import Shanten, PRED, SUCC, TANYAOHAI, YAOCHUUHAI
 from .display import ph, pt
-from .utils import get_taatsu_wait, get_waits, get_waits_taatsus, normalize_red_five, normalize_red_fives, sorted_hand, to_sequence, to_triplet, try_remove_all_tiles
+from .utils import get_taatsu_wait, get_waits, get_waits_taatsus, normalize_red_five, normalize_red_fives, sorted_hand, try_remove_all_tiles
 
 from typing import *
 from pprint import pprint
@@ -215,8 +215,9 @@ def get_other_tiles(hand_size: int, suits: Suits,
                     hand2: Tuple[int, ...] = (), j: int = -1,
                     hand3: Tuple[int, ...] = (), k: int = -1) -> Iterator[Tuple[int, ...]]:
     # get all combinations of tiles from all other suits
-    # such that adding them to (*hand, *hand2) makes it length 7
-    # i is the suit for hand1, j is the suit for hand2
+    # such that adding them to (*hand, *hand2) makes it length == hand_size
+    # i is the suit for hand1, j is the suit for hand2, k is the suit for hand3
+    # i/j/k = -1 means to ignore hand1/hand2/hand3 argument
     return ((*(tuple(10+tile for tile in a) if 0 not in (i,j,k) else ()),
              *(tuple(20+tile for tile in b) if 1 not in (i,j,k) else ()),
              *(tuple(30+tile for tile in c) if 2 not in (i,j,k) else ()),
@@ -236,32 +237,34 @@ def extract_unique_groups(groups: Tuple[int, ...]) -> Tuple[List[Tuple[int, int,
     return cast(List[Tuple[int, int, int]], list(set(sequences))), \
            cast(List[Tuple[int, int, int]], list(set(triplets)))
 
+to_sequence = lambda tile: (tile, SUCC[tile], SUCC[SUCC[tile]])
+to_triplet = lambda tile: (tile, tile, tile)
 def calculate_wait_extensions(groups: Tuple[int, ...], waits: Set[int]) -> List[Tuple[Set[int], int, Tuple[int, int, int]]]:
     sequences, triplets = extract_unique_groups(groups)
     # only sequence extensions apply
     left_extensions = []
-    left_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[tile]])) for tile in waits if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences])
-    left_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[tile]])) for ([tile], _, _) in left_extensions if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences])
+    left_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[tile]])) for tile in waits if PRED[PRED[PRED[tile]]] != 0 if to_sequence(PRED[PRED[tile]]) in sequences])
+    left_extensions.extend([({PRED[PRED[PRED[tile]]]}, SUCC[SUCC[SUCC[tile]]], to_sequence(PRED[PRED[tile]])) for ([tile], _, _) in left_extensions if PRED[PRED[PRED[tile]]] != 0 if to_sequence(PRED[PRED[tile]]) in sequences])
     right_extensions = []
-    right_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(tile)) for tile in waits if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences])
-    right_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(tile)) for ([tile], _, _) in right_extensions if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences])
+    right_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(tile)) for tile in waits if SUCC[SUCC[SUCC[tile]]] != 0 if to_sequence(tile) in sequences])
+    right_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, PRED[PRED[PRED[tile]]], to_sequence(tile)) for ([tile], _, _) in right_extensions if SUCC[SUCC[SUCC[tile]]] != 0 if to_sequence(tile) in sequences])
     return left_extensions + right_extensions
 
 def calculate_tanki_wait_extensions(groups: Tuple[int, ...], waits: Set[int]) -> List[Tuple[Set[int], int, Tuple[int, int, int]]]:
     sequences, triplets = extract_unique_groups(groups)
     # sequence extensions
     left_extensions = []
-    left_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[tile]])) for tile in waits if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences])
-    left_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[tile]])) for ([tile], _, _) in left_extensions if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[tile]]) in sequences])
+    left_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[tile]])) for tile in waits if PRED[PRED[PRED[tile]]] != 0 if to_sequence(PRED[PRED[tile]]) in sequences])
+    left_extensions.extend([({PRED[PRED[PRED[tile]]]}, SUCC[SUCC[SUCC[tile]]], to_sequence(PRED[PRED[tile]])) for ([tile], _, _) in left_extensions if PRED[PRED[PRED[tile]]] != 0 if to_sequence(PRED[PRED[tile]]) in sequences])
     left_adj_extensions = []
-    left_adj_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[PRED[tile]]])) for tile in waits if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[PRED[tile]]]) in sequences])
-    left_adj_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[PRED[tile]]])) for ([tile], _, _) in left_adj_extensions if PRED[PRED[PRED[tile]]] > 0 if to_sequence(PRED[PRED[PRED[tile]]]) in sequences])
+    left_adj_extensions.extend([({PRED[PRED[PRED[tile]]]}, tile, to_sequence(PRED[PRED[PRED[tile]]])) for tile in waits if PRED[PRED[PRED[tile]]] != 0 if to_sequence(PRED[PRED[PRED[tile]]]) in sequences])
+    left_adj_extensions.extend([({PRED[PRED[PRED[tile]]]}, SUCC[SUCC[SUCC[tile]]], to_sequence(PRED[PRED[PRED[tile]]])) for ([tile], _, _) in left_adj_extensions if PRED[PRED[PRED[tile]]] != 0 if to_sequence(PRED[PRED[PRED[tile]]]) in sequences])
     right_extensions = []
-    right_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(tile)) for tile in waits if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences])
-    right_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(tile)) for ([tile], _, _) in right_extensions if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(tile) in sequences])
+    right_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(tile)) for tile in waits if SUCC[SUCC[SUCC[tile]]] != 0 if to_sequence(tile) in sequences])
+    right_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, PRED[PRED[PRED[tile]]], to_sequence(tile)) for ([tile], _, _) in right_extensions if SUCC[SUCC[SUCC[tile]]] != 0 if to_sequence(tile) in sequences])
     right_adj_extensions = []
-    right_adj_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(SUCC[tile])) for tile in waits if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(SUCC[tile]) in sequences])
-    right_adj_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(SUCC[tile])) for ([tile], _, _) in right_adj_extensions if SUCC[SUCC[SUCC[tile]]] > 0 if to_sequence(SUCC[tile]) in sequences])
+    right_adj_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, tile, to_sequence(SUCC[tile])) for tile in waits if SUCC[SUCC[SUCC[tile]]] != 0 if to_sequence(SUCC[tile]) in sequences])
+    right_adj_extensions.extend([({SUCC[SUCC[SUCC[tile]]]}, PRED[PRED[PRED[tile]]], to_sequence(SUCC[tile])) for ([tile], _, _) in right_adj_extensions if SUCC[SUCC[SUCC[tile]]] != 0 if to_sequence(SUCC[tile]) in sequences])
     # triplet extensions
     triplet_extensions = []
     for tile in waits:
@@ -558,7 +561,7 @@ def get_shanten_type(shanten_int: int, starting_hand: Tuple[int, ...], groupless
                     # print(pair_shape, remaining, other_tiles)
                     add_hand((), add_i(pair_shape), tuple(sorted((*add_i(remaining), *other_tiles))))
                     if i == 3:
-                        break # honor suit cannot have complex shapes
+                        continue # honor suit cannot have complex shapes
                     # get all combinations of complex shapes possible
                     complex_suits: Suits = (*([{remaining} if i == j else complex_hands[j].copy() for j in range(3)]), set())
                     # remove the maximum number of groups

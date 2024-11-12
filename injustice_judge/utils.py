@@ -25,9 +25,6 @@ def try_remove_all_tiles(hand: Tuple[int, ...], tiles: Tuple[int, ...]) -> Tuple
             return orig_hand
     return hand
 
-to_sequence = lambda tile: (SUCC[SUCC[tile]], SUCC[tile], tile)
-to_triplet = lambda tile: (tile, tile, tile)
-
 def get_score(han: int, fu: int, is_dealer: bool, is_tsumo: bool, num_players: int) -> int:
     """
     Calculate the score given han and fu.
