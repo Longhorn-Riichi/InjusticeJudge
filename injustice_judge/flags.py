@@ -1,10 +1,11 @@
 from .classes import CallInfo, Dir
 from .classes2 import Draw, Hand, Kyoku, Ron, Score, Tsumo, Win
 from dataclasses import dataclass, field
-from .constants import Event, Shanten, JIHAI, LIMIT_HANDS, TRANSLATE, YAKUMAN, YAOCHUUHAI
+from .constants import Event, Shanten, JIHAI, LIMIT_HANDS, PRED, SUCC, TRANSLATE, YAKUMAN, YAOCHUUHAI
 from .display import ph, pt, print_pond, round_name
 from enum import Enum
-from .utils import apply_delta_scores, get_score, get_taatsu_wait, is_mangan, is_safe, normalize_red_five, normalize_red_fives, to_dora_indicator, to_placement
+from .shanten import to_suits, from_suits, eliminate_all_groups
+from .utils import apply_delta_scores, get_score, get_taatsu_wait, is_mangan, is_safe, normalize_red_five, normalize_red_fives, to_dora_indicator, to_placement, try_remove_all_tiles
 from .wall import print_wall, get_hidden_dead_wall, get_remaining_draws
 from .yaku import get_final_yaku, get_yaku, get_yakuman_tenpais, get_yakuman_waits
 from typing import *
@@ -119,6 +120,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_DREW_CALLABLE_TILE"
     " YOU_DREW_PREVIOUSLY_WAITED_TILE"
     " YOU_DROPPED_PLACEMENT"
+    " YOU_DREW_THREE_SINGLE_WAITS"
     " YOU_FLIPPED_DORA_BOMB"
     " YOU_FOLDED_FROM_TENPAI"
     " YOU_GAINED_PLACEMENT"
@@ -182,6 +184,7 @@ class KyokuPlayerState:
     ponnable_tiles: Set[int]                          = field(default_factory=set)
     passed_calls: List[Tuple[str, int, Dir]]          = field(default_factory=list)
     all_passed_calls: List[Tuple[str, int, Dir, int]] = field(default_factory=list)
+    single_wait_fills: List[Tuple[int, ...]]          = field(default_factory=list)
     def __post_init__(self) -> None:
         # respects_riichi[other_player] =
         #   True if their first discard after our riichi was a safe tile
@@ -318,6 +321,22 @@ class KyokuState:
                                          "call_direction": call_direction,
                                          "turns_ago": self.at[seat].turn - turn})
                     break
+        # see if we filled a kanchan/penchan from a draw
+        old_groups_removed = next(from_suits(eliminate_all_groups(to_suits(tuple(normalize_red_fives(prev_hand.hidden_part))))))
+        new_groups_removed = next(from_suits(eliminate_all_groups(to_suits(tuple(normalize_red_fives(self.at[seat].hand.hidden_part))))))
+        taatsu_filled = try_remove_all_tiles(old_groups_removed, new_groups_removed)
+        if taatsu_filled != old_groups_removed:
+            import os
+            if os.getenv("debug"):
+                assert len(taatsu_filled) == 2, "filled taatsu was not length 2"
+            if len(taatsu_filled) == 2:
+                (t1, t2) = sorted(taatsu_filled)
+                is_penchan = t2 == SUCC[t1] and 0 in (PRED[t1], SUCC[t2])
+                is_kanchan = t2 == SUCC[SUCC[t1]]
+                if is_penchan or is_kanchan:
+                    self.at[seat].single_wait_fills.append(taatsu_filled)
+                    if len(self.at[seat].single_wait_fills) >= 3:
+                        self.add_flag(seat, Flags.YOU_DREW_THREE_SINGLE_WAITS, {"taatsus": self.at[seat].single_wait_fills})
 
         self.at[seat].consecutive_calls = 0
         self._process_draw_call(i, seat, event_type, tile, prev_hand)
@@ -635,7 +654,6 @@ class KyokuState:
             if new_shanten[0] > 0:
                 self.add_flag(seat, Flags.YOU_FOLDED_FROM_TENPAI)
                 self.add_global_flag(Flags.SOMEONE_FOLDED_FROM_TENPAI, {"seat": seat})
-        # bunch of things to check if we're tenpai
 
     def process_tenpai(self, i: int, seat: int, event_type: str,
                        prev_shanten: Shanten, new_shanten: Shanten,

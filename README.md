@@ -39,6 +39,8 @@ Analyzes your Mahjong Soul, `tenhou.net`, or Riichi City game to find instances 
 - You would have drawn your tile had the game continued for three more draws
 - A riichi player would have dropped your tile had the game continued for three more draws
 - A previous discard passed but the very next turn you discarded the same tile and it dealt in
+- Someone tsumoed on your wait
+- You had a choice between tenpai waits, and someone else's very next discard would have dealt into the one you didn't choose
 
 __Note__: This program was explicitly written to
 
@@ -64,6 +66,8 @@ Newest feature on the block is skill detection. Skills are instances of pure mah
 - Your very last draw brought you into tenpai (so you could get noten payments)
 - You chased someone's tenpai and won with ippatsu
 - You gained placement only because you had ura
+- You waited to riichi and got ippatsu when you did
+- You drew and filled 3+ kanchan/penchan in a single round
 - You won some silly yaku (ippatsu tsumo, rinshan, chankan, haitei, sankantsu, ryanpeikou, sanshoku doukou, double riichi, nagashi mangan)
 - You got any yakuman (or sanbaiman)
 

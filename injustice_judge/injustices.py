@@ -565,6 +565,14 @@ def you_skipped_win_but_got_noten_payments(flags: List[Flags], data: List[Dict[s
                         verb="skipped calling",
                         content=f"{call_string} in order to get noten payments"))]
 
+@skill(require=[Flags.YOU_DREW_THREE_SINGLE_WAITS])
+def you_drew_three_single_waits(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    taatsus = data[len(flags) - 1 - flags[::-1].index(Flags.YOU_DREW_THREE_SINGLE_WAITS)]["taatsus"]
+    return [Skill(kyoku.round, kyoku.honba, "Skill",
+            CheckClause(subject="you",
+                        verb="drew into",
+                        content=f"{len(taatsus)} kanchans/penchans {' '.join([ph(taatsu) for taatsu in taatsus])}"))]
+
 ###
 ### final round skills
 ###
