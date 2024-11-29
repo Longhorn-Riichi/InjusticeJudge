@@ -142,7 +142,7 @@ class Hand:
         if shanten >= 2:
             return 0
         wait_tiles = set(normalize_red_fives(waits))
-        visible = list(normalize_red_fives(list(self.tiles_with_kans) + list(visible)))
+        visible = list(normalize_red_fives(list(self.hidden_part) + list(visible)))
         return 4 * len(wait_tiles) - sum(visible.count(wait) for wait in wait_tiles)
     def get_majority_suit(self) -> Optional[Set[int]]:
         # returns one of {MANZU, PINZU, SOUZU}
@@ -448,14 +448,13 @@ class Kyoku:
         """Get all the currently visible tiles, used for ukeire calculations"""
         pond_tiles = [tile for seat in range(self.num_players) for tile in self.pond[seat]]
         dora_indicators = [to_dora_indicator(dora, self.num_players) for dora in self.doras if dora not in {51,52,53}][:self.num_dora_indicators_visible]
-        def get_invisible_part(call):
+        def get_undiscarded_part(call):
             # get the part of the call that isn't already counted as part of the pond
             ret = list(call.tiles)
             if call.type not in {"ankan", "kita"}:
                 ret.remove(call.tile)
             return ret
-
-        visible_calls = [tile for hand in self.hands for call in hand.calls for tile in get_invisible_part(call)]
+        visible_calls = [tile for hand in self.hands for call in hand.calls for tile in get_undiscarded_part(call)]
         # visible tiles = all of the above combined
         visible_tiles = pond_tiles + dora_indicators + visible_calls
         # the result might contain the final deal-in tile
