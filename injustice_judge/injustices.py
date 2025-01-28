@@ -364,7 +364,7 @@ def head_bumped_someone(flags: List[Flags], data: List[Dict[str, Any]], kyoku: K
         return []
 
 @skill(require=[Flags.YOU_WON_AFTER_SOMEONES_RIICHI],
-        forbid=[Flags.YOU_WON_OFF_TENPAI_TILE])
+        forbid=[Flags.YOU_WON_OFF_RIICHI_TILE])
 def robbed_riichi_stick(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     seat = data[flags.index(Flags.YOU_WON_AFTER_SOMEONES_RIICHI)]["seat"]
     return [Skill(kyoku.round, kyoku.honba, "Skill",
@@ -972,7 +972,7 @@ TENPAI_STATUS_STRINGS = [
 ]
 def tenpai_status_string(flags: List[Flags]) -> str:
     status = ""
-    if Flags.YOU_DECLARED_RIICHI in flags and not Flags.YOUR_TENPAI_TILE_DEALT_IN in flags:
+    if Flags.YOU_DECLARED_RIICHI in flags and not Flags.YOUR_RIICHI_TILE_DEALT_IN in flags:
         status = TENPAI_STATUS_STRINGS[0]
     elif Flags.YOU_REACHED_TENPAI in flags:
         status = TENPAI_STATUS_STRINGS[1]

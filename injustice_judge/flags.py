@@ -142,7 +142,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_WERE_THIRD"
     " YOU_WERE_FOURTH"
     " YOU_WON"
-    " YOU_WON_OFF_TENPAI_TILE"
+    " YOU_WON_OFF_RIICHI_TILE"
     " YOU_WON_AFTER_SOMEONES_RIICHI"
     " YOUR_FURITEN_HAND_COULD_HAVE_WON"
     " YOUR_LAST_DISCARD_ENDED_NAGASHI"
@@ -503,18 +503,19 @@ class KyokuState:
         # check if this is the deal-in tile
         is_last_discard_of_the_game = i == max(self.kyoku.final_discard_event_index)
         if is_last_discard_of_the_game and self.kyoku.result[0] == "ron":
-            # check if this was a riichi discard
+            # check if this ron was on a riichi discard
             if event_type == "riichi":
                 self.add_flag(seat, Flags.YOUR_RIICHI_TILE_DEALT_IN, {"tile": tile})
-            # check if we just reached tenpai
-            already_tenpai = Flags.YOU_REACHED_TENPAI in self.flags[seat]
-            if not already_tenpai and any(e[0] == seat and e[1] == "tenpai" for e in self.kyoku.events[i:]):
-                self.add_flag(seat, Flags.YOUR_TENPAI_TILE_DEALT_IN, {"tile": tile})
                 for win in self.kyoku.result[1:]:
-                    self.add_flag(win.winner, Flags.YOU_WON_OFF_TENPAI_TILE, {"seat": seat, "tile": tile})
-            # check if we're tenpai and this would have been our last discard before noten payments
-            if already_tenpai and self.tiles_in_wall <= 3:
-                self.add_flag(seat, Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT, {"tile": tile})
+                    self.add_flag(win.winner, Flags.YOU_WON_OFF_RIICHI_TILE, {"seat": seat, "tile": tile})
+            # check if this ron was on a tenpai discard
+            if any(e[0] == seat and e[1] == "tenpai" for e in self.kyoku.events[i:]):
+                # check if we just became tenpai
+                if Flags.YOU_REACHED_TENPAI not in self.flags[seat]:
+                    self.add_flag(seat, Flags.YOUR_TENPAI_TILE_DEALT_IN, {"tile": tile})
+                # check if we dealt in on our last discard before getting noten payments
+                if self.tiles_in_wall <= 3:
+                    self.add_flag(seat, Flags.YOU_DEALT_IN_JUST_BEFORE_NOTEN_PAYMENT, {"tile": tile})
             # check if we had no choice but to deal in
             waits = {player: wait
                      for player in range(self.num_players)
