@@ -807,38 +807,51 @@ class KyokuState:
         #         self.add_flag(player, Flags.DREW_WORST_HAIPAI_SHANTEN, {"hand": self.kyoku.haipai[player], "second_worst_shanten": second_worst_shanten})
         
     def process_end_game(self, i: int, seat: int, event_type: str, raw_result: List[Any]):
-        # here we check the wall to see if anyone would have won had the game not ended
         if len(self.kyoku.wall) > 0:
+            dead_wall = get_hidden_dead_wall(wall=self.kyoku.wall,
+                                             num_kans=self.num_kans,
+                                             sanma=self.num_players == 3,
+                                             num_kitas=self.num_kitas)
             winners = {r[0] for r in raw_result[2::2]}
             for i in range(self.num_players):
                 player = (seat+i)%self.num_players
-                if player not in winners and self.at[player].hand.shanten[0] == 0:
-                    wait = self.at[player].hand.shanten[1]
-                    yakuman_tenpais = get_yakuman_tenpais(self.at[player].hand)
-                    # check if we would have tsumoed the tile
-                    draws = get_remaining_draws(wall=self.kyoku.wall,
-                                                tiles_in_wall=self.tiles_in_wall - ((i+3)%4),
-                                                sanma=self.num_players == 3,
-                                                num_kans_kitas=self.num_kans + self.num_kitas)
-                    if len(yakuman_tenpais) == 0:
-                        draws = draws[:3]
-                    if not set(wait).isdisjoint(set(normalize_red_fives(draws))):
-                        self.add_flag(player, Flags.COULD_HAVE_TSUMOED, {"wait": wait, "draws": draws, "yakuman_tenpais": yakuman_tenpais})
-                    # check if a riichi player would have drawn the tile and we could call ron on it
-                    if not self.at[player].furiten:
-                        for j in range(self.num_players):
-                            riichi_player = (seat+j)%self.num_players
-                            if player == riichi_player or not self.at[riichi_player].in_riichi:
-                                continue
-                            riichi_wait = self.at[riichi_player].hand.shanten[1]
-                            draws = get_remaining_draws(wall=self.kyoku.wall,
-                                                        tiles_in_wall=self.tiles_in_wall - ((j+3)%4),
-                                                        sanma=self.num_players == 3,
-                                                        num_kans_kitas=self.num_kans + self.num_kitas)
-                            if len(yakuman_tenpais) == 0:
-                                draws = draws[:3]
-                            if not (set(wait) - set(riichi_wait)).isdisjoint(set(normalize_red_fives(draws))):
-                                self.add_flag(player, Flags.COULD_HAVE_RONNED, {"riichi_player": riichi_player, "wait": wait, "draws": draws, "yakuman_tenpais": yakuman_tenpais})
+                if self.at[player].hand.shanten[0] == 0:
+                    # check the dead wall for our waits
+                    in_dead_wall = sum(dead_wall.count(tile) for tile in self.at[player].hand.shanten[1])
+                    ukeire = self.kyoku.get_ukeire(player)
+                    if ukeire > 0 and in_dead_wall >= (ukeire+1) // 2:
+                        self.add_flag(player, Flags.WAIT_WAS_IN_DEAD_WALL,
+                                 {"wait": self.at[player].hand.shanten[1],
+                                  "ukeire": ukeire,
+                                  "num_tiles": in_dead_wall})
+                    # check the wall to see if we would have won had the game not ended
+                    if player not in winners:
+                        wait = self.at[player].hand.shanten[1]
+                        yakuman_tenpais = get_yakuman_tenpais(self.at[player].hand)
+                        # check if we would have tsumoed the tile
+                        draws = get_remaining_draws(wall=self.kyoku.wall,
+                                                    tiles_in_wall=self.tiles_in_wall - ((i+3)%4),
+                                                    sanma=self.num_players == 3,
+                                                    num_kans_kitas=self.num_kans + self.num_kitas)
+                        if len(yakuman_tenpais) == 0:
+                            draws = draws[:3]
+                        if not set(wait).isdisjoint(set(normalize_red_fives(draws))):
+                            self.add_flag(player, Flags.COULD_HAVE_TSUMOED, {"wait": wait, "draws": draws, "yakuman_tenpais": yakuman_tenpais})
+                        # check if a riichi player would have drawn the tile and we could call ron on it
+                        if not self.at[player].furiten:
+                            for j in range(self.num_players):
+                                riichi_player = (seat+j)%self.num_players
+                                if player == riichi_player or not self.at[riichi_player].in_riichi:
+                                    continue
+                                riichi_wait = self.at[riichi_player].hand.shanten[1]
+                                draws = get_remaining_draws(wall=self.kyoku.wall,
+                                                            tiles_in_wall=self.tiles_in_wall - ((j+3)%4),
+                                                            sanma=self.num_players == 3,
+                                                            num_kans_kitas=self.num_kans + self.num_kitas)
+                                if len(yakuman_tenpais) == 0:
+                                    draws = draws[:3]
+                                if not (set(wait) - set(riichi_wait)).isdisjoint(set(normalize_red_fives(draws))):
+                                    self.add_flag(player, Flags.COULD_HAVE_RONNED, {"riichi_player": riichi_player, "wait": wait, "draws": draws, "yakuman_tenpais": yakuman_tenpais})
 
     def process_result(self, i: int, seat: int, event_type: str, result_type: str, *results: Union[Ron, Tsumo, Draw]) -> None:
         # check if the last discard was a riichi (it must have dealt in)
@@ -970,22 +983,6 @@ class KyokuState:
                              {"draw_name": draw.name,
                               "shanten": self.kyoku.haipai[seat].shanten,
                               "hand": self.at[seat].hand})
-
-        # if we have wall information, check the dead wall for players' waits
-        if len(self.kyoku.wall) > 0:
-            dead_wall = get_hidden_dead_wall(wall=self.kyoku.wall,
-                                             num_kans=self.num_kans,
-                                             sanma=self.num_players == 3,
-                                             num_kitas=self.num_kitas)
-            for seat in range(self.num_players):
-                if self.at[seat].hand.shanten[0] == 0:
-                    in_dead_wall = sum(dead_wall.count(tile) for tile in self.at[seat].hand.shanten[1])
-                    ukeire = self.kyoku.get_ukeire(seat)
-                    if ukeire > 0 and in_dead_wall >= (ukeire+1) // 2:
-                        self.add_flag(seat, Flags.WAIT_WAS_IN_DEAD_WALL,
-                                 {"wait": self.at[seat].hand.shanten[1],
-                                  "ukeire": ukeire,
-                                  "num_tiles": in_dead_wall})
 
     def _process_win_result(self, result: Win, is_tsumo: bool) -> None:
         winning_tile = self.kyoku.final_draw if is_tsumo else self.kyoku.final_discard

@@ -160,7 +160,7 @@ def get_hidden_dead_wall(wall: List[int], num_kans: int, sanma: bool, num_kitas:
     dora_indicators = wall[-10:-20:-2] if sanma else wall[-6:-16:-2]
     ura_indicators = wall[-9:-19:-2] if sanma else wall[-5:-15:-2]
     later_tiles = wall[-14-num_kans-num_kitas:-14]
-    return kan_kita_tiles + [0] + dora_indicators[1+num_kans:] + [0] + ura_indicators + [0] + later_tiles
+    return kan_kita_tiles + [0] + dora_indicators[num_kans:] + [0] + ura_indicators + [0] + later_tiles
 
 def get_remaining_wall(wall: List[int], tiles_in_wall: int, sanma: bool, num_kans_kitas: int = 0) -> List[int]:
     """Get all remaining drawable wall tiles in order"""
