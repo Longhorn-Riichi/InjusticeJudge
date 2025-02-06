@@ -875,7 +875,8 @@ class KyokuState:
 
         # check for placement changes
         placement_before = to_placement(self.kyoku.start_scores, self.kyoku.num_players, self.kyoku.round%4)
-        new_scores = apply_delta_scores(self.kyoku.start_scores, self.kyoku.result[1].score_delta)
+        old_scores = apply_delta_scores(self.kyoku.start_scores, [-1000 if at.in_riichi else 0 for at in self.at])
+        new_scores = apply_delta_scores(old_scores, self.kyoku.result[1].score_delta)
         placement_after = to_placement(new_scores, self.kyoku.num_players, self.kyoku.round%4)
         for old, new in set(zip(placement_before, placement_after)) - {(x,x) for x in range(4)}:
             self._process_placement_change(placement_before.index(old), old+1, new+1, self.kyoku.start_scores, self.kyoku.result[1].score_delta)
