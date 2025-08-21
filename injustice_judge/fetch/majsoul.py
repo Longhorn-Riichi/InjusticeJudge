@@ -111,15 +111,15 @@ class MahjongSoulAPI:
         assert self.mjs_token is not None
         import requests
         import uuid
-        # print("Calling heatbeat...")
-        await self.call("heatbeat")
+        # print("Calling heartbeat...")
+        await self.call("heartbeat")
         # print("Requesting initial access token...")
         USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
         access_token = requests.post(url="https://passport.mahjongsoul.com/user/login", headers={"User-Agent": USER_AGENT, "Referer": "https://mahjongsoul.game.yo-star.com/"}, data={"uid":self.mjs_uid,"token":self.mjs_token,"deviceId":f"web|{self.mjs_uid}"}).json()["accessToken"]
         # print("Requesting oauth access token...")
         oauth_token = cast(proto.ResOauth2Auth, await self.call("oauth2Auth", type=7, code=access_token, uid=self.mjs_uid, client_version_string=self.client_version_string)).access_token
-        # print("Calling heatbeat...")
-        await self.call("heatbeat")
+        # print("Calling heartbeat...")
+        await self.call("heartbeat")
         # print("Calling oauth2Check...")
         assert cast(proto.ResOauth2Check, await self.call("oauth2Check", type=7, access_token=oauth_token)).has_account, "couldn't find account with oauth2Check"
         # print("Calling oauth2Login...")
