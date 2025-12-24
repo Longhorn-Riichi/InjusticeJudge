@@ -55,8 +55,8 @@ class MahjongSoulAPI:
         assert method is not None, f"couldn't find method {name}"
 
         # prepare the payload (req) and a place to store the response (res)
-        req: Message = pb.reflection.MakeClass(method.input_type)(**fields)  # type: ignore[attr-defined]
-        res: Message = pb.reflection.MakeClass(method.output_type)()  # type: ignore[attr-defined]
+        req: Message = pb.message_factory.GetMessageClass(method.input_type)(**fields)  # type: ignore[attr-defined]
+        res: Message = pb.message_factory.GetMessageClass(method.output_type)()  # type: ignore[attr-defined]
         # the Res* response must have an error field
         assert hasattr(res, "error"), f"Got non-Res object: {res}\n\nfrom request: {req}"
 
@@ -132,7 +132,7 @@ def parse_wrapped_bytes(data: bytes) -> Tuple[str, Message]:
     wrapper.ParseFromString(data)
     name = wrapper.name.strip(f'.{proto.DESCRIPTOR.package}')
     try:
-        msg = pb.reflection.MakeClass(proto.DESCRIPTOR.message_types_by_name[name])()  # type: ignore[attr-defined]
+        msg = pb.message_factory.GetMessageClass(proto.DESCRIPTOR.message_types_by_name[name])()  # type: ignore[attr-defined]
         msg.ParseFromString(wrapper.data)
     except KeyError as e:
         raise Exception(f"Failed to find message name {name}")
