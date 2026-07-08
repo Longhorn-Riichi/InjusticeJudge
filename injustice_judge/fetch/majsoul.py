@@ -113,18 +113,15 @@ class MahjongSoulAPI:
         import uuid
         # print("Calling heartbeat...")
         await self.call("heartbeat")
-        # print("Requesting initial access token...")
-        USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0"
-        access_token = requests.post(url="https://passport.mahjongsoul.com/user/login", headers={"User-Agent": USER_AGENT, "Referer": "https://mahjongsoul.game.yo-star.com/"}, data={"uid":self.mjs_uid,"token":self.mjs_token,"deviceId":f"web|{self.mjs_uid}"}).json()["accessToken"]
         # print("Requesting oauth access token...")
-        oauth_token = cast(proto.ResOauth2Auth, await self.call("oauth2Auth", type=7, code=access_token, uid=self.mjs_uid, client_version_string=self.client_version_string)).access_token
+        oauth_token = cast(proto.ResOauth2Auth, await self.call("oauth2Auth", type=22, code=self.mjs_token, uid=self.mjs_uid, client_version_string=self.client_version_string)).access_token
         # print("Calling heartbeat...")
         await self.call("heartbeat")
         # print("Calling oauth2Check...")
-        assert cast(proto.ResOauth2Check, await self.call("oauth2Check", type=7, access_token=oauth_token)).has_account, "couldn't find account with oauth2Check"
+        assert cast(proto.ResOauth2Check, await self.call("oauth2Check", type=22, access_token=oauth_token)).has_account, "couldn't find account with oauth2Check"
         # print("Calling oauth2Login...")
         client_device_info = {"platform": "pc", "hardware": "pc", "os": "mac", "is_browser": True, "software": "Firefox", "sale_platform": "web"}  # type: ignore[dict-item]
-        await self.call("oauth2Login", type=7, access_token=oauth_token, reconnect=False, device=client_device_info, random_key=str(uuid.uuid1()), client_version={"resource": f"{self.version}.w"}, currency_platforms=[], client_version_string=self.client_version_string, tag="en")
+        await self.call("oauth2Login", type=22, access_token=oauth_token, reconnect=False, device=client_device_info, random_key=str(uuid.uuid1()), client_version={"resource": f"{self.version}.w"}, currency_platforms=[], client_version_string=self.client_version_string, tag="en")
 
 def parse_wrapped_bytes(data: bytes) -> Tuple[str, Message]:
     """Used to unwrap Mahjong Soul messages in fetch_majsoul() below"""

@@ -132,13 +132,13 @@ This is only required if you want to analyze mahjong soul logs. Create a `config
     ms_uid = "<your uid>"
     ms_token = "<your token>"
 
-Both your UID (not friend code!) and token can be found by capturing the login request.
+Both your UID (not friend code!) and token can be found by capturing the quick-login request.
 To do this:
 
-- Open up the Network tab in the developer tools of your browser and filter for XHR requests.
+- Open up the Network tab in the developer tools of your browser and filter for requests containing `quick-login`
 - Visit Mahjong Soul with the Network tab open.
 - Once you see a request that says POST, click it.
-- Check the request field, which should contain your UID and token: `{"uid":"<your uid>","token":"<your token>","deviceId":"..."}`
+- Check the request field, which should contain your UID and token: `{"Head": {"UID":"<your uid>", "Token":"<your token>", ... }, ... }`
 
 ## Setup for riichi city links
 
