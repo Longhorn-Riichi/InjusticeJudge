@@ -40,8 +40,9 @@ class MahjongSoulAPI:
     async def __aenter__(self) -> "MahjongSoulAPI":
         import requests
         # url is the __MJ_GAME_INFO_API__ key of https://www.maj-soul.com/dhs/js/config.js
-        self.version = requests.get(url="https://game.maj-soul.com/1/version.json").json()["version"][:-2]
-        self.client_version_string = f"web-{self.version}"
+        # self.version = requests.get(url="https://game.maj-soul.com/1/version.json").json()["version"][:-2]
+        self.version = "0.16.0" # will need to figure out how to fetch version if this stops working
+        self.client_version_string = f"WebGL_2022-{self.version}"
         await self.login()
         return self
     async def __aexit__(self, err_type: Optional[Type[BaseException]], 
@@ -111,6 +112,9 @@ class MahjongSoulAPI:
         assert self.mjs_token is not None
         import requests
         import uuid
+        import time
+        # print("Calling requestConnection...")
+        await self.call("requestConnection", type=1, route_id="en-2", timestamp=int(time.time()), platform="Web")
         # print("Calling heartbeat...")
         await self.call("heartbeat")
         # print("Requesting oauth access token...")

@@ -8012,6 +8012,7 @@ message ReqRequestConnection {
     uint32 type = 2;
     string route_id = 3;
     uint64 timestamp = 4;
+    string platform = 6;
 }
 
 message ResRequestConnection {
