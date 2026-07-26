@@ -41,7 +41,7 @@ class MahjongSoulAPI:
         import requests
         # url is the __MJ_GAME_INFO_API__ key of https://www.maj-soul.com/dhs/js/config.js
         # self.version = requests.get(url="https://game.maj-soul.com/1/version.json").json()["version"][:-2]
-        self.version = "0.16.0" # will need to figure out how to fetch version if this stops working
+        self.version = "0.16.213" # will need to figure out how to fetch version if this stops working
         self.client_version_string = f"WebGL_2022-{self.version}"
         await self.login()
         return self
