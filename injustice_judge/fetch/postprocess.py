@@ -25,6 +25,7 @@ def postprocess_events(all_events: List[List[Event]],
         kyoku: Kyoku = Kyoku(rules=metadata.rules, wall=wall, num_dora_indicators_visible=metadata.rules.starting_doras)
         shanten_before_last_draw: List[Shanten] = []
         flip_kan_dora_next_discard = False
+        add_riichi_stick_if_discard_passes = False
         def update_shanten(seat: int) -> None:
             old_shanten = shanten_before_last_draw[seat]
             new_shanten = kyoku.hands[seat].shanten
@@ -73,8 +74,6 @@ def postprocess_events(all_events: List[List[Event]],
                 kyoku.final_discard_event_index[seat] = len(kyoku.events) - 1
                 kyoku.pond[seat].append(tile)
                 update_shanten(seat)
-                if event_type == "riichi":
-                    kyoku.riichi_sticks += 1
             elif event_type in {"chii", "pon", "minkan"}: # calls
                 # process a call (which is like a special draw)
                 called_tile, call_tiles, call_dir = event_data
@@ -122,6 +121,13 @@ def postprocess_events(all_events: List[List[Event]],
                     kyoku.num_dora_indicators_visible += 1
                 else:
                     flip_kan_dora_next_discard = True
+            # if event was a riichi discard, check if it dealt in before placing the riichi stick on the table
+            if event_type == "riichi":
+                add_riichi_stick_if_discard_passes = True
+            elif add_riichi_stick_if_discard_passes:
+                if event_type != "end_game":
+                    kyoku.riichi_sticks += 1
+                add_riichi_stick_if_discard_passes = False
         assert len(kyoku.hands) > 0, f"somehow we never initialized the kyoku at index {len(kyokus)}"
         if len(kyokus) == 0:
             assert (kyoku.round, kyoku.honba) == (0, 0), f"kyoku numbering didn't start with East 1: instead it's {round_name(kyoku.round, kyoku.honba)}"

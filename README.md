@@ -84,20 +84,20 @@ You need a pipenv and python 3.10+
 
 Clone this repository, install requrements and run with either:
 
-- `python main.py -l '<log url>'`
-- `python main.py -l '<log url>' -p <seat number 0-3>`
+- `python main.py '<log url>'`
+- `python main.py '<log url>' -p <seat number 0-3>`
 
 where 0 = East, 1 = South, 2 = West, 3 = North.
 
 Outputs injustices to console.
 
 To output skills use `-m skill`:
-- `python main.py -l '<log url>' -m skill`
-- `python main.py -l '<log url>' -p <seat number 0-3> -m skill`
+- `python main.py '<log url>' -m skill`
+- `python main.py '<log url>' -p <seat number 0-3> -m skill`
 
 To output both skills and injustice use `-m both`:
-- `python main.py -l '<log url>' -m both`
-- `python main.py -l '<log url>' -p <seat number 0-3> -m both`
+- `python main.py '<log url>' -m both`
+- `python main.py '<log url>' -p <seat number 0-3> -m both`
 
 ## Usage (library)
 
