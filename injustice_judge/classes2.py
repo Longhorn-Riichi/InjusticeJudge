@@ -445,7 +445,7 @@ class Kyoku:
     def get_starting_score(self) -> int:
         return (sum(self.start_scores) + self.rules.riichi_value*self.riichi_sticks) // self.num_players
     def get_visible_tiles(self) -> List[int]:
-        """Get all the currently visible tiles, used for ukeire calculations"""
+        """Get all the currently visible tiles on the board, used for ukeire calculations"""
         pond_tiles = [tile for seat in range(self.num_players) for tile in self.pond[seat]]
         dora_indicators = [to_dora_indicator(dora, self.num_players) for dora in self.doras if dora not in {51,52,53}][:self.num_dora_indicators_visible]
         def get_undiscarded_part(call):

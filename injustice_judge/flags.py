@@ -736,8 +736,8 @@ class KyokuState:
         # if no calls, use tsumo score. else, get ron score
         calls_present = len(get_yaku_args["hand"].calls) > 0  # type: ignore[attr-defined]
         all_scores = get_yaku(**get_yaku_args, check_rons = calls_present, check_tsumos = not calls_present)  # type: ignore[arg-type]
-        visible_tiles = self.kyoku.get_visible_tiles()
-        formatted_scores = [(score, wait) for wait, score in all_scores.items() if visible_tiles.count(wait) > 0]
+        normalized_visible_tiles = list(normalize_red_fives(self.kyoku.get_visible_tiles() + list(hand.closed_part)))
+        formatted_scores = [(score, wait) for wait, score in all_scores.items() if normalized_visible_tiles.count(wait) < 4]
         if len(formatted_scores) > 0: # if wait is not dead
             best_score, takame = max(formatted_scores)
             han = best_score.han
@@ -748,7 +748,7 @@ class KyokuState:
             recalculate = han in {7, 9, 10, 12} or is_mangan(han-1, fu)
             if recalculate and not calls_present:
                 ron_scores = get_yaku(**get_yaku_args, check_rons = True, check_tsumos = False)  # type: ignore[arg-type]
-                formatted_ron_scores = [(score, wait) for wait, score in ron_scores.items() if visible_tiles.count(wait) > 0]
+                formatted_ron_scores = [(score, wait) for wait, score in ron_scores.items() if normalized_visible_tiles.count(wait) < 4]
                 if len(formatted_ron_scores) > 0: # if wait is not dead
                     best_ron_score, ron_takame = max(formatted_ron_scores)
                     ron_han = best_score.han
@@ -772,8 +772,7 @@ class KyokuState:
             # first, do standard yakuman, otherwise, try kazoe yakuman
             yakuman_waits: List[Tuple[str, Set[int]]] = [(y, get_yakuman_waits(self.at[seat].hand, y)) for y in get_yakuman_tenpais(self.at[seat].hand)]
             # only report the yakuman if the waits are not dead
-            visible = self.get_visible_tiles()
-            yakuman_types: Set[str] = {t for t, waits in yakuman_waits if not all(visible.count(wait) == 4 for wait in waits)}
+            yakuman_types: Set[str] = {t for t, waits in yakuman_waits if not all(normalized_visible_tiles.count(wait) == 4 for wait in waits)}
             if len(yakuman_types) > 0:
                 self.add_flag(seat, Flags.YOU_REACHED_YAKUMAN_TENPAI, {"hand": self.at[seat].hand, "types": yakuman_types, "waits": yakuman_waits})
             elif han >= 13 and not any(y in YAKUMAN for y, _ in best_score.yaku):
