@@ -1381,9 +1381,9 @@ def could_have_tsumoed(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
     else:
         index_string = f"in {earliest_winning_draw_index+1} turns"
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
-            CheckClause(subject="you",
-                        verb="ended up waiting on",
-                        content=f"{ph(wait, kyoku.doras)}{yakuman_str}, and had the round not ended by {kyoku.result[0]}, you would have drawn {pt(draws[earliest_winning_draw_index], kyoku.doras)} {index_string}"))]
+            CheckClause(subject="had the round",
+                        verb=f"not ended by {kyoku.result[0]},",
+                        content=f"you would have drawn your wait {pt(draws[earliest_winning_draw_index], kyoku.doras)} {index_string}"))]
 
 # Print if, had the round not ended, you would have ronned a riichi player within 5 turns
 @injustice(require=[Flags.COULD_HAVE_RONNED],
@@ -1402,9 +1402,9 @@ def could_have_ronned(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyo
     else:
         index_string = f"in {earliest_winning_draw_index+1} turns"
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
-            CheckClause(subject="you",
-                        verb="ended up waiting on",
-                        content=f"{ph(wait, kyoku.doras)}{yakuman_str}, and had the round not ended by {kyoku.result[0]}, {relative_seat_name(player, riichi_player)}'s riichi would have forced them to drop {pt(draws[earliest_winning_draw_index], kyoku.doras)} {index_string}"))]
+            CheckClause(subject="had the round",
+                        verb=f"not ended by {kyoku.result[0]},",
+                        content=f"{relative_seat_name(player, riichi_player)}'s riichi would have forced them to drop your wait {pt(draws[earliest_winning_draw_index], kyoku.doras)} {index_string}"))]
 
 # Print if ron or tsumo happened after your last nagashi discard
 @injustice(require=[Flags.YOU_ALMOST_GOT_NAGASHI, Flags.WINNER])
