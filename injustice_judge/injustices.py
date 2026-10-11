@@ -1304,6 +1304,22 @@ def couldnt_avoid_last_with_3_dora(flags: List[Flags], data: List[Dict[str, Any]
                         content=f"in fourth place and had a chance to come back with your {num_dora} dora,"
                                 f" but you couldn't since {relative_seat_name(player, winner)} won"))]
 
+# Print if you were fourth and lost your last dealer tenpai (mangan+) to a win (1-2 han) that didn't change your placement
+@injustice(require=[Flags.YOU_ARE_DEALER, Flags.YOU_WERE_FOURTH, Flags.YOU_HAD_LIMIT_TENPAI, Flags.WINNER],
+            forbid=[Flags.YOU_GAINED_POINTS, Flags.YOU_GAINED_PLACEMENT, Flags.YOU_FOLDED_FROM_TENPAI])
+def lost_last_dealership_to_cheap_hand(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    score: Score = data[flags.index(Flags.WINNER)]["score_object"]
+    limit_name = data[len(flags) - 1 - flags[::-1].index(Flags.YOU_HAD_LIMIT_TENPAI)]["limit_name"]
+    if kyoku.round < 4 or kyoku.honba > 0 or score.han > 2:
+        return []
+    else:
+        winner = data[flags.index(Flags.WINNER)]["seat"]
+        win_str = "tsumo" if Flags.GAME_ENDED_WITH_TSUMO in flags else "ron"
+        return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+                CheckClause(subject="you",
+                            verb="reached",
+                            content=f"dealer tenpai for {limit_name} while in fourth place, but lost your final dealership to {relative_seat_name(player, winner)}'s cheap {score.to_points()} point {win_str}"))]
+
 # Print if someone took your points and you dropped placement only because of ura
 @injustice(require=[Flags.YOU_LOST_POINTS, Flags.YOU_DROPPED_PLACEMENT, Flags.WINNER],
             forbid=[])

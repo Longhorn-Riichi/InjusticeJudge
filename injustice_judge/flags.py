@@ -851,6 +851,7 @@ class KyokuState:
         #         self.add_flag(player, Flags.DREW_WORST_HAIPAI_SHANTEN, {"hand": self.kyoku.haipai[player], "second_worst_shanten": second_worst_shanten})
         
     def process_end_game(self, i: int, seat: int, event_type: str, raw_result: List[Any]):
+        # check dead wall for waits
         if len(self.kyoku.wall) > 0:
             dead_wall = get_hidden_dead_wall(wall=self.kyoku.wall,
                                              num_kans=self.num_kans,
