@@ -779,7 +779,7 @@ class KyokuState:
         calls_present = len(get_yaku_args["hand"].calls) > 0  # type: ignore[attr-defined]
         all_scores = get_yaku(**get_yaku_args, check_rons = calls_present, check_tsumos = not calls_present)  # type: ignore[arg-type]
         globally_visible_tiles = self.kyoku.get_visible_tiles()
-        formatted_scores = [(score, wait) for wait, score in all_scores.items() if globally_visible_tiles.count(wait) > 0]
+        formatted_scores = [(score, wait) for wait, score in all_scores.items() if globally_visible_tiles.count(wait) < 4]
         if len(formatted_scores) > 0: # if wait is not dead
             best_score, takame = max(formatted_scores)
             han = best_score.han

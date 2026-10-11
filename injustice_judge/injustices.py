@@ -705,7 +705,7 @@ def chaser_won_with_worse_wait(flags: List[Flags], data: List[Dict[str, Any]], k
                                            f" with a worse wait {ph(chaser_wait, kyoku.doras)} ({chaser_ukeire} out{'s' if chaser_ukeire > 1 else ''})")))
         if Flags.YOU_LOST_POINTS in flags and Flags.GAME_ENDED_WITH_RON in flags:
             ret.append(Injustice(kyoku.round, kyoku.honba, "Major injustice",
-                       CheckClause(subject="you", verb="dealt into", object="it")))
+                       CheckClause(subject="you", verb="dealt into", object="it", last_subject="")))
         else:
             ret.append(Injustice(kyoku.round, kyoku.honba, "Injustice",
                        CheckClause(subject="they", verb="won")))

@@ -398,7 +398,7 @@ is_kokushi: CheckYakumanFunc = lambda hand: len(YAOCHUUHAI.intersection(hand.til
 
 # suuankou tenpai if hand is closed and we have 4 triplets, or 3 triplets and two pairs
 # which is to say, 3+ triplets + at most one unpaired tile
-is_suuankou: CheckYakumanFunc = lambda hand: all(call.type == "ankan" for call in hand.calls) and (mults := list(Counter(hand.tiles).values()), mults.count(3) >= 3 and mults.count(1) <= 1)[1]
+is_suuankou: CheckYakumanFunc = lambda hand: all(call.type == "ankan" or call.type == "kita" for call in hand.calls) and (mults := list(Counter(normalize_red_fives(hand.tiles)).values()), (mults.count(3) >= 3 and mults.count(1) <= 1) or mults.count(3) >= 4)[1]
 
 # shousuushi if we have exactly 10 winds (counting each wind at most 3 times)
 # OR 11 tiles of winds + no pair (i.e. only 6 kinds of tiles in hand)
