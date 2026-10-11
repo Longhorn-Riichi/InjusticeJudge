@@ -46,6 +46,7 @@ Flags = Enum("Flags", "_SENTINEL"
     " CHASER_GAINED_POINTS"
     " CHASER_LOST_POINTS"
     " CHII_GOT_OVERRIDDEN"
+    " COULD_HAVE_IMPROVED_WAIT_AFTER_RIICHI"
     " COULD_HAVE_RONNED"
     " COULD_HAVE_TSUMOED"
     " DEAL_IN_TILE_WAS_LAST_DISCARD"
@@ -337,6 +338,47 @@ class KyokuState:
                     self.at[seat].single_wait_fills.append(taatsu_filled)
                     if len(self.at[seat].single_wait_fills) >= 3:
                         self.add_flag(seat, Flags.YOU_DREW_THREE_SINGLE_WAITS, {"taatsus": self.at[seat].single_wait_fills})
+        # if we just declared riichi, check if we drew a tile that would have made for a wider wait
+        # without having to discard a dangerous tile (against any open or riichi hand)
+        just_declared_riichi = self.at[seat].in_riichi and self.at[seat].riichi_index == len(self.at[seat].pond) - 1
+        skipped_riichi = not self.at[seat].in_riichi and self.at[seat].hand.prev_shanten[0] == 0
+        if just_declared_riichi or skipped_riichi:
+            suit = normalize_red_five(tile) // 10
+            dangerous_opponents = [seat for seat in range(self.num_players) if self.at[seat].in_riichi or self.at[seat].hand.open_part != ()]
+            visible_tiles = self.get_visible_tiles()
+            if any(t // 10 == suit for t in self.at[seat].hand.prev_shanten[1]): # same suit as wait?
+                # see what the new shanten is if we discard any tile of the same suit
+                def score_waits(hand):
+                    ukeire = hand.ukeire(visible_tiles)
+                    waits = hand.shanten[1]
+                    # tanyao waits are worth 1, yaochuu worth 3
+                    return ukeire + sum(3 if t // 10 == 4 or t % 10 == 1 or t % 10 == 9 else 1 for t in waits)
+                best_hand = self.at[seat].hand
+                best_discard = tile
+                best_score = score_waits(best_hand)
+                visited = set()
+                for i in range(len(self.at[seat].hand.hidden_part)):
+                    t = normalize_red_five(self.at[seat].hand.hidden_part[i])
+                    if t in visited or t // 10 != suit:
+                        continue
+                    visited.add(t)
+                    if not all(is_safe(t, self.at[opp].genbutsu, visible_tiles) for opp in dangerous_opponents):
+                        continue
+                    new_hand = self.at[seat].hand.remove(t)
+                    if new_hand.shanten[0] > 0:
+                        continue
+                    new_score = score_waits(new_hand)
+                    if new_score > best_score:
+                        best_hand = new_hand
+                        best_discard = t
+                        best_score = new_score
+                if best_discard != tile:
+                    # print(f"after riichi with {ph(self.at[seat].hand.tiles)}, drew {pt(tile)}; shanten after discarding {pt(best_discard)} is {ph(self.at[seat].hand.prev_shanten[1])} => {ph(best_hand.shanten[1])}")
+                    self.add_flag(seat, Flags.COULD_HAVE_IMPROVED_WAIT_AFTER_RIICHI, {
+                        "draw": tile,
+                        "discard": best_discard,
+                        "old_waits": self.at[seat].hand.shanten[1],
+                        "new_waits": best_hand.shanten[1]})
 
         self.at[seat].consecutive_calls = 0
         self._process_draw_call(i, seat, event_type, tile, prev_hand)
@@ -736,8 +778,8 @@ class KyokuState:
         # if no calls, use tsumo score. else, get ron score
         calls_present = len(get_yaku_args["hand"].calls) > 0  # type: ignore[attr-defined]
         all_scores = get_yaku(**get_yaku_args, check_rons = calls_present, check_tsumos = not calls_present)  # type: ignore[arg-type]
-        visible_tiles = self.kyoku.get_visible_tiles()
-        formatted_scores = [(score, wait) for wait, score in all_scores.items() if visible_tiles.count(wait) > 0]
+        globally_visible_tiles = self.kyoku.get_visible_tiles()
+        formatted_scores = [(score, wait) for wait, score in all_scores.items() if globally_visible_tiles.count(wait) > 0]
         if len(formatted_scores) > 0: # if wait is not dead
             best_score, takame = max(formatted_scores)
             han = best_score.han
@@ -748,7 +790,7 @@ class KyokuState:
             recalculate = han in {7, 9, 10, 12} or is_mangan(han-1, fu)
             if recalculate and not calls_present:
                 ron_scores = get_yaku(**get_yaku_args, check_rons = True, check_tsumos = False)  # type: ignore[arg-type]
-                formatted_ron_scores = [(score, wait) for wait, score in ron_scores.items() if visible_tiles.count(wait) > 0]
+                formatted_ron_scores = [(score, wait) for wait, score in ron_scores.items() if globally_visible_tiles.count(wait) > 0]
                 if len(formatted_ron_scores) > 0: # if wait is not dead
                     best_ron_score, ron_takame = max(formatted_ron_scores)
                     ron_han = best_score.han

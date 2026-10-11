@@ -888,6 +888,20 @@ def iishanten_with_zero_tiles(flags: List[Flags], data: List[Dict[str, Any]], ky
                         verb="had",
                         content="zero outs at some point"))]
 
+# Print if you drew a tile that would have significantly improved your wait immediately after declaring riichi
+@injustice(require=[Flags.COULD_HAVE_IMPROVED_WAIT_AFTER_RIICHI])
+def could_have_improved_wait_after_riichi(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    # basically check if we have a bad wait, but could have had a good wait after drawing the ippatsu tile
+    # doesn't count if we would have had to discard a dangerous tile to achieve that good wait
+    draw = data[flags.index(Flags.COULD_HAVE_IMPROVED_WAIT_AFTER_RIICHI)]["draw"]
+    discard = data[flags.index(Flags.COULD_HAVE_IMPROVED_WAIT_AFTER_RIICHI)]["discard"]
+    old_waits = data[flags.index(Flags.COULD_HAVE_IMPROVED_WAIT_AFTER_RIICHI)]["old_waits"]
+    new_waits = data[flags.index(Flags.COULD_HAVE_IMPROVED_WAIT_AFTER_RIICHI)]["new_waits"]
+    return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+            CheckClause(subject=f"had you",
+                        verb="waited",
+                        content=f"one more round before declaring riichi waiting on {ph(old_waits)}, you would have immediately drawn {pt(draw)} and could have safely dropped {pt(discard)} for a better wait ({ph(new_waits)})"))]
+
 # Print if everyone immediately threw a dangerous tile after your riichi
 @injustice(require=[Flags.EVERYONE_DISRESPECTED_YOUR_RIICHI],
             forbid=[Flags.YOU_WON])
