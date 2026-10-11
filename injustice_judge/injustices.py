@@ -1061,12 +1061,13 @@ def baiman_oyakaburi(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyok
     win_data = data[flags.index(Flags.WINNER)]
     winner = win_data["seat"]
     furiten_string = ", while in furiten" if Flags.WINNER_WAS_FURITEN else ""
+    score = data[flags.index(Flags.WINNER_GOT_BAIMAN)]["score_object"]
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you", verb="were", object="dealer")),
             Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject=relative_seat_name(player, winner),
                         verb="got",
-                        object=f"a baiman tsumo{furiten_string}"))]
+                        object=f"a {score.get_limit_hand_name()} tsumo{furiten_string}"))]
 
 # Print if your riichi/tenpai tile dealt in
 @injustice(require=[Flags.YOUR_TENPAI_TILE_DEALT_IN])
