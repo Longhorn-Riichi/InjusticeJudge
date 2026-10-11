@@ -132,15 +132,6 @@ def format_result(seat: int, result_list: List[CheckResult], player_names: List[
             continue
         seen_results.add((clause.subject, clause.verb, content))
 
-        # ad-hoc check to avoid "shimocha got a baiman tsumo, and you got hit by shimocha's tsumo with ura 3"
-        # should become "shimocha got a baiman tsumo with ura 3"
-        has_objects = clause.object is not None and last_clause is not None and last_clause.object is not None
-        if has_objects and clause.subject == "you" and clause.verb == "got hit by":
-            tsumo_string = f"{last_clause.subject}'s tsumo"
-            if clause.object.startswith(tsumo_string) and last_clause.object.endswith("tsumo"):
-                clause = CheckClause(subject=last_clause.subject, verb="", object=clause.object[len(tsumo_string)+1:])
-                last_clause = None
-
         # add ", and" unless it's the first clause
         if last_clause is not None:
             ret += ", and"
@@ -1069,14 +1060,22 @@ def someone_got_bad_wait_ippatsu_tsumo(flags: List[Flags], data: List[Dict[str, 
 def baiman_oyakaburi(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     win_data = data[flags.index(Flags.WINNER)]
     winner = win_data["seat"]
-    furiten_string = ", while in furiten" if Flags.WINNER_WAS_FURITEN in flags else ""
     score = data[flags.index(Flags.WINNER_GOT_BAIMAN)]["score_object"]
+
+    hand_details = []
+    if Flags.WINNER_WAS_FURITEN in flags:
+        hand_details.append(", while in furiten")
+    if Flags.WINNER_GOT_URA_3 in flags:
+        hand_details.append(f", with ura {data[flags.index(Flags.WINNER_GOT_URA_3)]['value']}")
+    if Flags.WINNER_GOT_HIDDEN_DORA_3 in flags:
+        hand_details.append(f", with hidden dora {data[flags.index(Flags.WINNER_GOT_HIDDEN_DORA_3)]['value']}")
+    hand_details = "".join(hand_details)
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you", verb="were", object="dealer")),
             Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject=relative_seat_name(player, winner),
                         verb="got",
-                        object=f"a {score.get_limit_hand_name()} tsumo{furiten_string}"))]
+                        object=f"a {score.get_limit_hand_name()} tsumo{hand_details}"))]
 
 # Print if your riichi/tenpai tile dealt in
 @injustice(require=[Flags.YOUR_TENPAI_TILE_DEALT_IN])
@@ -1131,7 +1130,8 @@ def chose_wrong_tenpai(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
                                 f" then you would have won on the very next discard {pt(next_discard, doras=kyoku.doras)}"))]
 
 # Print if you dealt into ura 3 OR if someone else tsumoed and got ura 3
-@injustice(require=[Flags.WINNER_GOT_URA_3, Flags.YOU_LOST_POINTS])
+@injustice(require=[Flags.WINNER_GOT_URA_3, Flags.YOU_LOST_POINTS],
+           forbid=[Flags.YOU_ARE_DEALER, Flags.WINNER_GOT_BAIMAN]) # handled by baiman_oyakaburi
 def lost_points_to_ura_3(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     value = data[flags.index(Flags.WINNER_GOT_URA_3)]["value"]
     seat = data[flags.index(Flags.WINNER_GOT_URA_3)]["seat"]
@@ -1147,20 +1147,21 @@ def lost_points_to_ura_3(flags: List[Flags], data: List[Dict[str, Any]], kyoku: 
                         object=f"{relative_seat_name(player, seat)}'s hand with ura {value}{tenpai_status_string(flags)}"))]
 
 # Print if winner had 3+ han from dora tiles in the hidden part of hand
-@injustice(require=[Flags.WINNER_GOT_HIDDEN_DORA_3, Flags.YOU_LOST_POINTS])
+@injustice(require=[Flags.WINNER_GOT_HIDDEN_DORA_3, Flags.YOU_LOST_POINTS],
+           forbid=[Flags.YOU_ARE_DEALER, Flags.WINNER_GOT_BAIMAN]) # handled by baiman_oyakaburi
 def lost_points_to_hidden_dora_3(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     seat = data[flags.index(Flags.WINNER_GOT_HIDDEN_DORA_3)]["seat"]
     value = data[flags.index(Flags.WINNER_GOT_HIDDEN_DORA_3)]["value"]
-    if Flags.GAME_ENDED_WITH_RON in flags:
-        return [Injustice(kyoku.round, kyoku.honba, "Injustice",
-            CheckClause(subject="you",
-                        verb="dealt into",
-                        object=f"{relative_seat_name(player, seat)}'s hand with {value} hidden dora{tenpai_status_string(flags)}"))]
-    else:
+    if Flags.GAME_ENDED_WITH_TSUMO in flags:
         return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="got hit by",
                         object=f"{relative_seat_name(player, seat)}'s tsumo with {value} hidden dora"))]
+    else:
+        return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+            CheckClause(subject="you",
+                        verb="dealt into",
+                        object=f"{relative_seat_name(player, seat)}'s hand with {value} hidden dora{tenpai_status_string(flags)}"))]
 
 # Print if an early abortive draw happened with an iishanten haipai
 @injustice(require=[Flags.IISHANTEN_HAIPAI_ABORTED])
