@@ -145,7 +145,10 @@ Flags = Enum("Flags", "_SENTINEL"
     " YOU_WON"
     " YOU_WON_OFF_RIICHI_TILE"
     " YOU_WON_AFTER_SOMEONES_RIICHI"
+    " YOUR_CHIIHOU_WAS_CANCELLED"
+    " YOUR_DOUBLE_RIICHI_WAS_CANCELLED"
     " YOUR_FURITEN_HAND_COULD_HAVE_WON"
+    " YOUR_IPPATSU_WAS_CANCELLED"
     " YOUR_LAST_DISCARD_ENDED_NAGASHI"
     " YOUR_LAST_NAGASHI_TILE_CALLED"
     " YOUR_RIICHI_TILE_DEALT_IN"
@@ -176,6 +179,9 @@ class KyokuPlayerState:
     nagashi: bool                                     = True
     in_riichi: bool                                   = False
     riichi_index: Optional[int]                       = None
+    ippatsu_cancelled: Optional[Tuple[CallInfo, int]] = None
+    double_riichi_cancelled: Optional[Tuple[CallInfo, int]] = None
+    chiihou_cancelled: Optional[Tuple[CallInfo, int]] = None
     consecutive_off_suit_tiles: List[int]             = field(default_factory=list)
     past_waits: List[List[int]]                       = field(default_factory=list)
     dangerous_discards_passed: List[int]              = field(default_factory=list)
@@ -260,6 +266,9 @@ class KyokuState:
         self.at[seat].turn += 1
         self.tiles_in_wall -= 1
         self.at[seat].last_draw = tile
+        self.at[seat].ippatsu_cancelled = None
+        self.at[seat].double_riichi_cancelled = None
+        self.at[seat].chiihou_cancelled = None
         # check if draw would have completed a past wait
         for wait in self.at[seat].past_waits:
             if tile in wait:
@@ -381,6 +390,21 @@ class KyokuState:
                         "discard": best_discard,
                         "old_waits": self.at[seat].hand.shanten[1],
                         "new_waits": best_hand.shanten[1]})
+        # if our ippatsu or double riichi was cancelled, check if we would have gotten it if not cancelled
+        for player in range(self.num_players):
+            if player == seat:
+                continue
+            at = self.at[player]
+            shanten = self.at[player].hand.shanten
+            if at.ippatsu_cancelled is not None and normalize_red_five(tile) in shanten[1]:
+                self.add_flag(player, Flags.YOUR_IPPATSU_WAS_CANCELLED, {"call": at.ippatsu_cancelled[0], "caller": at.ippatsu_cancelled[1], "draw": tile, "shanten": shanten})
+                at.ippatsu_cancelled = None
+            if at.double_riichi_cancelled is not None:
+                self.add_flag(player, Flags.YOUR_DOUBLE_RIICHI_WAS_CANCELLED, {"call": at.double_riichi_cancelled[0], "caller": at.double_riichi_cancelled[1], "draw": tile, "shanten": shanten})
+                at.double_riichi_cancelled = None
+            if at.chiihou_cancelled is not None:
+                self.add_flag(player, Flags.YOUR_CHIIHOU_WAS_CANCELLED, {"call": at.chiihou_cancelled[0], "caller": at.chiihou_cancelled[1], "draw": tile, "shanten": shanten})
+                at.chiihou_cancelled = None
 
         self.at[seat].consecutive_calls = 0
         self._process_draw_call(i, seat, event_type, tile, prev_hand)
@@ -1200,6 +1224,27 @@ class KyokuState:
         if num_dora >= 3:
             self.add_flag(seat, Flags.CALLS_CONTAIN_THREE_DORA, {"amount": num_dora})
             self.add_global_flag(Flags.SOMEONE_HAS_THREE_DORA_VISIBLE, {"seat": seat, "amount": num_dora})
+        # check if this call cancels anyone's ippatsu or double riichi or chiihou
+        for player in range(self.num_players):
+            if player == seat:
+                continue
+            shanten = int(self.at[player].hand.shanten[0])
+            if shanten > 1:
+                continue
+            waits = self.at[player].hand.shanten[1]
+            # TODO technically chiihou kokushi can chankan with ankan, but it's chiihou kokushi
+            can_chankan = call.type == "kakan" and normalize_red_five(call.tile) in waits
+            if not can_chankan:
+                # this means it successfully cancels ippatsu/double riichi/chiihou
+                just_declared_riichi = self.at[player].in_riichi and self.at[player].riichi_index == len(self.at[player].pond) - 1
+                if just_declared_riichi:
+                    self.at[player].ippatsu_cancelled = (call, seat)
+                elif self.at[player].num_discards == 0:
+                    # only report one of these two
+                    if shanten == 0:
+                        self.at[player].chiihou_cancelled = (call, seat)
+                    elif shanten <= 1:
+                        self.at[player].double_riichi_cancelled = (call, seat)
 
     def _process_new_dora(self, seat: int, kan_call: CallInfo) -> None:
         # need to check if there's dora since it's possible to have called kan and not reveal a dora

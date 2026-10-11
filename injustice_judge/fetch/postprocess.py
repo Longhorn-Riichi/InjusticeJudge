@@ -1,7 +1,7 @@
 from ..classes import CallInfo, Dir, GameMetadata, GameRules
 from ..classes2 import Draw, Kyoku, Hand, Ron, Score, Tsumo
 from ..constants import Event, Shanten, TRANSLATE
-from ..display import round_name
+from ..display import round_name, ph
 from ..utils import to_dora
 from typing import *
 
@@ -35,8 +35,8 @@ def postprocess_events(all_events: List[List[Event]],
                 kyoku.events.append((seat, "shanten_change", old_shanten, new_shanten, kyoku.hands[seat], ukeire, kyoku.furiten[seat]))
         for i, (seat, event_type, *event_data) in enumerate(events):
             kyoku.events.append(events[i]) # copy every event we process
-            # if len(kyoku.hands) == metadata.num_players:
-            #     print(seat, event_type, ph(kyoku.hands[seat].closed_part), "|", ph(kyoku.hands[seat].open_part), event_data)
+            # if kyoku.round == 2 and kyoku.honba == 1:
+            #     print(seat, event_type, ph(kyoku.hands[seat].hidden_part), "|", ph(kyoku.hands[seat].open_part), event_data)
             if event_type == "start_game":
                 # initialize all the variables for this round to their starting value
                 kyoku.round, kyoku.honba, kyoku.riichi_sticks, kyoku.start_scores = event_data

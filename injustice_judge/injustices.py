@@ -5,7 +5,7 @@ from enum import Enum
 from typing import *
 from .display import ph, pt, relative_seat_name, round_name, shanten_name
 from .flags import Flags, determine_flags
-from .utils import apply_delta_scores, to_placement, normalize_red_fives
+from .utils import apply_delta_scores, to_placement, normalize_red_five, normalize_red_fives
 from pprint import pprint
 
 # This file provides `evaluate_game`, which is called by `__init__.py`
@@ -652,6 +652,34 @@ def four_shanten_after_first_row(flags: List[Flags], data: List[Dict[str, Any]],
                         verb="were still",
                         object=shanten_name(shanten),
                         content=f"after the first row of discards{all_last_str}"))]
+
+# Print if your ippatsu/double riichi/chiihou was cancelled by a call
+@injustice(require=[Flags.YOUR_CHIIHOU_WAS_CANCELLED])
+@injustice(require=[Flags.YOUR_DOUBLE_RIICHI_WAS_CANCELLED])
+def your_chiihou_was_cancelled(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
+    if Flags.YOUR_CHIIHOU_WAS_CANCELLED in flags:
+        call = data[flags.index(Flags.YOUR_CHIIHOU_WAS_CANCELLED)]["call"]
+        caller = data[flags.index(Flags.YOUR_CHIIHOU_WAS_CANCELLED)]["caller"]
+        draw = data[flags.index(Flags.YOUR_CHIIHOU_WAS_CANCELLED)]["draw"]
+        shanten = data[flags.index(Flags.YOUR_CHIIHOU_WAS_CANCELLED)]["shanten"]
+        modifier = "would" if normalize_red_five(draw) in shanten[1] else "might"
+        return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+                CheckClause(subject="you",
+                            verb=f"{modifier} have won",
+                            object="chiihou",
+                            content=f"if it wasn't cancelled by {relative_seat_name(player, caller)}'s first-turn {call.type}"))]
+    elif Flags.YOUR_DOUBLE_RIICHI_WAS_CANCELLED in flags:
+        call = data[flags.index(Flags.YOUR_DOUBLE_RIICHI_WAS_CANCELLED)]["call"]
+        caller = data[flags.index(Flags.YOUR_DOUBLE_RIICHI_WAS_CANCELLED)]["caller"]
+        draw = data[flags.index(Flags.YOUR_DOUBLE_RIICHI_WAS_CANCELLED)]["draw"]
+        shanten = data[flags.index(Flags.YOUR_DOUBLE_RIICHI_WAS_CANCELLED)]["shanten"]
+        modifier = "would" if shanten[0] == 0 or normalize_red_five(draw) in shanten[1] else "might"
+        return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+                CheckClause(subject="you",
+                            verb=f"{modifier} have been able to declare",
+                            object="double riichi",
+                            content=f"if it wasn't cancelled by {relative_seat_name(player, caller)}'s first-turn {call.type}"))]
+    return []
 
 ###
 ### mid game injustices
