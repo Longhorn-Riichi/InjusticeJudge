@@ -1060,7 +1060,7 @@ def someone_got_bad_wait_ippatsu_tsumo(flags: List[Flags], data: List[Dict[str, 
 def baiman_oyakaburi(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     win_data = data[flags.index(Flags.WINNER)]
     winner = win_data["seat"]
-    furiten_string = ", while in furiten" if Flags.WINNER_WAS_FURITEN else ""
+    furiten_string = ", while in furiten" if Flags.WINNER_WAS_FURITEN in flags else ""
     score = data[flags.index(Flags.WINNER_GOT_BAIMAN)]["score_object"]
     return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you", verb="were", object="dealer")),
