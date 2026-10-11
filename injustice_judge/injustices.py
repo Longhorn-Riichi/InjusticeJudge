@@ -132,6 +132,15 @@ def format_result(seat: int, result_list: List[CheckResult], player_names: List[
             continue
         seen_results.add((clause.subject, clause.verb, content))
 
+        # ad-hoc check to avoid "shimocha got a baiman tsumo, and you got hit by shimocha's tsumo with ura 3"
+        # should become "shimocha got a baiman tsumo with ura 3"
+        has_objects = clause.object is not None and last_clause is not None and last_clause.object is not None
+        if has_objects and clause.subject == "you" and clause.verb == "got hit by":
+            tsumo_string = f"{last_clause.subject}'s tsumo"
+            if clause.object.startswith(tsumo_string) and last_clause.object.endswith("tsumo"):
+                clause = CheckClause(subject=last_clause.subject, verb="", object=clause.object[len(tsumo_string)+1:])
+                last_clause = None
+
         # add ", and" unless it's the first clause
         if last_clause is not None:
             ret += ", and"
@@ -1126,16 +1135,16 @@ def chose_wrong_tenpai(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Ky
 def lost_points_to_ura_3(flags: List[Flags], data: List[Dict[str, Any]], kyoku: Kyoku, player: int) -> Sequence[CheckResult]:
     value = data[flags.index(Flags.WINNER_GOT_URA_3)]["value"]
     seat = data[flags.index(Flags.WINNER_GOT_URA_3)]["seat"]
-    if Flags.GAME_ENDED_WITH_RON in flags:
-        return [Injustice(kyoku.round, kyoku.honba, "Injustice",
-            CheckClause(subject="you",
-                        verb="dealt into",
-                        object=f"{relative_seat_name(player, seat)}'s hand with ura {value}{tenpai_status_string(flags)}"))]
-    else:
+    if Flags.GAME_ENDED_WITH_TSUMO in flags:
         return [Injustice(kyoku.round, kyoku.honba, "Injustice",
             CheckClause(subject="you",
                         verb="got hit by",
                         object=f"{relative_seat_name(player, seat)}'s tsumo with ura {value}"))]
+    else:
+        return [Injustice(kyoku.round, kyoku.honba, "Injustice",
+            CheckClause(subject="you",
+                        verb="dealt into",
+                        object=f"{relative_seat_name(player, seat)}'s hand with ura {value}{tenpai_status_string(flags)}"))]
 
 # Print if winner had 3+ han from dora tiles in the hidden part of hand
 @injustice(require=[Flags.WINNER_GOT_HIDDEN_DORA_3, Flags.YOU_LOST_POINTS])
