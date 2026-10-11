@@ -41,6 +41,9 @@ Analyzes your Mahjong Soul, `tenhou.net`, or Riichi City game to find instances 
 - A previous discard passed but the very next turn you discarded the same tile and it dealt in
 - Someone tsumoed on your wait
 - You had a choice between tenpai waits, and someone else's very next discard would have dealt into the one you didn't choose
+- You declared riichi and your very next draw could have improved your wait
+- You were fourth place and lost your last dealer mangan+ tenpai to a cheap hand
+- Your chiihou or double riichi was cancelled by a first turn call
 
 __Note__: This program was explicitly written to
 
