@@ -363,7 +363,9 @@ class KyokuState:
                         continue
                     visited.add(t)
                     if not all(is_safe(t, self.at[opp].genbutsu, visible_tiles) for opp in dangerous_opponents):
-                        continue
+                        continue # not safe tile against open or riichi opponent
+                    if any(opp != seat and self.at[opp].hand.shanten[0] == 0 and t in self.at[opp].hand.shanten[1] for opp in range(self.num_players)):
+                        continue # deals in
                     new_hand = self.at[seat].hand.remove(t)
                     if new_hand.shanten[0] > 0:
                         continue
@@ -462,12 +464,12 @@ class KyokuState:
         # but every discard that would give us tenpai deals into someone
         if 0 <= prev_hand.shanten[0] < 2:
             just_reached_tenpai = tile in prev_hand.shanten[1]
-            deals_into_someone = lambda tile: any(at.hand.shanten[0] == 0 and tile in at.hand.shanten[1] for at in self.at)
+            deals_into_someone = lambda tile, player: self.at[player].hand.shanten[0] == 0 and tile in self.at[player].hand.shanten[1]
             for player in range(self.num_players):
                 if player == seat:
                     continue
                 tenpai_discards = self.at[seat].hand.get_possible_tenpais()
-                if len(tenpai_discards) >= 1 and all(deals_into_someone(discard) for discard in tenpai_discards.keys()):
+                if len(tenpai_discards) >= 1 and all(deals_into_someone(discard, player) for discard in tenpai_discards.keys()):
                     self.add_flag(seat, Flags.ALL_TENPAI_DISCARDS_DEAL_IN, {
                         "hand": self.at[seat].hand,
                         "discards": tuple(tenpai_discards.keys()),
