@@ -375,7 +375,7 @@ class KyokuState:
                         continue # not safe tile against open or riichi opponent
                     if any(opp != seat and self.at[opp].hand.shanten[0] == 0 and t in self.at[opp].hand.shanten[1] for opp in range(self.num_players)):
                         continue # deals in
-                    new_hand = self.at[seat].hand.remove(t)
+                    new_hand = self.at[seat].hand.remove(self.at[seat].hand.hidden_part[i])
                     if new_hand.shanten[0] > 0:
                         continue
                     new_score = score_waits(new_hand)
