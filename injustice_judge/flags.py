@@ -350,8 +350,7 @@ class KyokuState:
         # if we just declared riichi, check if we drew a tile that would have made for a wider wait
         # without having to discard a dangerous tile (against any open or riichi hand)
         just_declared_riichi = self.at[seat].in_riichi and self.at[seat].riichi_index == len(self.at[seat].pond) - 1
-        skipped_riichi = not self.at[seat].in_riichi and self.at[seat].hand.prev_shanten[0] == 0
-        if just_declared_riichi or skipped_riichi:
+        if just_declared_riichi:
             suit = normalize_red_five(tile) // 10
             dangerous_opponents = [seat for seat in range(self.num_players) if self.at[seat].in_riichi or self.at[seat].hand.open_part != ()]
             visible_tiles = self.get_visible_tiles()
